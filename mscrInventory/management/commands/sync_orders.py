@@ -47,14 +47,27 @@ def to_decimal(value) -> Decimal:
     return Decimal(str(value))
 
 def _json_safe(value):
-    import datetime
+    import datetime, decimal
     if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
         return value.isoformat()
+    if isinstance(value, decimal.Decimal):
+        return float(value)
     if isinstance(value, dict):
         return {k: _json_safe(v) for k, v in value.items()}
     if isinstance(value, list):
         return [_json_safe(v) for v in value]
     return value
+
+# Old Version - the above function should correct it. 
+#def _json_safe(value):
+#    import datetime
+#    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+#        return value.isoformat()
+#    if isinstance(value, dict):
+#        return {k: _json_safe(v) for k, v in value.items()}
+#    if isinstance(value, list):
+#        return [_json_safe(v) for v in value]
+#    return value
 
 # ---------------------------
 # Shopify fetch (placeholder)
