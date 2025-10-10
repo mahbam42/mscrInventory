@@ -15,6 +15,23 @@ from .utils.reports import cogs_by_day, usage_detail_by_day
 
 
 # Register your models here.
+class UnmappedProductFilter(admin.SimpleListFilter):
+    title = 'Mapping Status'
+    parameter_name = 'mapped'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('mapped', 'Mapped'),
+            ('unmapped', 'Unmapped'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'mapped':
+            return queryset.exclude(name__startswith='Unmapped:')
+        if self.value() == 'unmapped':
+            return queryset.filter(name__startswith='Unmapped:')
+        return queryset
+    
 class RecipeItemInline(admin.TabularInline):
     model = RecipeItem
     extra = 1
@@ -26,7 +43,7 @@ class RecipeItemInline(admin.TabularInline):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'sku', 'category', 'active')
-    list_filter = ('category', 'active')
+    list_filter = (UnmappedProductFilter, 'category', 'active')
     search_fields = ('name', 'sku')
     inlines = [RecipeItemInline]   # 👈 use the inline class defined above
     ordering = ['name']
@@ -65,25 +82,9 @@ class OrderItemAdmin(admin.ModelAdmin):
     ordering = ['-order__order_date']
     readonly_fields = ('order', 'product', 'quantity', 'unit_price')
 
-class UnmappedProductFilter(admin.SimpleListFilter):
-    title = 'Mapping Status'
-    parameter_name = 'mapped'
 
-    def lookups(self, request, model_admin):
-        return (
-            ('mapped', 'Mapped'),
-            ('unmapped', 'Unmapped'),
-        )
-
-    def queryset(self, request, queryset):
-        if self.value() == 'mapped':
-            return queryset.exclude(name__startswith='Unmapped:')
-        if self.value() == 'unmapped':
-            return queryset.filter(name__startswith='Unmapped:')
-        return queryset
-
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ('sku', 'name', 'category')
-    list_filter = (UnmappedProductFilter, 'category')
-    search_fields = ('sku', 'name')
+# @admin.register(Product)
+# class ProductAdmin(admin.ModelAdmin):
+#     list_display = ('sku', 'name', 'category')
+#     list_filter = (UnmappedProductFilter, 'category')
+#     search_fields = ('sku', 'name')
