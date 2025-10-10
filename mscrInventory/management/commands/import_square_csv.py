@@ -6,6 +6,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
+import datetime
 
 from mscrInventory.management.commands.sync_orders import persist_orders
 
@@ -50,7 +51,9 @@ def parse_datetime(date_str: str, time_str: str, tz_str: str):
     # Square reports are in local tz; for now assume US/Eastern
     local_tz = timezone.get_fixed_timezone(-300)  # UTC-5 baseline; DST may be ignored for simplicity
     dt_local = local_tz.localize(dt_naive) if hasattr(local_tz, "localize") else dt_naive.replace(tzinfo=local_tz)
-    return dt_local.astimezone(timezone.utc)
+
+    return dt_local.astimezone(datetime.timezone.utc)
+    #return dt_local.astimezone(timezone.utc)
 
 
 class Command(BaseCommand):
@@ -112,3 +115,19 @@ class Command(BaseCommand):
 
         persist_orders("square", normalized_orders)
         self.stdout.write(self.style.SUCCESS(f"✅ Imported {len(normalized_orders)} Square orders successfully"))
+
+        # Summarize totals
+        total_orders = len(normalized_orders)
+        total_line_items = sum(len(o["items"]) for o in normalized_orders)
+        total_revenue = sum(o["total_amount"] for o in normalized_orders)
+
+        self.stdout.write("")
+        self.stdout.write(self.style.HTTP_INFO("📊 Import Summary"))
+        self.stdout.write(self.style.HTTP_INFO(f"   Orders:       {total_orders}"))
+        self.stdout.write(self.style.HTTP_INFO(f"   Line items:   {total_line_items}"))
+        self.stdout.write(self.style.HTTP_INFO(f"   Total revenue: ${total_revenue:.2f}"))
+        self.stdout.write("")
+
+        persist_orders("square", normalized_orders)
+        self.stdout.write(self.style.SUCCESS(f"✅ Imported {total_orders} Square orders successfully"))
+
