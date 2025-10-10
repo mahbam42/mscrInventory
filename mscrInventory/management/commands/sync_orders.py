@@ -373,15 +373,30 @@ class Command(BaseCommand):
         mock = options.get("mock")
 
         if date_str:
-            # Single-day mode (existing)
-            start_date = end_date = datetime.date.fromisoformat(date_str)
+        # Single-day mode
+            target_date = datetime.date.fromisoformat(date_str)
+            self._sync_for_date(target_date, mock=mock)
         elif start_str and end_str:
-            # Date range mode
+        # Range mode
             start_date = datetime.date.fromisoformat(start_str)
             end_date = datetime.date.fromisoformat(end_str)
+
+            current = start_date
+            while current <= end_date:
+                self._sync_for_date(current, mock=mock)
+                current += datetime.timedelta(days=1)
         else:
             self.stderr.write(self.style.ERROR("❌ Must provide --date OR --start-date and --end-date"))
-            return
+        # if date_str:
+        #     # Single-day mode (existing)
+        #     start_date = end_date = datetime.date.fromisoformat(date_str)
+        # elif start_str and end_str:
+        #     # Date range mode
+        #     start_date = datetime.date.fromisoformat(start_str)
+        #     end_date = datetime.date.fromisoformat(end_str)
+        # else:
+        #     self.stderr.write(self.style.ERROR("❌ Must provide --date OR --start-date and --end-date"))
+        #     return
 
         # Iterate over each date in the range
         current_date = start_date
@@ -446,3 +461,35 @@ class Command(BaseCommand):
 
             self.stdout.write(self.style.SUCCESS("Mock sync complete."))
             return
+
+    def _sync_for_date(self, target_date: datetime.date, mock: bool = False):
+        """
+        Sync Shopify (and later Square) orders for a single date.
+        This contains the logic that used to live in handle() for --date.
+        """
+        # Define UTC boundaries for the date
+        start_utc = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.min))
+        end_utc = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.max))
+
+        self.stdout.write(self.style.NOTICE(
+            f"📅 Syncing orders for {target_date} ({start_utc} → {end_utc} UTC)"
+        ))
+
+        # --- Shopify fetch ---
+        if mock:
+            shopify_orders, square_orders = self._mock_orders_for_date(target_date)
+        else:
+            shopify_orders = fetch_shopify_orders(start_utc, end_utc)
+            square_orders = []  # Square not integrated yet
+
+        self.stdout.write(self.style.SUCCESS(f"✅ Shopify orders fetched: {len(shopify_orders)}"))
+        self.stdout.write(self.style.SUCCESS(f"✅ Square orders fetched: {len(square_orders)}"))
+
+        # --- Persist to DB ---
+        with transaction.atomic():
+            persist_orders("shopify", shopify_orders)
+        if square_orders:
+            persist_orders("square", square_orders)
+
+        # You could optionally trigger ingredient usage logging here
+        self.stdout.write(self.style.SUCCESS(f"✨ Sync complete for {target_date}"))
