@@ -1,0 +1,66 @@
+# yourapp/management/commands/export_reports.py
+from __future__ import annotations
+import csv
+import datetime
+from pathlib import Path
+from decimal import Decimal
+from typing import Optional
+
+from django.core.management.base import BaseCommand, CommandError
+from django.conf import settings
+
+from yourapp.utils.reports import cogs_by_day, usage_detail_by_day
+
+
+class Command(BaseCommand):
+    help = "Export CSV reports for a date range: daily COGS summary and ingredient usage detail."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--start", required=True, type=str, help="Start date (YYYY-MM-DD)")
+        parser.add_argument("--end", required=True, type=str, help="End date (YYYY-MM-DD, inclusive)")
+        parser.add_argument("--outdir", type=str, default="reports",
+                            help="Output directory (default: ./reports)")
+        parser.add_argument("--tz", type=str, default=getattr(settings, "SYNC_TIMEZONE", "America/New_York"),
+                            help="Business timezone for day boundaries")
+
+    def handle(self, *args, **opts):
+        try:
+            start = datetime.date.fromisoformat(opts["start"])
+            end = datetime.date.fromisoformat(opts["end"])
+        except ValueError:
+            raise CommandError("Invalid --start or --end date; expected YYYY-MM-DD")
+
+        if end < start:
+            raise CommandError("--end must be >= --start")
+
+        outdir = Path(opts["outdir"])
+        outdir.mkdir(parents=True, exist_ok=True)
+
+        tzname = opts["tz"]
+
+        # 1) Daily COGS summary
+        cogs_rows = cogs_by_day(start, end, tzname=tzname)
+        cogs_path = outdir / f"cogs_by_day_{start}_{end}.csv"
+        with cogs_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["date", "cogs_total"])
+            for r in cogs_rows:
+                writer.writerow([r["date"], f"{r['cogs_total']:.2f}"])
+
+        # 2) Ingredient usage detail (with unit cost snapshot as-of-day)
+        usage_rows = usage_detail_by_day(start, end)
+        usage_path = outdir / f"usage_detail_{start}_{end}.csv"
+        with usage_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["date", "ingredient", "qty_used", "unit_cost_as_of_day", "cogs"])
+            for r in usage_rows:
+                writer.writerow([
+                    r["date"],
+                    r["ingredient"],
+                    f"{r['qty_used']:.3f}",
+                    f"{r['unit_cost']:.4f}",
+                    f"{r['cogs']:.2f}",
+                ])
+
+        self.stdout.write(self.style.SUCCESS(f"Wrote: {cogs_path}"))
+        self.stdout.write(self.style.SUCCESS(f"Wrote: {usage_path}"))

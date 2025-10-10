@@ -1,0 +1,222 @@
+# inventory/models.py
+
+from decimal import Decimal
+from django.conf import settings
+from django.db import models, transaction
+from django.utils import timezone
+
+
+# Helpers
+PLATFORM_CHOICES = (
+    ("shopify", "Shopify"),
+    ("square", "Square"),
+)
+
+STOCKENTRY_SOURCE_CHOICES = (
+    ("purchase", "Purchase"),
+    ("adjustment", "Adjustment"),
+    ("correction", "Correction"),
+)
+
+USAGE_SOURCE_CHOICES = (
+    ("shopify", "Shopify"),
+    ("square", "Square"),
+    ("manual", "Manual"),
+)
+
+
+class Product(models.Model):
+    name = models.CharField(max_length=255)
+    sku = models.CharField(max_length=128, unique=True)
+    shopify_id = models.CharField(max_length=128, null=True, blank=True)
+    square_id = models.CharField(max_length=128, null=True, blank=True)
+    category = models.CharField(max_length=128, blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["sku"]),
+            models.Index(fields=["shopify_id"]),
+            models.Index(fields=["square_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.sku})"
+
+
+class Ingredient(models.Model):
+    UNIT_CHOICES = (
+        ("oz", "Ounce"),
+        ("lb", "Pound"),
+        ("fl_oz", "Fluid Ounce"),
+        ("unit", "Unit"),
+        ("g", "Gram"),
+        ("kg", "Kilogram"),
+    )
+
+    name = models.CharField(max_length=255, unique=True)
+    unit_type = models.CharField(max_length=16, choices=UNIT_CHOICES, default="unit")
+    current_stock = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
+    case_size = models.PositiveIntegerField(null=True, blank=True, help_text="Units per case, if applicable.")
+    reorder_point = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
+    lead_time = models.PositiveIntegerField(null=True, blank=True, help_text="Lead time in days")
+    average_cost_per_unit = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal("0.000000"))
+    last_updated = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def increment_stock(self, quantity: Decimal, cost_per_unit: Decimal):
+        """
+        Increase stock and recalculate weighted average cost.
+        Called by StockEntry.save() inside a transaction.
+        """
+        if quantity <= 0:
+            return
+
+        old_stock = Decimal(self.current_stock or 0)
+        old_cost = Decimal(self.average_cost_per_unit or 0)
+        new_stock = Decimal(quantity)
+        new_cost = Decimal(cost_per_unit)
+
+        total_qty = old_stock + new_stock
+        if total_qty > 0:
+            weighted_avg = ((old_stock * old_cost) + (new_stock * new_cost)) / total_qty
+        else:
+            weighted_avg = new_cost
+
+        self.average_cost_per_unit = weighted_avg.quantize(Decimal("0.000001"))
+        self.current_stock = total_qty.quantize(Decimal("0.000"))
+        self.save(update_fields=["average_cost_per_unit", "current_stock", "last_updated"])
+
+    def decrement_stock(self, quantity: Decimal):
+        """
+        Decrease stock by quantity. Does NOT recalculate cost.
+        Should be called in transaction when logging usage.
+        """
+        new_stock = (Decimal(self.current_stock or 0) - Decimal(quantity))
+        # Allow negatives (so we can see overuse), but you might want to block it.
+        self.current_stock = new_stock.quantize(Decimal("0.000"))
+        self.save(update_fields=["current_stock", "last_updated"])
+
+
+class StockEntry(models.Model):
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="stock_entries")
+    quantity_added = models.DecimalField(max_digits=12, decimal_places=3)
+    cost_per_unit = models.DecimalField(max_digits=12, decimal_places=6)
+    date_received = models.DateTimeField(default=timezone.now)
+    source = models.CharField(max_length=32, choices=STOCKENTRY_SOURCE_CHOICES, default="purchase")
+    note = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ["-date_received"]
+
+    def __str__(self):
+        return f"{self.ingredient.name} +{self.quantity_added} @ {self.cost_per_unit}"
+
+    def save(self, *args, **kwargs):
+        """
+        On save, update ingredient's stock and weighted average cost.
+        If this is an update (existing pk), behavior is naive: we handle only create.
+        For production, handle edits/deletes explicitly (reverse previous effect).
+        """
+        is_create = self.pk is None
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if is_create and self.quantity_added and self.cost_per_unit is not None:
+                # Update Ingredient aggregate fields
+                self.ingredient.increment_stock(self.quantity_added, self.cost_per_unit)
+
+
+class RecipeItem(models.Model):
+    """
+    Associates a Product with an Ingredient and quantity used PER product unit.
+    """
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="recipe_items")
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.PROTECT, related_name="recipe_items")
+    quantity_per_unit = models.DecimalField(max_digits=12, decimal_places=3,
+                                           help_text="Amount of ingredient used per 1 product unit")
+    unit_type = models.CharField(max_length=16, null=True, blank=True,
+                                 help_text="Optional override (e.g., fl_oz vs oz)")
+
+    class Meta:
+        unique_together = ("product", "ingredient")
+
+    def __str__(self):
+        return f"{self.product.sku} uses {self.quantity_per_unit} {self.ingredient.unit_type} of {self.ingredient.name}"
+
+
+class Order(models.Model):
+    order_id = models.CharField(max_length=255, help_text="Platform-specific order id")
+    platform = models.CharField(max_length=32, choices=PLATFORM_CHOICES)
+    order_date = models.DateTimeField()
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    data_raw = models.JSONField(null=True, blank=True)
+    synced_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("order_id", "platform")
+        ordering = ["-order_date"]
+
+    def __str__(self):
+        return f"{self.platform} #{self.order_id} - {self.order_date.date()}"
+
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    def __str__(self):
+        prod = self.product.sku if self.product else "Unmapped"
+        return f"{prod} x{self.quantity}"
+
+
+class IngredientUsageLog(models.Model):
+    """
+    Log of ingredient usage per date. Typically created by the sync process that
+    consumes OrderItems+RecipeItems and aggregates by ingredient.
+    """
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="usage_logs")
+    date = models.DateField()  # usage date (e.g., the cafe day)
+    quantity_used = models.DecimalField(max_digits=12, decimal_places=3)
+    source = models.CharField(max_length=32, choices=USAGE_SOURCE_CHOICES, default="manual")
+    calculated_from_orders = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    note = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ("ingredient", "date", "source")
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.ingredient.name} used {self.quantity_used} on {self.date}"
+
+    def save(self, *args, **kwargs):
+        """
+        On create, decrement ingredient.current_stock.
+        If updating an existing record, compute delta and apply difference.
+        """
+        with transaction.atomic():
+            if self.pk:
+                # existing; compute delta
+                old = IngredientUsageLog.objects.select_for_update().get(pk=self.pk)
+                delta = Decimal(self.quantity_used) - Decimal(old.quantity_used)
+                super().save(*args, **kwargs)
+                if delta != 0:
+                    # positive delta => additional consumption
+                    self.ingredient.decrement_stock(delta)
+            else:
+                super().save(*args, **kwargs)
+                # new usage -> decrement the stock by the full amount
+                self.ingredient.decrement_stock(Decimal(self.quantity_used))
+
+
+# Create your models here.

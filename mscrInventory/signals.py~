@@ -1,0 +1,61 @@
+# signals.py
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from django.db.models import Sum, F
+from decimal import Decimal, ROUND_HALF_UP
+from .models import Ingredient, StockEntry, IngredientUsageLog
+
+
+# --- Utility Functions ---
+
+def recalculate_ingredient_stock(ingredient: Ingredient):
+    """Recalculate the current stock and average cost for an ingredient."""
+
+    # Aggregate stock entries
+    stock_data = (
+        StockEntry.objects.filter(ingredient=ingredient)
+        .aggregate(
+            total_quantity=Sum('quantity_added'),
+            total_cost=Sum(F('quantity_added') * F('cost_per_unit'))
+        )
+    )
+
+    total_quantity = stock_data['total_quantity'] or Decimal(0)
+    total_cost = stock_data['total_cost'] or Decimal(0)
+
+    # Aggregate all usage
+    usage_data = (
+        IngredientUsageLog.objects.filter(ingredient=ingredient)
+        .aggregate(total_used=Sum('quantity_used'))
+    )
+    total_used = usage_data['total_used'] or Decimal(0)
+
+    # Compute current stock and average cost
+    current_stock = (total_quantity - total_used).quantize(Decimal('0.001'), rounding=ROUND_HALF_UP)
+    avg_cost = Decimal(0)
+
+    if total_quantity > 0:
+        avg_cost = (total_cost / total_quantity).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+
+    # Update ingredient record
+    ingredient.current_stock = max(current_stock, Decimal(0))
+    ingredient.average_cost_per_unit = avg_cost
+    ingredient.save(update_fields=['current_stock', 'average_cost_per_unit', 'last_updated'])
+
+
+# --- StockEntry Handlers ---
+
+@receiver(post_save, sender=StockEntry)
+@receiver(post_delete, sender=StockEntry)
+def update_ingredient_from_stockentry(sender, instance, **kwargs):
+    """When stock entries are added, edited, or deleted, recalc totals."""
+    recalculate_ingredient_stock(instance.ingredient)
+
+
+# --- IngredientUsageLog Handlers ---
+
+@receiver(post_save, sender=IngredientUsageLog)
+@receiver(post_delete, sender=IngredientUsageLog)
+def update_ingredient_from_usagelog(sender, instance, **kwargs):
+    """When usage is recorded or removed, recalc totals."""
+    recalculate_ingredient_stock(instance.ingredient)

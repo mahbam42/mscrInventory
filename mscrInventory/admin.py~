@@ -1,0 +1,41 @@
+# admin.py (top of file)
+import io
+import csv
+import datetime
+import zipfile
+from decimal import Decimal
+from django.http import HttpResponse
+from django.contrib import admin
+
+from .models import (
+    Product, Ingredient, StockEntry, RecipeItem,
+    Order, OrderItem, IngredientUsageLog
+)
+from .utils.reports import cogs_by_day, usage_detail_by_day
+
+
+# Register your models here.
+class RecipeItemInline(admin.TabularInline):
+    model = RecipeItem
+    extra = 1
+    autocomplete_fields = ['ingredient']
+    fields = ('ingredient', 'quantity_per_unit', 'unit_type')
+    show_change_link = True
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ('name', 'sku', 'category', 'active')
+    list_filter = ('category', 'active')
+    search_fields = ('name', 'sku')
+    inlines = [RecipeItemInline]   # 👈 use the inline class defined above
+    ordering = ['name']
+
+@admin.register(Ingredient)
+class IngredientAdmin(admin.ModelAdmin):
+    list_display = (
+        'name', 'unit_type', 'current_stock', 'average_cost_per_unit',
+        'reorder_point', 'lead_time', 'last_updated'
+    )
+    list_filter = ('unit_type',)
+    search_fields = ('name',)     

@@ -1,0 +1,123 @@
+# yourapp/utils/reports.py
+from __future__ import annotations
+import datetime
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Dict, List, Tuple
+
+from django.db.models import Sum, F
+from django.utils import timezone
+
+from yourapp.models import Ingredient, StockEntry, IngredientUsageLog
+
+
+def _day_window_utc(day: datetime.date, tzname: str = "America/New_York") -> Tuple[datetime.datetime, datetime.datetime]:
+    """Inclusive day window in UTC for a local business day."""
+    import pytz
+    tz = pytz.timezone(tzname)
+    start_local = tz.localize(datetime.datetime.combine(day, datetime.time.min))
+    end_local = tz.localize(datetime.datetime.combine(day, datetime.time.max))
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+
+
+def average_cost_as_of_date(ingredient_id: int, day: datetime.date) -> Decimal:
+    """
+    Weighted average cost for an ingredient based on StockEntries <= end of 'day'.
+    If no stock exists yet, returns Decimal('0').
+    """
+    start_utc, end_utc = _day_window_utc(day)
+    agg = (StockEntry.objects
+           .filter(ingredient_id=ingredient_id, date_received__lte=end_utc)
+           .aggregate(
+               qty=Sum('quantity_added'),
+               cost=Sum(F('quantity_added') * F('cost_per_unit'))
+           ))
+    qty = agg['qty'] or Decimal(0)
+    cost = agg['cost'] or Decimal(0)
+    if qty <= 0:
+        return Decimal("0")
+    return (cost / qty).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def cogs_for_day(day: datetime.date, tzname: str = "America/New_York") -> Dict[str, Decimal]:
+    """
+    Returns a mapping:
+        {
+          "cogs_total": Decimal,
+          "per_ingredient": {ingredient_name: {"qty_used": Decimal, "unit_cost": Decimal, "cogs": Decimal}}
+        }
+    Uses IngredientUsageLog entries on that day, multiplied by each ingredient's weighted
+    average cost as of that day.
+    """
+    start_utc, end_utc = _day_window_utc(day, tzname)
+
+    # Usage on that business day
+    usage = (IngredientUsageLog.objects
+             .select_related("ingredient")
+             .filter(date=day)
+             .values("ingredient_id", "ingredient__name")
+             .annotate(qty_used=Sum("quantity_used"))
+             .order_by("ingredient__name"))
+
+    per_ing = {}
+    total = Decimal("0")
+    for row in usage:
+        ing_id = row["ingredient_id"]
+        name = row["ingredient__name"]
+        qty = row["qty_used"] or Decimal(0)
+        unit_cost = average_cost_as_of_date(ing_id, day)
+        cogs = (qty * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        per_ing[name] = {
+            "qty_used": qty.quantize(Decimal("0.001")),
+            "unit_cost": unit_cost,
+            "cogs": cogs,
+        }
+        total += cogs
+
+    return {"cogs_total": total, "per_ingredient": per_ing}
+
+
+def cogs_by_day(start: datetime.date, end: datetime.date, tzname: str = "America/New_York") -> List[Dict]:
+    """
+    Inclusive date range. Returns a list of dict rows:
+      [{"date": YYYY-MM-DD, "cogs_total": Decimal}, ...]
+    """
+    rows = []
+    cur = start
+    while cur <= end:
+        day_data = cogs_for_day(cur, tzname)
+        rows.append({
+            "date": cur.isoformat(),
+            "cogs_total": day_data["cogs_total"],
+        })
+        cur += datetime.timedelta(days=1)
+    return rows
+
+
+def usage_detail_by_day(start: datetime.date, end: datetime.date) -> List[Dict]:
+    """
+    Returns detailed rows suitable for CSV:
+      date, ingredient, qty_used, unit_cost_as_of_day, cogs
+    """
+    out: List[Dict] = []
+    cur = start
+    while cur <= end:
+        # Aggregate all usage logs for the day by ingredient
+        day_rows = (IngredientUsageLog.objects
+                    .select_related("ingredient")
+                    .filter(date=cur)
+                    .values("ingredient_id", "ingredient__name")
+                    .annotate(qty_used=Sum("quantity_used"))
+                    .order_by("ingredient__name"))
+        for r in day_rows:
+            unit_cost = average_cost_as_of_date(r["ingredient_id"], cur)
+            qty = r["qty_used"] or Decimal(0)
+            cogs = (qty * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            out.append({
+                "date": cur.isoformat(),
+                "ingredient": r["ingredient__name"],
+                "qty_used": qty.quantize(Decimal("0.001")),
+                "unit_cost": unit_cost,
+                "cogs": cogs,
+            })
+        cur += datetime.timedelta(days=1)
+    return out
