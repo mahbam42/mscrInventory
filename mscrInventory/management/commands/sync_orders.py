@@ -359,9 +359,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--date", type=str, help="Target date (YYYY-MM-DD). Defaults to today.")
-         parser.add_argument("--start-date", type=str, help="Start date (inclusive) for syncing YYYY-MM-DD")
-         parser.add_argument("--end-date", type=str, help="End date (inclusive) for syncing YYYY-MM-DD")
-         parser.add_argument("--mock", action="store_true", help="Use mock data instead of API calls")
+        parser.add_argument("--start-date", type=str, help="Start date (inclusive) for syncing YYYY-MM-DD")
+        parser.add_argument("--end-date", type=str, help="End date (inclusive) for syncing YYYY-MM-DD")
         parser.add_argument("--dry-run", action="store_true", help="Do everything except write to DB/send email.")
         parser.add_argument("--mock", action="store_true", help="Use mock orders instead of hitting APIs.")
 
