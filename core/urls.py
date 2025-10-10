@@ -21,5 +21,5 @@ from mscrInventory.views import dashboard_view
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("dashboard/", dashboard_view, name="dashboard"),
-    path('', include('mscrInventory.urls')),  # if you have an app-level urls.py - might not need this
+#    path('', include('mscrInventory.urls')),  # if you have an app-level urls.py - might not need this
 ]
