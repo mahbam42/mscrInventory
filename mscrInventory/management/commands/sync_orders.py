@@ -123,7 +123,20 @@ def fetch_shopify_orders(start_utc: datetime.datetime, end_utc: datetime.datetim
         total_amount = Decimal(o["total_price"])
         items = []
         for li in o.get("line_items", []):
-            sku_or_handle = li.get("sku") or li.get("title")
+            sku = li.get("sku")
+            title = li.get("title") or ""
+            if title and "(" in title and title.endswith(f"({sku})"):
+                # Strip redundant (SKU)
+                title = title[:title.rfind("(")].strip()
+
+            name = li.get("name") or ""
+            variant_title = li.get("variant_title") or ""
+
+            # Choose SKU if present; otherwise fall back to the cleanest display name
+            sku_or_handle = sku or (title if title else name)
+            
+            # sku_or_handle = li.get("sku") or li.get("title")
+            # ^^ old line ^^ 
             quantity = int(li["quantity"])
             unit_price = Decimal(li["price"])
             items.append({
@@ -198,11 +211,11 @@ def persist_orders(platform: str, normalized_orders: Iterable[Dict[str, Any]]) -
             product = find_product(sku)
 
             if not product:
-            # Log this so we can fix mappings later
-            print(f"⚠️ Unmapped product SKU: '{sku}' (creating placeholder)")
-            product, _ = Product.objects.get_or_create(
-                sku=sku,
-                defaults={"name": f"Unmapped: {sku}"}
+                # Log this so we can fix mappings later
+                print(f"⚠️ Unmapped product SKU: '{sku}' (creating placeholder)")
+                product, _ = Product.objects.get_or_create(
+                    sku=sku,
+                    defaults={"name": f"Unmapped: {sku}"}
             )
 
             OrderItem.objects.create(
