@@ -58,7 +58,7 @@ def _json_safe(value):
         return [_json_safe(v) for v in value]
     return value
 
-# Old Version - the above function should correct it. 
+# Old Version - the above function should correct 
 #def _json_safe(value):
 #    import datetime
 #    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
@@ -194,13 +194,35 @@ def persist_orders(platform: str, normalized_orders: Iterable[Dict[str, Any]]) -
         order_obj.items.all().delete()
 
         for item in o.get("items", []):
-            product = find_product(item.get("sku_or_handle", ""))
+            sku = item.get("sku_or_handle", "")
+            product = find_product(sku)
+
+            if not product:
+            # Log this so we can fix mappings later
+            print(f"⚠️ Unmapped product SKU: '{sku}' (creating placeholder)")
+            product, _ = Product.objects.get_or_create(
+                sku=sku,
+                defaults={"name": f"Unmapped: {sku}"}
+            )
+
             OrderItem.objects.create(
                 order=order_obj,
                 product=product,
                 quantity=int(item.get("quantity", 1)),
                 unit_price=to_decimal(item.get("unit_price", 0)),
             )
+
+        # # Clear and re-write items (safe for small daily batches)
+        # order_obj.items.all().delete()
+
+        # for item in o.get("items", []):
+        #     product = find_product(item.get("sku_or_handle", ""))
+        #     OrderItem.objects.create(
+        #         order=order_obj,
+        #         product=product,
+        #         quantity=int(item.get("quantity", 1)),
+        #         unit_price=to_decimal(item.get("unit_price", 0)),
+        #     )
 
 def aggregate_usage_for_date(target_date: datetime.date) -> Dict[int, Decimal]:
     """
