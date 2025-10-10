@@ -367,6 +367,30 @@ class Command(BaseCommand):
 
 
     def handle(self, *args, **options):
+        # date range functionality
+        date_str = options.get("date")
+        start_str = options.get("start_date")
+        end_str = options.get("end_date")
+        mock = options.get("mock")
+
+        if date_str:
+            # Single-day mode (existing)
+            start_date = end_date = datetime.date.fromisoformat(date_str)
+        elif start_str and end_str:
+            # Date range mode
+            start_date = datetime.date.fromisoformat(start_str)
+            end_date = datetime.date.fromisoformat(end_str)
+        else:
+            self.stderr.write(self.style.ERROR("❌ Must provide --date OR --start-date and --end-date"))
+            return
+
+        # Iterate over each date in the range
+        current_date = start_date
+        while current_date <= end_date:
+            self.stdout.write(self.style.NOTICE(f"📅 Syncing {current_date}"))
+            self._sync_for_date(current_date, mock=mock)
+            current_date += datetime.timedelta(days=1)
+        
         # Target date (cafe day). Default: today, but you may want 'yesterday' if you run at 4 PM.
         # import pytz
         tz = ZoneInfo(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
