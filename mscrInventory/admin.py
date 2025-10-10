@@ -64,3 +64,26 @@ class OrderItemAdmin(admin.ModelAdmin):
     search_fields = ('order__order_id', 'product__name', 'product__sku')
     ordering = ['-order__order_date']
     readonly_fields = ('order', 'product', 'quantity', 'unit_price')
+
+class UnmappedProductFilter(admin.SimpleListFilter):
+    title = 'Mapping Status'
+    parameter_name = 'mapped'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('mapped', 'Mapped'),
+            ('unmapped', 'Unmapped'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'mapped':
+            return queryset.exclude(name__startswith='Unmapped:')
+        if self.value() == 'unmapped':
+            return queryset.filter(name__startswith='Unmapped:')
+        return queryset
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ('sku', 'name', 'category')
+    list_filter = (UnmappedProductFilter, 'category')
+    search_fields = ('sku', 'name')
