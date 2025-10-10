@@ -70,7 +70,7 @@ class Command(BaseCommand):
         orders_by_id = {}
 
         with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
-            reader = csv.DictReader(csvfile, delimiter="\t")
+            reader = csv.DictReader(csvfile, delimiter=",")
             for row in reader:
                 order_id = row.get("Transaction ID", "").strip()
                 if not order_id:
