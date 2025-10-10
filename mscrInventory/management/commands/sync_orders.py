@@ -1,4 +1,8 @@
 # yourapp/management/commands/sync_orders.py
+import os
+import requests
+from decimal import Decimal
+
 import datetime
 from zoneinfo import ZoneInfo
 import datetime
@@ -58,18 +62,71 @@ def _json_safe(value):
 
 def fetch_shopify_orders(start_utc: datetime.datetime, end_utc: datetime.datetime) -> List[Dict[str, Any]]:
     """
-    Return a list of normalized orders from Shopify.
-    Each order: {
-      "order_id": str, "order_date": datetime, "total_amount": Decimal,
-      "items": [{"sku_or_handle": str, "quantity": int, "unit_price": Decimal}]
-    }
+    Fetch orders from Shopify REST API between the given UTC datetimes.
+    Returns normalized list of orders:
+    [
+      {
+        "order_id": str,
+        "order_date": datetime,
+        "total_amount": Decimal,
+        "items": [{"sku_or_handle": str, "quantity": int, "unit_price": Decimal}],
+      },
+      ...
+    ]
     """
-    # Minimal placeholder using REST; replace with official client if you prefer.
-    # For MVP you can mock or implement requests to:
-    # GET https://{SHOPIFY_STORE_DOMAIN}/admin/api/2024-10/orders.json?status=any&created_at_min=...&created_at_max=...
-    # Include Basic Auth (API key/password) or private app token.
-    # For now, return empty list to keep command runnable.
-    return []
+    api_key = os.getenv("SHOPIFY_API_KEY")
+    password = os.getenv("SHOPIFY_PASSWORD")
+    store_domain = os.getenv("SHOPIFY_STORE_DOMAIN")
+    if not (api_key and password and store_domain):
+        print("⚠️ Shopify credentials not set; skipping fetch.")
+        return []
+
+    url = f"https://{store_domain}/admin/api/2024-10/orders.json"
+
+    params = {
+        "status": "any",
+        "financial_status": "any",
+        "fulfillment_status": "any",
+        "created_at_min": start_utc.isoformat().replace("+00:00", "Z"),
+        "created_at_max": end_utc.isoformat().replace("+00:00", "Z"),
+        "limit": 250,
+        "fields": "id,created_at,total_price,line_items",
+    }
+
+    try:
+        resp = requests.get(url, auth=(api_key, password), params=params, timeout=15)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        print(f"❌ Shopify API error: {e}")
+        return []
+
+    data = resp.json()
+    orders = data.get("orders", [])
+    normalized = []
+
+    for o in orders:
+        order_id = str(o["id"])
+        order_date = datetime.datetime.fromisoformat(o["created_at"].replace("Z", "+00:00"))
+        total_amount = Decimal(o["total_price"])
+        items = []
+        for li in o.get("line_items", []):
+            sku_or_handle = li.get("sku") or li.get("title")
+            quantity = int(li["quantity"])
+            unit_price = Decimal(li["price"])
+            items.append({
+                "sku_or_handle": sku_or_handle,
+                "quantity": quantity,
+                "unit_price": unit_price,
+            })
+        normalized.append({
+            "order_id": order_id,
+            "order_date": order_date,
+            "total_amount": total_amount,
+            "items": items,
+        })
+
+    print(f"✅ Shopify orders fetched: {len(normalized)}")
+    return normalized
 
 # ---------------------------
 # Square fetch (placeholder)
