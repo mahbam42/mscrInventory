@@ -1,0 +1,80 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        h2 { margin-top: 2rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+        th, td { padding: 0.5rem; border: 1px solid #ccc; text-align: left; }
+        th { background: #f5f5f5; }
+        .stats { display: flex; gap: 2rem; margin-bottom: 2rem; }
+        .stat { background: #f5f5f5; padding: 1rem; border-radius: 8px; flex: 1; text-align: center; }
+        .low { color: red; }
+    </style>
+</head>
+<body>
+
+<h1>Dashboard — {{ selected_date }}</h1>
+
+<div class="stats">
+    <div class="stat">
+        <strong>{{ total_orders }}</strong><br>Orders
+    </div>
+    <div class="stat">
+        <strong>${{ total_revenue }}</strong><br>Total Revenue
+    </div>
+    <div class="stat">
+        <strong>{{ unmapped_products_count }}</strong><br>Unmapped Products
+    </div>
+    <div class="stat">
+        <strong>{{ low_stock_ingredients|length }}</strong><br>Low Stock Items
+    </div>
+</div>
+
+<h2>Top Products</h2>
+<table>
+    <tr><th>Product</th><th>SKU</th><th>Quantity Sold</th><th>Total Sales</th></tr>
+    {% for p in top_products %}
+    <tr>
+        <td>{{ p.product__name }}</td>
+        <td>{{ p.product__sku }}</td>
+        <td>{{ p.total_qty }}</td>
+        <td>${{ p.total_sales }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">No orders for this day.</td></tr>
+    {% endfor %}
+</table>
+
+<h2>Low Stock Ingredients</h2>
+<table>
+    <tr><th>Name</th><th>Current Stock</th><th>Reorder Point</th></tr>
+    {% for ing in low_stock_ingredients %}
+    <tr class="low">
+        <td>{{ ing.name }}</td>
+        <td>{{ ing.current_stock }}</td>
+        <td>{{ ing.reorder_point }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="3">No low stock items 🎉</td></tr>
+    {% endfor %}
+</table>
+
+<h2>Unmapped Products</h2>
+<table>
+    <tr><th>SKU</th><th>Name</th></tr>
+    {% for prod in unmapped_products %}
+    <tr>
+        <td>{{ prod.sku }}</td>
+        <td>{{ prod.name }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="2">No unmapped products 🎉</td></tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
