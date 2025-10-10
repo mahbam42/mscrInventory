@@ -372,6 +372,11 @@ class Command(BaseCommand):
         end_str = options.get("end_date")
         mock = options.get("mock")
 
+        # summary values
+        total_orders_synced = 0
+        total_shopify = 0
+        total_square = 0
+
         if date_str:
         # Single-day mode
             target_date = datetime.date.fromisoformat(date_str)
@@ -490,6 +495,26 @@ class Command(BaseCommand):
             persist_orders("shopify", shopify_orders)
         if square_orders:
             persist_orders("square", square_orders)
+
+        shopify_count = len(shopify_orders)
+        square_count = len(square_orders)
+        total = shopify_count + square_count
+
+        self.stdout.write(self.style.SUCCESS(f"✨ Sync complete for {target_date}: {total} orders ({shopify_count} Shopify, {square_count} Square)"
+    ))
+        return total, shopify_count, square_count
+
+        total, shopify_count, square_count = self._sync_for_date(current, mock=mock)
+        total_orders_synced += total
+        total_shopify += shopify_count
+        total_square += square_count
+
+        # After loop ends:
+        self.stdout.write(self.style.MIGRATE_HEADING(f"\n📊 Range Sync Summary ({start_date} → {end_date}):"))
+        self.stdout.write(self.style.SUCCESS(
+            f"  ✅ Total orders synced: {total_orders_synced} "
+            f"(Shopify: {total_shopify}, Square: {total_square})"
+        ))
 
         # You could optionally trigger ingredient usage logging here
         self.stdout.write(self.style.SUCCESS(f"✨ Sync complete for {target_date}"))
