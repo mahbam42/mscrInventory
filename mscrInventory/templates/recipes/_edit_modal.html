@@ -5,6 +5,7 @@
 
 <div class="modal-body">
   <form id="recipe-form" hx-post="{% url 'edit_recipe' product.id %}" hx-target="#modal-body" hx-swap="outerHTML">
+    {% csrf_token %}
 
     <h6>Ingredients</h6>
     <table class="table table-sm" id="ingredient-table">
@@ -59,50 +60,45 @@
   </form>
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  const ingredientTable = document.getElementById('ingredient-table').querySelector('tbody');
+  const tbody = document.querySelector('#ingredient-table tbody');
   const addBtn = document.getElementById('add-ingredient');
 
-  // Template row (hidden)
-  function createRow(index) {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>
-        <input type="text" name="ingredient_name_${index}" class="form-control form-control-sm" placeholder="Ingredient name">
-      </td>
-      <td>
-        <input type="number" step="0.01" name="quantity_${index}" class="form-control form-control-sm" placeholder="0.00">
-      </td>
-      <td>
-        <input type="text" name="unit_${index}" class="form-control form-control-sm" placeholder="oz">
-      </td>
-      <td>
-        <input type="number" step="0.01" name="cost_${index}" class="form-control form-control-sm" placeholder="0.00">
-      </td>
-      <td>
-        <input type="number" step="0.01" name="price_${index}" class="form-control form-control-sm" placeholder="0.00">
-      </td>
-      <td>
-        <button type="button" class="btn btn-sm btn-danger remove-row">&times;</button>
-      </td>
-    `;
-    return row;
+  function nextIndex() {
+    const names = Array.from(document.querySelectorAll('[name^="ingredient_name_"],[name^="ingredient_id_"]'))
+      .map(el => (el.name.match(/_(\d+)$/) || [null, -1])[1])
+      .map(n => parseInt(n, 10))
+      .filter(n => !isNaN(n));
+    return names.length ? Math.max(...names) + 1 : 0;
   }
 
-  // Add ingredient row
-    addBtn.addEventListener('click', function () {
-    const index = ingredientTable.querySelectorAll('tr').length;
-    const newRow = createRow(index);
-    ingredientTable.appendChild(newRow);
+  function createRow(index) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input type="text" name="ingredient_name_${index}" class="form-control form-control-sm" placeholder="Ingredient name">
+        <input type="hidden" name="ingredient_id_${index}" value="">
+      </td>
+      <td><input type="number" step="0.01" name="quantity_${index}" class="form-control form-control-sm" placeholder="0.00"></td>
+      <td><input type="text" name="unit_${index}" class="form-control form-control-sm" placeholder="oz"></td>
+      <td><input type="number" step="0.01" name="cost_${index}" class="form-control form-control-sm" placeholder="0.00"></td>
+      <td><input type="number" step="0.01" name="price_${index}" class="form-control form-control-sm" placeholder="0.00"></td>
+      <td><button type="button" class="btn btn-sm btn-danger remove-row">&times;</button></td>
+    `;
+    return tr;
+  }
+
+  addBtn.addEventListener('click', () => {
+    const idx = nextIndex();
+    tbody.appendChild(createRow(idx));
   });
 
-  // Delegate row removal
-  ingredientTable.addEventListener('click', function (e) {
+  tbody.addEventListener('click', (e) => {
     if (e.target.classList.contains('remove-row')) {
       e.target.closest('tr').remove();
     }
   });
 });
 </script>
-

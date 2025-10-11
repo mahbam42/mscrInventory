@@ -29,70 +29,151 @@ def edit_recipe_view(request, product_id):
     if request.method == "POST":
         try:
             with transaction.atomic():
-                # 1️⃣ Delete existing recipe items & modifiers
+                # Clear existing
                 RecipeItem.objects.filter(product=product).delete()
                 product.modifiers.clear()
 
-                # 2️⃣ Recreate recipe items from form data
-                index = 0
-                while True:
-                    ingredient_name = request.POST.get(f"ingredient_name_{index}")
-                    ingredient_id = request.POST.get(f"ingredient_id_{index}")
-                    quantity = request.POST.get(f"quantity_{index}")
-                    unit = request.POST.get(f"unit_{index}")
-                    cost = request.POST.get(f"cost_{index}")
-                    price = request.POST.get(f"price_{index}")
+                # Collect all row suffixes seen in the POST (robust even with gaps)
+                suffixes = set()
+                for k in request.POST.keys():
+                    if k.startswith("ingredient_name_") or k.startswith("ingredient_id_"):
+                        suffixes.add(k.rsplit("_", 1)[1])
 
-                    if not ingredient_name and not ingredient_id:
-                        break  # stop once we run out of rows
+                for idx in sorted(suffixes, key=lambda s: int(s)):
+                    name = (request.POST.get(f"ingredient_name_{idx}") or "").strip()
+                    ing_id = (request.POST.get(f"ingredient_id_{idx}") or "").strip()
+                    qty_s = (request.POST.get(f"quantity_{idx}") or "").strip()
+                    unit = (request.POST.get(f"unit_{idx}") or "").strip()
+                    cost_s = (request.POST.get(f"cost_{idx}") or "").strip()
+                    price_s = (request.POST.get(f"price_{idx}") or "").strip()
 
-                    # Find or create ingredient by name
-                    if ingredient_id:
-                        ingredient = Ingredient.objects.get(pk=ingredient_id)
+                    # skip truly empty rows
+                    if not name and not ing_id:
+                        continue
+
+                    if ing_id:
+                        ingredient = Ingredient.objects.get(pk=ing_id)
                     else:
-                        ingredient, _ = Ingredient.objects.get_or_create(name=ingredient_name.strip())
+                        if not name:
+                            continue
+                        ingredient, _ = Ingredient.objects.get_or_create(name=name)
+
+                    def to_dec(s, default="0"):
+                        try:
+                            return Decimal(s or default)
+                        except (InvalidOperation, TypeError):
+                            return Decimal(default)
+
+                    qty = to_dec(qty_s)
+                    cost = to_dec(cost_s)
+                    price = to_dec(price_s)
+                    final_unit = unit or ingredient.unit_type
 
                     RecipeItem.objects.create(
                         product=product,
                         ingredient=ingredient,
-                        quantity=Decimal(quantity or "0"),
-                        unit=unit or ingredient.unit_type,
-                        cost_per_unit=Decimal(cost or "0"),
-                        price_per_unit=Decimal(price or "0"),
+                        quantity=qty,
+                        unit=final_unit,
+                        cost_per_unit=cost,
+                        price_per_unit=price,
                     )
 
-                    index += 1
+                # Modifiers (checkbox group named "modifiers")
+                mod_ids = request.POST.getlist("modifiers")
+                if mod_ids:
+                    product.modifiers.set(RecipeModifier.objects.filter(id__in=mod_ids))
 
-                # 3️⃣ Save modifiers (checkboxes)
-                modifier_ids = request.POST.getlist("modifiers")
-                if modifier_ids:
-                    modifiers = RecipeModifier.objects.filter(id__in=modifier_ids)
-                    product.modifiers.set(modifiers)
-
-            # Return a partial update to close modal and maybe refresh the row
-            return HttpResponse(
-                '<script>window.location.reload();</script>'
-            )
+            # Close modal & refresh (simple)
+            return HttpResponse('<script>window.location.reload();</script>')
 
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
 
-    # GET behavior stays the same (already implemented)
+    # GET (unchanged): render modal with existing data
     ingredients = RecipeItem.objects.filter(product=product).select_related("ingredient")
-
     modifiers_by_type = {}
-    for modifier in RecipeModifier.objects.all().select_related("ingredient"):
-        modifiers_by_type.setdefault(modifier.type, []).append(modifier)
+    for m in RecipeModifier.objects.all().select_related("ingredient"):
+        modifiers_by_type.setdefault(m.type, []).append(m)
+    current_modifiers = set(product.modifiers.values_list("id", flat=True))
 
-    current_modifiers = set(product.modifiers.all().values_list("id", flat=True))
-
-    context = {
+    return render(request, "recipes/_edit_modal.html", {
         "product": product,
         "ingredients": ingredients,
         "modifiers_by_type": modifiers_by_type,
         "current_modifiers": current_modifiers,
-    }
-    return render(request, "recipes/_edit_modal.html", context)
+    })
+
+# @require_http_methods(["GET", "POST"])
+# def edit_recipe_view(request, product_id):
+#     product = get_object_or_404(Product, pk=product_id)
+
+#     if request.method == "POST":
+#         try:
+#             with transaction.atomic():
+#                 # 1️⃣ Delete existing recipe items & modifiers
+#                 RecipeItem.objects.filter(product=product).delete()
+#                 product.modifiers.clear()
+
+#                 # 2️⃣ Recreate recipe items from form data
+#                 index = 0
+#                 while True:
+#                     ingredient_name = request.POST.get(f"ingredient_name_{index}")
+#                     ingredient_id = request.POST.get(f"ingredient_id_{index}")
+#                     quantity = request.POST.get(f"quantity_{index}")
+#                     unit = request.POST.get(f"unit_{index}")
+#                     cost = request.POST.get(f"cost_{index}")
+#                     price = request.POST.get(f"price_{index}")
+
+#                     if not ingredient_name and not ingredient_id:
+#                         break  # stop once we run out of rows
+
+#                     # Find or create ingredient by name
+#                     if ingredient_id:
+#                         ingredient = Ingredient.objects.get(pk=ingredient_id)
+#                     else:
+#                         ingredient, _ = Ingredient.objects.get_or_create(name=ingredient_name.strip())
+
+#                     RecipeItem.objects.create(
+#                         product=product,
+#                         ingredient=ingredient,
+#                         quantity=Decimal(quantity or "0"),
+#                         unit=unit or ingredient.unit_type,
+#                         cost_per_unit=Decimal(cost or "0"),
+#                         price_per_unit=Decimal(price or "0"),
+#                     )
+
+#                     index += 1
+
+#                 # 3️⃣ Save modifiers (checkboxes)
+#                 modifier_ids = request.POST.getlist("modifiers")
+#                 if modifier_ids:
+#                     modifiers = RecipeModifier.objects.filter(id__in=modifier_ids)
+#                     product.modifiers.set(modifiers)
+
+#             # Return a partial update to close modal and maybe refresh the row
+#             return HttpResponse(
+#                 '<script>window.location.reload();</script>'
+#             )
+
+#         except Exception as e:
+#             return JsonResponse({"error": str(e)}, status=400)
+
+#     # GET behavior stays the same (already implemented)
+#     ingredients = RecipeItem.objects.filter(product=product).select_related("ingredient")
+
+#     modifiers_by_type = {}
+#     for modifier in RecipeModifier.objects.all().select_related("ingredient"):
+#         modifiers_by_type.setdefault(modifier.type, []).append(modifier)
+
+#     current_modifiers = set(product.modifiers.all().values_list("id", flat=True))
+
+#     context = {
+#         "product": product,
+#         "ingredients": ingredients,
+#         "modifiers_by_type": modifiers_by_type,
+#         "current_modifiers": current_modifiers,
+#     }
+#     return render(request, "recipes/_edit_modal.html", context)
 # older code
 # @require_http_methods(["GET", "POST"])
 # def edit_recipe_view(request, product_id):
