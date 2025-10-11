@@ -60,6 +60,7 @@ class ProductAdmin(admin.ModelAdmin):
 #    list_display = ('name', 'sku', 'category', 'active')
 #    list_filter = (UnmappedProductFilter, 'category', 'active')
     search_fields = ('name', 'sku')
+    filter_horizontal = ("modifiers",)  # 👈 adds nice M2M selector widget
     inlines = [RecipeItemInline]   # 👈 use the inline class defined above
     ordering = ['name']
 
