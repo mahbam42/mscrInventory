@@ -30,7 +30,8 @@ class Product(models.Model):
     sku = models.CharField(max_length=128, unique=True)
     shopify_id = models.CharField(max_length=128, null=True, blank=True)
     square_id = models.CharField(max_length=128, null=True, blank=True)
-    category = models.CharField(max_length=128, blank=True)
+    categories = models.ManyToManyField(Category, related_name="products", blank=True)
+    # category = models.CharField(max_length=128, blank=True)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -43,7 +44,13 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
+    
+class Category(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
 
+    def __str__(self):
+        return self.name
 
 class Ingredient(models.Model):
     UNIT_CHOICES = (
@@ -133,24 +140,49 @@ class StockEntry(models.Model):
                 # Update Ingredient aggregate fields
                 self.ingredient.increment_stock(self.quantity_added, self.cost_per_unit)
 
-
 class RecipeItem(models.Model):
     """
-    Associates a Product with an Ingredient and quantity used PER product unit.
+    Base ingredients for a product (e.g., Latte base = espresso + milk).
     """
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="recipe_items")
-    ingredient = models.ForeignKey(Ingredient, on_delete=models.PROTECT, related_name="recipe_items")
-    quantity_per_unit = models.DecimalField(max_digits=12, decimal_places=3,
-                                           help_text="Amount of ingredient used per 1 product unit")
-    unit_type = models.CharField(max_length=16, null=True, blank=True,
-                                 help_text="Optional override (e.g., fl_oz vs oz)")
+    product = models.ForeignKey("Product", on_delete=models.CASCADE, related_name="recipe_items")
+    ingredient = models.ForeignKey("Ingredient", on_delete=models.CASCADE)
+    quantity = models.DecimalField(max_digits=8, decimal_places=2)
+    unit = models.CharField(max_length=20)  # e.g., 'oz', 'g', 'each'
+    cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
     class Meta:
         unique_together = ("product", "ingredient")
 
     def __str__(self):
-        return f"{self.product.sku} uses {self.quantity_per_unit} {self.ingredient.unit_type} of {self.ingredient.name}"
+        return f"{self.product.name} - {self.quantity}{self.unit} {self.ingredient.name}"
 
+class RecipeModifier(models.Model):
+    """
+    Modifiers such as milk options, flavor shots, syrups, sugar, extra shots, etc.
+    """
+    MODIFIER_TYPES = [
+        ("MILK", "Milk"),
+        ("FLAVOR", "Flavor Shot"),
+        ("SYRUP", "Syrup"),
+        ("SUGAR", "Sugar"),
+        ("EXTRA", "Extra"),
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    type = models.CharField(max_length=20, choices=MODIFIER_TYPES)
+    ingredient = models.ForeignKey("Ingredient", on_delete=models.CASCADE)
+    base_quantity = models.DecimalField(max_digits=8, decimal_places=2)
+    unit = models.CharField(max_length=20)  # 'oz', 'g', etc.
+    size_multiplier = models.BooleanField(default=True)
+    cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+
+    class Meta:
+        ordering = ["type", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_type_display()})"
 
 class Order(models.Model):
     order_id = models.CharField(max_length=255, help_text="Platform-specific order id")
