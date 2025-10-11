@@ -1,8 +1,8 @@
 # mscrInventory/views/recipes.py
 
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.http import require_http_methods, require_POST
 from django.db import transaction, models
 from mscrInventory.models import Product, RecipeItem, Ingredient, RecipeModifier
 from decimal import Decimal
