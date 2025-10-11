@@ -32,6 +32,7 @@ class Product(models.Model):
     square_id = models.CharField(max_length=128, null=True, blank=True)
     categories = models.ManyToManyField("Category", related_name="products", blank=True)
     # category = models.CharField(max_length=128, blank=True)
+    modifiers = models.ManyToManyField("RecipeModifier", blank=True, related_name="products")
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
 
