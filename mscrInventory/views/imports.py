@@ -10,6 +10,9 @@ from django.views.decorators.http import require_POST
 
 from django.core.management import call_command
 
+from mscrInventory.models import ImportLog
+from django.utils import timezone
+
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
     return render(request, "imports/dashboard.html")
@@ -30,6 +33,9 @@ def upload_square_view(request):
 
     try:
         call_command("import_square_csv", file=str(tmp_path))
+        ImportLog.objects.update_or_create(
+            source="square", defaults={"last_run": timezone.now()}
+        )
         messages.success(request, f"✅ Imported Square CSV: {uploaded_file.name}")
     except Exception as e:
         messages.error(request, f"❌ Error importing Square CSV: {e}")
@@ -49,6 +55,9 @@ def fetch_shopify_view(request):
     try:
         if end_date:
             call_command("sync_orders", start=start_date, end=end_date)
+            ImportLog.objects.update_or_create(
+                source="shopify", defaults={"last_run": timezone.now()}
+            )
             messages.success(request, f"✅ Shopify orders fetched for {start_date} → {end_date}")
         else:
             call_command("sync_orders", date=start_date)

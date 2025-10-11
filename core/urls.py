@@ -18,13 +18,13 @@ from django.contrib import admin
 from django.urls import path
 from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
-from mscrInventory.views.imports import imports_dashboard_view, handle_square_upload, fetch_shopify_view
+from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("imports/", imports_dashboard_view, name="imports_dashboard"),
-    path("imports/upload-square/", handle_square_upload, name="upload_square_csv"),
+    path("imports/upload-square/", upload_square_upload, name="upload_square_csv"),
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify_orders"),
 ]
