@@ -91,3 +91,27 @@ def edit_recipe_view(request, product_id):
             "product_modifiers": product_modifiers,
         },
     )
+
+@require_POST
+def save_recipe_view(request, product_id):
+    product = get_object_or_404(Product, pk=product_id)
+
+    # --- Update modifiers ---
+    selected_mod_ids = request.POST.getlist("modifiers")
+    product.modifiers.set(selected_mod_ids)
+
+    # --- Update base ingredients ---
+    for key, value in request.POST.items():
+        if key.startswith("base_") and key.endswith("_quantity"):
+            item_id = key.split("_")[1]
+            try:
+                item = RecipeItem.objects.get(id=item_id, product=product)
+                item.quantity = value or 0
+                item.save()
+            except RecipeItem.DoesNotExist:
+                # Later we can handle adding new ingredients
+                pass
+
+    return HttpResponse(
+        "<div class='p-3'>✅ Recipe saved successfully!</div>"
+    )
