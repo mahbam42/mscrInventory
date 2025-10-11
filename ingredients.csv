@@ -1,0 +1,86 @@
+Type,Name,unit_type,base_quantity,size_multiplier,cost_per_unit,price_per_unit,modifier_type
+Ingredient,Peanut Butter,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Cookies and Cream,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Vanilla Bean,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Chocolate Mint,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Mocha,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Caramel,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Dolce De Leche,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Pumpkin,fl_oz,1,TRUE,0.00,$0.50,
+Ingredient,Pumpkin Pie,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Coco,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Chai,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Dirty Chai,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Cinnamon,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Vanilla ( Reduced Sugar ),fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Honey,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Coconut,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Maple Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Raspberry Sauce,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Marshmallow Sauce,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Ube,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Pistachio Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Acai,fl_oz,1,TRUE,0.00,0.00,
+Modifier,Extra Flavoring,fl_oz,1,TRUE,0.00,$0.50,Extra
+Modifier,Latte of the Week,fl_oz,1,TRUE,0.00,$0.50,Extra
+Modifier,Drizzle Cup,fl_oz,1,TRUE,0.00,$0.50,Extra
+Ingredient,Almond Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Caramel Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Cherry Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Vanilla Bean Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Brown Sugar Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Amaretto Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Banana Cream Syrup,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Whole Milk,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Skim Milk,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Half N' Half,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Almond Milk,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Oat Milk,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Coconut Milk,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Cold Foam,fl_oz,1,TRUE,0.00,0.00,
+Ingredient,Cold Foam Vegan (Oat),fl_oz,1,TRUE,0.00,0.00,
+Ingredient,"Cane Sugar, White",g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Sugar in the Raw,g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Equal,g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Stevia,g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Splenda,g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Sweet N Low,g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Xtra Sugar,g,1,TRUE,0.00,0.00,Sugar
+Ingredient,Lite Sugar,g,1,TRUE,0.00,0.00,Sugar
+Modifier,Peanut Butter,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Cookies and Cream,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Vanilla Bean,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Chocolate Mint,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Mocha,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Caramel,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Dolce De Leche,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Pumpkin,fl_oz,1,TRUE,0.00,$0.50,Flavor
+Modifier,Pumpkin Pie,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Coco,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Chai,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Dirty Chai,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Cinnamon,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Vanilla ( Reduced Sugar ),fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Honey,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Coconut,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Maple Syrup,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Raspberry Sauce,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Marshmallow Sauce,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Ube,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Pistachio Syrup,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Acai,fl_oz,1,TRUE,0.00,0.00,Flavor
+Modifier,Almond Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Caramel Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Cherry Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Vanilla Bean Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Brown Sugar Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Amaretto Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Banana Cream Syrup,fl_oz,1,TRUE,0.00,$0.50,Syrup
+Modifier,Whole Milk,fl_oz,1,TRUE,0.00,0.00,Milk
+Modifier,Skim Milk,fl_oz,1,TRUE,0.00,0.00,Milk
+Modifier,Half N' Half,fl_oz,1,TRUE,0.00,0.00,Milk
+Modifier,Almond Milk,fl_oz,1,TRUE,0.00,0.50,Milk
+Modifier,Oat Milk,fl_oz,1,TRUE,0.00,0.50,Milk
+Modifier,Coconut Milk,fl_oz,1,TRUE,0.00,0.50,Milk
+Modifier,Cold Foam,fl_oz,1,TRUE,0.00,1.25,Milk
+Modifier,Cold Foam Vegan (Oat),fl_oz,1,TRUE,0.00,1.25,Milk
