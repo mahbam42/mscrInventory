@@ -3,9 +3,10 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.db import transaction, models
 from mscrInventory.models import Product, RecipeItem, Ingredient, RecipeModifier
 from decimal import Decimal
-from django.db import transaction
+
 
 def recipes_dashboard_view(request):
     products = Product.objects.prefetch_related("categories", "recipe_items").order_by("name")
@@ -62,7 +63,8 @@ def edit_recipe_view(request, product_id):
 
     # --- GET method: render modal ---
     recipe_items = RecipeItem.objects.filter(product=product).select_related("ingredient")
-    modifiers = RecipeModifier.objects.all().order_by("type", "name")
+    modifiers = models.ManyToManyField("RecipeModifier", blank=True, related_name="products")
+    # modifiers = RecipeModifier.objects.all().order_by("type", "name")
     selected_modifiers = product.recipemodifier_set.values_list("id", flat=True)
 
     context = {
@@ -72,3 +74,20 @@ def edit_recipe_view(request, product_id):
         "selected_modifiers": set(selected_modifiers),
     }
     return render(request, "recipes/_edit_modal.html", context)
+
+def edit_recipe_view(request, product_id):
+    product = get_object_or_404(Product, pk=product_id)
+    base_items = product.recipe_items.select_related("ingredient")
+    all_modifiers = RecipeModifier.objects.all().order_by("type", "name")
+    product_modifiers = product.modifiers.all()
+
+    return render(
+        request,
+        "recipes/edit_recipe_modal.html",
+        {
+            "product": product,
+            "base_items": base_items,
+            "all_modifiers": all_modifiers,
+            "product_modifiers": product_modifiers,
+        },
+    )
