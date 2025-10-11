@@ -26,6 +26,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("imports/", imports_dashboard_view, name="imports_dashboard"),
-    path("imports/upload-square/", upload_square_view, name="upload_square_csv"),
-    path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify_orders"),
+    path("imports/upload-square/", upload_square_view, name="upload_square"),
+    path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
 ]
