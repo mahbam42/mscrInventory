@@ -76,21 +76,46 @@ def edit_recipe_view(request, product_id):
     return render(request, "recipes/_edit_modal.html", context)
 
 def edit_recipe_view(request, product_id):
+    """
+    Loads the recipe editor modal for a given product.
+    """
     product = get_object_or_404(Product, pk=product_id)
-    base_items = product.recipe_items.select_related("ingredient")
-    all_modifiers = RecipeModifier.objects.all().order_by("type", "name")
-    product_modifiers = product.modifiers.all()
 
-    return render(
-        request,
-        "recipes/edit_recipe_modal.html",
-        {
+    if request.method == "GET":
+        # Load existing ingredients
+        ingredients = RecipeItem.objects.filter(product=product).select_related("ingredient")
+
+        # Load modifiers, grouped by type for UI clarity
+        modifiers_by_type = {}
+        for modifier in RecipeModifier.objects.all().select_related("ingredient"):
+            modifiers_by_type.setdefault(modifier.type, []).append(modifier)
+
+        # Pre-select the product's current modifiers
+        current_modifiers = set(product.modifiers.all().values_list("id", flat=True))
+
+        context = {
             "product": product,
-            "base_items": base_items,
-            "all_modifiers": all_modifiers,
-            "product_modifiers": product_modifiers,
-        },
-    )
+            "ingredients": ingredients,
+            "modifiers_by_type": modifiers_by_type,
+            "current_modifiers": current_modifiers,
+        }
+        return render(request, "recipes/_edit_modal.html", context)
+# def edit_recipe_view(request, product_id):
+#     product = get_object_or_404(Product, pk=product_id)
+#     base_items = product.recipe_items.select_related("ingredient")
+#     all_modifiers = RecipeModifier.objects.all().order_by("type", "name")
+#     product_modifiers = product.modifiers.all()
+
+#     return render(
+#         request,
+#         "recipes/edit_recipe_modal.html",
+#         {
+#             "product": product,
+#             "base_items": base_items,
+#             "all_modifiers": all_modifiers,
+#             "product_modifiers": product_modifiers,
+#         },
+#     )
 
 @require_POST
 def save_recipe_view(request, product_id):
