@@ -27,8 +27,15 @@ def build_sku_or_handle(row):
     sku = row.get("SKU", "").strip()
     item = row.get("Item", "").strip()
     price_point = row.get("Price Point Name", "").strip()
-    modifiers = row.get("Modifiers Applied", "").strip()
+    #modifiers = row.get("Modifiers Applied", "").strip()
+    modifiers = [m.strip() for m in row.get("Modifiers Applied", "").split(",") if m.strip()]
+    base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
+    base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
 
+    # Detect special flags
+    extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
+    drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
+    
     if sku:
         return sku
 
@@ -105,10 +112,33 @@ class Command(BaseCommand):
                         "order_date": order_date,
                         "total_amount": net_sales,
                         "items": [line_item],
+                        "raw rows": [],
                     }
                 else:
                     orders_by_id[order_id]["items"].append(line_item)
                     orders_by_id[order_id]["total_amount"] += net_sales
+
+                # 👇 THIS is where the modifier parsing & normalization should happen
+                modifiers_raw = row.get("Modifiers Applied", "")
+                modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
+
+                # Handle flavor/syrup detection + special flags here
+                base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
+                base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
+                extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
+                drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
+
+                orders_by_id[transaction_id]["items"].append({
+                    "sku_or_handle": row.get("SKU", "").strip(),
+                    "name": row.get("Item", "").strip(),
+                    "quantity": Decimal(row.get("Qty", "1")),
+                    "modifiers": {
+                        "flavors": base_flavors,
+                        "extra_flavor_count": extra_flavor_count,
+                        "syrups": base_syrups,
+                        "drizzle_cup_count": drizzle_cup_count,
+                    },
+                })
 
         normalized_orders = list(orders_by_id.values())
         self.stdout.write(self.style.NOTICE(f"🧾 Parsed {len(normalized_orders)} Square orders"))
