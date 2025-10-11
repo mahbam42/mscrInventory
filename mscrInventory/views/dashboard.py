@@ -6,7 +6,8 @@ from django.db.models import Sum, F
 from decimal import Decimal
 import datetime
 
-from .models import Order, OrderItem, Product, Ingredient
+from mscrInventory.models import Order, OrderItem, Product, Ingredient
+#from .models import Order, OrderItem, Product, Ingredient
 
 def dashboard_view(request):
     # Use today (Eastern) as default date
