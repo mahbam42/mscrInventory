@@ -219,4 +219,16 @@ class IngredientUsageLog(models.Model):
                 self.ingredient.decrement_stock(Decimal(self.quantity_used))
 
 
+class ImportLog(models.Model):
+    SOURCE_CHOICES = [
+        ("square", "Square"),
+        ("shopify", "Shopify"),
+    ]
+
+    source = models.CharField(max_length=50, choices=SOURCE_CHOICES, unique=True)
+    last_run = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.get_source_display()} import @ {self.last_run:%Y-%m-%d %H:%M}"
+
 # Create your models here.
