@@ -44,7 +44,8 @@ class RecipeItemInline(admin.TabularInline):
     model = RecipeItem
     extra = 1
     autocomplete_fields = ['ingredient']
-    fields = ('ingredient', 'quantity_per_unit', 'unit_type')
+    fields = ("ingredient", "quantity", "unit", "cost_per_unit", "price_per_unit")
+    #fields = ('ingredient', 'quantity_per_unit', 'unit_type')
     show_change_link = True
 
 @admin.register(Category)
