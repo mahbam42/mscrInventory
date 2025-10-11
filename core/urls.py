@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, handle_square_upload, fetch_shopify_view
 
