@@ -30,7 +30,7 @@ class Product(models.Model):
     sku = models.CharField(max_length=128, unique=True)
     shopify_id = models.CharField(max_length=128, null=True, blank=True)
     square_id = models.CharField(max_length=128, null=True, blank=True)
-    categories = models.ManyToManyField(Category, related_name="products", blank=True)
+    categories = models.ManyToManyField("Category", related_name="products", blank=True)
     # category = models.CharField(max_length=128, blank=True)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)

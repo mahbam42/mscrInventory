@@ -42,11 +42,18 @@ class RecipeItemInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'sku', 'category', 'active')
-    list_filter = (UnmappedProductFilter, 'category', 'active')
+    list_display = ("name", "sku", "category_list", "active", "created_at")
+    list_filter = ("active", "categories")
+#    list_display = ('name', 'sku', 'category', 'active')
+#    list_filter = (UnmappedProductFilter, 'category', 'active')
     search_fields = ('name', 'sku')
     inlines = [RecipeItemInline]   # 👈 use the inline class defined above
     ordering = ['name']
+
+    def category_list(self, obj):
+        return ", ".join(c.name for c in obj.categories.all())
+    category_list.short_description = "Categories"
+
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
