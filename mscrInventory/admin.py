@@ -8,8 +8,16 @@ from django.http import HttpResponse
 from django.contrib import admin
 
 from .models import (
-    Product, Ingredient, StockEntry, RecipeItem,
-    Order, OrderItem, IngredientUsageLog
+    Product,
+    Ingredient,
+    RecipeItem,
+    RecipeModifier,
+    Category,
+    Order,
+    OrderItem,
+    IngredientUsageLog,
+    StockEntry,
+    ImportLog,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -39,7 +47,11 @@ class RecipeItemInline(admin.TabularInline):
     fields = ('ingredient', 'quantity_per_unit', 'unit_type')
     show_change_link = True
 
-
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+    
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ("name", "sku", "category_list", "active", "created_at")
@@ -89,7 +101,11 @@ class OrderItemAdmin(admin.ModelAdmin):
     ordering = ['-order__order_date']
     readonly_fields = ('order', 'product', 'quantity', 'unit_price')
 
-
+@admin.register(RecipeModifier)
+class RecipeModifierAdmin(admin.ModelAdmin):
+    list_display = ("name", "type", "ingredient", "base_quantity", "unit", "size_multiplier")
+    list_filter = ("type",)
+    search_fields = ("name", "ingredient__name")
 # @admin.register(Product)
 # class ProductAdmin(admin.ModelAdmin):
 #     list_display = ('sku', 'name', 'category')
