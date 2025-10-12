@@ -2,10 +2,23 @@ import csv
 from django.core.management.base import BaseCommand, CommandError
 from mscrInventory.models import Product, Category
 from django.db import transaction
+import re
+from django.utils.text import slugify
+from uuid import uuid4
+
+def generate_auto_sku(name: str) -> str:
+    """
+    Generate a stable-ish auto SKU from the name.
+    We slugify the name and append a short unique suffix to avoid collisions.
+    Example: "B-Stingah Latte" → "ag-b-stingah-latte-3f2a"
+    """
+    base_slug = slugify(name)[:40]  # keep it manageable
+    suffix = uuid4().hex[:4]
+    return f"ag-{base_slug}-{suffix}"
 
 class Command(BaseCommand):
     help = "Import products from a CSV file with categories and flags."
-
+    
     def add_arguments(self, parser):
         parser.add_argument("csv_path", type=str, help="Path to the CSV file to import")
 
@@ -17,11 +30,26 @@ class Command(BaseCommand):
                 reader = csv.DictReader(csvfile)
                 count = 0
                 for row in reader:
+                    # name = row.get("name", "").strip()
+                    # sku = row.get("sku", "").strip()
+                    # if not name or not sku:
+                    #     self.stdout.write(self.style.WARNING(f"⚠️ Skipping row with missing name or sku: {row}"))
+                    #     continue
                     name = row.get("name", "").strip()
-                    sku = row.get("sku", "").strip()
-                    if not name or not sku:
-                        self.stdout.write(self.style.WARNING(f"⚠️ Skipping row with missing name or sku: {row}"))
+                    sku = row.get("sku", "").strip() or None
+                    if not name:
+                        self.stdout.write(self.style.WARNING(f"⚠️ Skipping row with missing name: {row}"))
                         continue
+
+                    # Auto-generate SKU if missing
+                    if not sku:
+                        sku = generate_auto_sku(name)
+
+                    lookup_kwargs = {"sku": sku}
+                    defaults = {
+                        "name": name,
+                        "temperature_type": row.get("temperature_type", "NA").upper(),
+                    }
 
                     product, created = Product.objects.get_or_create(
                         sku=sku,

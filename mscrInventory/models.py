@@ -30,6 +30,17 @@ class Product(models.Model):
     sku = models.CharField(max_length=128, unique=True)
     shopify_id = models.CharField(max_length=128, null=True, blank=True)
     square_id = models.CharField(max_length=128, null=True, blank=True)
+    # ✅ Added this
+    TEMPERATURE_CHOICES = [
+        ("hot", "Hot"),
+        ("cold", "Cold"),
+        ("na", "N/A"),
+    ]
+    temperature_type = models.CharField(
+        max_length=10,
+        choices=TEMPERATURE_CHOICES,
+        default="na",
+    )
     categories = models.ManyToManyField("Category", related_name="products", blank=True)
     # category = models.CharField(max_length=128, blank=True)
     modifiers = models.ManyToManyField("RecipeModifier", blank=True, related_name="products")
