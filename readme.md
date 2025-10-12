@@ -90,3 +90,7 @@ Features:
 - Multi-location inventory tracking
 - Supplier management (auto-generate reorder lists)
 - Forecasting (usage trends → reorder projections)
+
+## In progress Wishlist
+- Export Products, Recipes
+- 
