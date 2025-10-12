@@ -93,4 +93,55 @@ Features:
 
 ## In progress Wishlist
 - Export Products, Recipes
-- 
+- fix dashboard to use base.html
+- make base.html navigation dynamic
+- dirty chai refactor to extra modifier (chai flavorshot + extra shot)
+- refreshers modifiers
+- bagel modifiers
+- croissant/biscuit modifiers
+- hot coffee modifiers
+- pour over modifiers
+- Bagged Coffee (retail bag) and association with Shopify Listings
+
+### Inventory Dashboard (Batch Editing)
+
+URL: /inventory/
+Purpose: A single place to view, filter, and edit key inventory values efficiently.
+
+1. Fields to Display & Edit
+Field	Editable	Notes
+name	❌	Ingredient name (read-only)
+unit_type	❌	For context (e.g., oz, g, unit)
+current_stock	✅	Inline numeric input
+reorder_point	✅	Inline numeric input
+cost_per_unit	✅	Inline decimal input
+price_per_unit	✅	Inline decimal input
+case_size	✅	Optional, useful for bulk items
+lead_time	✅	Optional, for ordering schedule
+2. UX Features
+
+✅ Search/filter by ingredient name or type (e.g., Milk, Flavor, Syrup).
+
+📝 Inline editing using HTMX or a simple form → auto-saves changes on blur or with a “Save All” button.
+
+📌 Sort by current_stock, reorder_point, or name to quickly spot issues.
+
+⚠️ Optional highlighting for items below reorder point.
+
+3. Backend Logic
+
+New view: inventory_dashboard_view
+
+Endpoint for bulk updates: /inventory/update/ (POST)
+
+Will use a simple ModelFormSet or custom serializer for updating multiple Ingredient records in one go.
+
+4. Future Enhancements
+
+📈 Low-stock alert summaries at the top (e.g., “5 items below reorder point”).
+
+🧾 Export inventory snapshot to CSV.
+
+📊 Optional charts for trends once usage logging is mature.
+
+This dashboard fits nicely alongside the recipes modal work you want to finish. Once the modal is complete, we can spin this dashboard up fairly quickly since the models are already in great shape.
