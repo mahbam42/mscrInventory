@@ -41,7 +41,16 @@
             </label>
           </div>
         </div>
-      {% endfor %}
+	{% endfor %}
+	<button 
+	  class="btn btn-sm btn-outline-primary"
+	  hx-get="{% url 'edit_modifier_extra' modifier.id %}"
+	  hx-target="#extraModal .modal-content"
+	  hx-trigger="click"
+	  data-bs-toggle="modal"
+	  data-bs-target="#extraModal">
+	  Edit Extra
+	</button>
     </div>
 
     <div class="modal-footer mt-3">
