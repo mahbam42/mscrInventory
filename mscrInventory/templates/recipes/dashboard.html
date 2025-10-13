@@ -39,6 +39,18 @@
             {{ product.categories.all|join:", " }}
           </td>
           <td class="px-4 py-2 text-center">{{ product.recipe_items.count }}</td>
+	  <td>{% if modifier.type == "EXTRA" %}
+	    <button 
+	      class="btn btn-sm btn-outline-primary"
+	      hx-get="{% url 'edit_modifier_extra' modifier.id %}"
+	      hx-target="#extraModal .modal-body"
+	      hx-trigger="click"
+	      data-bs-toggle="modal"
+	      data-bs-target="#extraModal">
+	      Edit Extra Config
+	    </button>
+	    {% endif %}
+	  </td>
           <td class="px-4 py-2 text-center">
             <button
               class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"

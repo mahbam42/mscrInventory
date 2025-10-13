@@ -190,6 +190,16 @@ class RecipeModifier(models.Model):
     cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
     price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
+     # 👇 optional extras configuration
+    affects_type = models.CharField(
+        max_length=20, choices=MODIFIER_TYPES, null=True, blank=True,
+        help_text="For extras like 'Extra Flavor' or 'Drizzle Cup', specify which modifier type they affect."
+    )
+    expands_to = models.ManyToManyField(
+        "self", blank=True, symmetrical=False,
+        help_text="For combo extras like Dirty Chai, specify which modifiers they expand to."
+    )
+
     class Meta:
         ordering = ["type", "name"]
 
@@ -221,7 +231,6 @@ class OrderItem(models.Model):
     def __str__(self):
         prod = self.product.sku if self.product else "Unmapped"
         return f"{prod} x{self.quantity}"
-
 
 class IngredientUsageLog(models.Model):
     """

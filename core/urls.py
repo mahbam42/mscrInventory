@@ -20,6 +20,8 @@ from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
 from mscrInventory.views.recipes import recipes_dashboard_view, edit_recipe_view, save_recipe_view
+from mscrInventory.views.modifiers import edit_modifier_extra_view
+
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
 
@@ -33,4 +35,5 @@ urlpatterns = [
     path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
     path("recipes/<int:product_id>/edit/", edit_recipe_view, name="edit_recipe"),
     path("recipes/<int:product_id>/save/", save_recipe_view, name="save_recipe"),
+    path("modifiers/<int:modifier_id>/edit-extra/", edit_modifier_extra_view, name="edit_modifier_extra"),
 ]
