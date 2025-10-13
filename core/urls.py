@@ -21,6 +21,7 @@ from mscrInventory.views.dashboard import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
 from mscrInventory.views.recipes import recipes_dashboard_view, edit_recipe_view, save_recipe_view
 from mscrInventory.views.modifiers import edit_modifier_extra_view
+from mscrInventory.views.products import products_dashboard_view
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
@@ -31,6 +32,7 @@ urlpatterns = [
     path("imports/", imports_dashboard_view, name="imports_dashboard"),
     path("imports/upload-square/", upload_square_view, name="upload_square"),
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
+    path("products/", products_dashboard_view, name="products_dashboard"),
     path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
     path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
     path("recipes/<int:product_id>/edit/", edit_recipe_view, name="edit_recipe"),
