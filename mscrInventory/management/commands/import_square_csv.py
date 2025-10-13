@@ -10,6 +10,45 @@ import datetime
 
 from mscrInventory.management.commands.sync_orders import persist_orders
 
+def handle_extras(modifier_name, normalized_modifiers):
+    """
+    Expand or adjust special modifiers like Dirty Chai, Extra Flavor, Drizzle Cup.
+    Returns a list of modifiers to add (could be empty).
+    `normalized_modifiers` is the list of parsed modifiers so far for this item.
+    """
+    extras_to_add = []
+
+    # Normalize input for matching
+    mod_lower = modifier_name.strip().lower()
+
+    # 🥄 Extra Flavor → +1 unit to any flavor modifiers already on the item
+    if mod_lower == "extra flavor":
+        for m in normalized_modifiers:
+            if m["type"] == "FLAVOR":
+                m["quantity"] = Decimal(m.get("quantity", 1)) + Decimal(1)
+
+    # 🍯 Drizzle Cup → +1 unit to any syrup modifiers already on the item
+    elif mod_lower == "drizzle cup":
+        for m in normalized_modifiers:
+            if m["type"] == "SYRUP":
+                m["quantity"] = Decimal(m.get("quantity", 1)) + Decimal(1)
+
+    # ☕ Dirty Chai → expands to "Chai Flavor" (FLAVOR) + "Extra Shot" (EXTRA)
+    elif mod_lower == "dirty chai":
+        extras_to_add.append({
+            "name": "Chai",
+            "type": "FLAVOR",
+            "quantity": Decimal(1),
+        })
+        extras_to_add.append({
+            "name": "Extra Shot",
+            "type": "EXTRA",
+            "quantity": Decimal(1),
+        })
+
+    # Future specials can go here...
+
+    return extras_to_add
 
 def parse_money(value: str) -> Decimal:
     """Convert strings like '$6.50' or '-$2.66' to Decimal('6.50') / Decimal('-2.66')."""
@@ -119,8 +158,15 @@ class Command(BaseCommand):
                     orders_by_id[order_id]["total_amount"] += net_sales
 
                 # 👇 THIS is where the modifier parsing & normalization should happen
-                modifiers_raw = row.get("Modifiers Applied", "")
-                modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
+                modifiers = []
+for raw_mod in parse_modifiers_string(row.get("Modifiers Applied", "")):
+    extras = handle_extras(raw_mod, modifiers)
+    if not extras:  # if it's not a special case, add normally
+        modifiers.append(normalize_modifier(raw_mod))
+    else:
+        modifiers.extend(extras)
+#                modifiers_raw = row.get("Modifiers Applied", "")
+#                modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
 
                 # Handle flavor/syrup detection + special flags here
                 base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
