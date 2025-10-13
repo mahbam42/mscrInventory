@@ -103,6 +103,12 @@ Features:
 - pour over modifiers
 - Bagged Coffee (retail bag) and association with Shopify Listings
 
+### Products Dashboard
+- Show Name, SKU, Categories, Type (is_drink, is_food, is_coffee), and temp.
+- Edit button wired to modal
+- import CSV at the top (and dedup-ing logic added)
+- export products 
+
 ### Inventory Dashboard (Batch Editing)
 
 URL: /inventory/
