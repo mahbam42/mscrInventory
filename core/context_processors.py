@@ -9,6 +9,7 @@ def nav_links(request):
             {"name": "Dashboard", "url": "/"},
             {"name": "Imports", "url": "/imports/"},
             {"name": "Recipes", "url": "/recipes/"},
-            {"name": "Inventory", "url": "/inventory/"},
+            {"name": "Products", "url": reverse("products_dashboard")},
+            # {"name": "Inventory", "url": "/inventory/"},
         ]
     }
