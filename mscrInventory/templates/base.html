@@ -58,6 +58,26 @@
     {% block content %}{% endblock %}
 </div>
 
+
+<div id="modal-area"></div>
+<script>
+document.addEventListener('htmx:afterSwap', e=>{
+  if(e.detail.target.id==='modal-area'){
+    const el=document.querySelector('#modal-area .modal');
+    if(el){
+      const m=new bootstrap.Modal(el);
+      m.show();
+      el.addEventListener('hidden.bs.modal', ()=>el.remove(), {once:true});
+    }
+  }
+});
+document.body.addEventListener('htmx:configRequest', evt=>{
+  const m=document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)');
+  if(m) evt.detail.headers['X-CSRFToken']=m.pop();
+});
+</script>
+
+<!-- 14-10-25 I think everything below here can be removed --> 
 <!-- Modal Container -->
   <div class="modal fade" id="recipeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -124,6 +144,14 @@
   });
 </script>
 
+<!-- temp button for modal testing -->
+<button
+  class="btn btn-sm btn-primary"
+  hx-get="{% url 'edit_recipe' product.id %}"
+  hx-target="#modal-area"
+  hx-swap="innerHTML">
+  Edit Recipe
+</button>
 
 </body>
 </html>

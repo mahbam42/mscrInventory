@@ -19,7 +19,8 @@ from django.urls import path
 from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
-from mscrInventory.views.recipes import recipes_dashboard_view, edit_recipe_view, save_recipe_view, add_recipe_ingredient_view, delete_recipe_ingredient_view
+from mscrInventory.views import recipes_modal
+#from mscrInventory.views.recipes import recipes_dashboard_view, edit_recipe_view, save_recipe_view, add_recipe_ingredient_view, delete_recipe_ingredient_view
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
 from mscrInventory.views.inventory import inventory_dashboard_view
@@ -34,6 +35,10 @@ urlpatterns = [
     path("imports/upload-square/", upload_square_view, name="upload_square"),
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
     path("products/", products_dashboard_view, name="products_dashboard"),
+    path("recipes/<int:pk>/edit/", recipes_modal.edit_recipe_modal, name="edit_recipe"),
+path("recipes/<int:pk>/add-ingredient/", recipes_modal.add_recipe_ingredient, name="add_recipe_ingredient"),
+path("recipes/ingredient/<int:item_id>/delete/", recipes_modal.delete_recipe_ingredient, name="delete_recipe_ingredient"),
+path("recipes/<int:pk>/save-modifiers/", recipes_modal.save_recipe_modifiers, name="save_recipe_modifiers"),
 #    path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
 #    path("recipes/<int:product_id>/edit/", edit_recipe_view, name="edit_recipe"),
 #    path("recipes/<int:product_id>/add-ingredient/", add_recipe_ingredient_view, name="add_recipe_ingredient"),

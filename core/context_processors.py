@@ -8,8 +8,8 @@ def nav_links(request):
         "NAV_LINKS": [
             {"name": "Dashboard", "url": "/"},
             {"name": "Imports", "url": "/imports/"},
-            {"name": "Recipes", "url": "/recipes/"},
+            #{"name": "Recipes", "url": "/recipes/"},
             {"name": "Products", "url": reverse("products_dashboard")},
-            # {"name": "Inventory", "url": "/inventory/"},
+            #{"name": "Inventory", "url": "/inventory/"},
         ]
     }

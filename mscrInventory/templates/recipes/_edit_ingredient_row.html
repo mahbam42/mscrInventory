@@ -1,0 +1,15 @@
+<tr id="ingredient-row-{{ item.id }}">
+  <td>{{ item.ingredient.name }}</td>
+  <td>{{ item.quantity }}</td>
+  <td>{{ item.unit }}</td>
+  <td class="text-center">
+    <button
+      hx-post="{% url 'delete_recipe_ingredient' item.id %}"
+      hx-target="#ingredient-row-{{ item.id }}"
+      hx-swap="outerHTML remove"
+      class="btn btn-sm btn-outline-danger"
+      title="Delete">
+      ✕
+    </button>
+  </td>
+</tr>
