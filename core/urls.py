@@ -35,6 +35,7 @@ urlpatterns = [
     path("imports/upload-square/", upload_square_view, name="upload_square"),
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
     path("products/", products_dashboard_view, name="products_dashboard"),
+    path("recipes/", recipes_modal.recipes_dashboard_view, name="recipes_dashboard"),
     path("recipes/<int:pk>/edit/", recipes_modal.edit_recipe_modal, name="edit_recipe"),
 path("recipes/<int:pk>/add-ingredient/", recipes_modal.add_recipe_ingredient, name="add_recipe_ingredient"),
 path("recipes/ingredient/<int:item_id>/delete/", recipes_modal.delete_recipe_ingredient, name="delete_recipe_ingredient"),
