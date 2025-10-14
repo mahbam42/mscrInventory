@@ -1,0 +1,22 @@
+<tr id="ingredient-row-{{ item.id }}">
+  <td>{{ item.ingredient.name }}</td>
+  <td>
+    <input type="number" name="ingredients-{{ item.id }}-quantity"
+           value="{{ item.quantity }}" step="0.01" class="form-control" />
+  </td>
+  <td>
+    <input type="text" name="ingredients-{{ item.id }}-unit"
+           value="{{ item.unit }}" class="form-control" />
+  </td>
+  <td>
+    <button 
+      hx-post="{% url 'delete_recipe_ingredient' item.id %}"
+      hx-target="#ingredient-row-{{ item.id }}"
+      hx-swap="outerHTML remove"
+      class="btn btn-danger btn-sm">
+      ✕
+    </button>
+  </td>
+</tr>
+
+

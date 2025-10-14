@@ -1,61 +1,97 @@
-<div class="modal-header">
-  <h5 class="modal-title">Edit Recipe: {{ product.name }}</h5>
-  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-  <form 
-    hx-post="{% url 'save_recipe' product.id %}" 
-    hx-target="#modal-body" 
-    hx-swap="outerHTML"
-  >
-    <h6>Base Ingredients</h6>
-    <div id="base-ingredients">
-      {% for item in base_items %}
-        <div class="mb-2">
-          {{ item.ingredient.name }} —
-          <input type="number" name="base_{{ item.id }}_quantity" value="{{ item.quantity }}" step="0.1">
-          {{ item.unit }}
-        </div>
-      {% endfor %}
-      <div class="mt-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-base">+ Add Ingredient</button>
+{% load static %}
+<div class="modal fade" id="editRecipeModal" tabindex="-1" aria-labelledby="editRecipeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editRecipeModalLabel">
+          Edit Recipe – {{ product.name }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-    </div>
 
-    <hr>
+      <form 
+        hx-post="{% url 'edit_recipe' product.id %}" 
+        hx-target="#editRecipeModal .modal-body"
+        hx-swap="innerHTML"
+        method="post"
+      >
+        {% csrf_token %}
+        <div class="modal-body">
+          <!-- Ingredients Table -->
+          <h6>Ingredients</h6>
+          <table class="table table-sm align-middle" id="ingredients-table">
+            <thead>
+              <tr>
+                <th>Ingredient</th>
+                <th>Qty</th>
+                <th>Unit</th>
+                <th>Cost</th>
+                <th>Price</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="ingredients-table-body">
+              {% for ri in recipe_items %}
+	      {% for item in product.recipe_items.all %}
+      {% include "recipes/partials/recipe_ingredient_row.html" with item=item %}
+    {% endfor %}
+              <tr>
+                <td>
+                  <button type="button" class="btn btn-sm btn-danger" 
+                          hx-delete="{% url 'delete_recipe_ingredient' ri.id %}"
+                          hx-target="#ingredients-table tbody"
+                          hx-swap="outerHTML">
+                    ✕
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
 
-    <h6>Modifiers</h6>
-    <div class="row">
-      {% for mod in all_modifiers %}
-        <div class="col-6 col-md-4">
-          <div class="form-check">
-            <input 
-              class="form-check-input" 
-              type="checkbox" 
-              name="modifiers" 
-              value="{{ mod.id }}"
-              {% if mod in product_modifiers %}checked{% endif %}
-            >
-            <label class="form-check-label">
-              {{ mod.name }} ({{ mod.get_type_display }})
-            </label>
+	  <div class="mt-3">
+	    <button 
+	      hx-post="{% url 'add_recipe_ingredient' product.id %}" 
+	      hx-target="#ingredients-table-body"
+	      hx-swap="beforeend"
+	      class="btn btn-primary btn-sm">
+	      + Add Ingredient
+	    </button>
+	  </div>
+
+          <!-- <button type="button" class="btn btn-sm btn-outline-primary"  -->
+          <!--         hx-get="{% url 'add_recipe_ingredient' product.id %}"  -->
+          <!--         hx-target="#ingredients-table tbody"  -->
+          <!--         hx-swap="beforeend"> -->
+          <!--   + Add Ingredient -->
+          <!-- </button> -->
+
+          <hr>
+
+          <!-- Modifiers -->
+          <h6>Modifiers</h6>
+          <div class="mb-2">
+            {% for modifier in all_modifiers %}
+            <div class="form-check form-check-inline">
+              <input 
+                class="form-check-input" 
+                type="checkbox" 
+                name="modifiers" 
+                id="mod-{{ modifier.id }}" 
+                value="{{ modifier.id }}" 
+                {% if modifier.id in current_modifiers %}checked{% endif %}
+              >
+              <label class="form-check-label" for="mod-{{ modifier.id }}">{{ modifier.name }}</label>
+            </div>
+            {% endfor %}
           </div>
         </div>
-	{% endfor %}
-	<button 
-	  class="btn btn-sm btn-outline-primary"
-	  hx-get="{% url 'edit_modifier_extra' modifier.id %}"
-	  hx-target="#extraModal .modal-content"
-	  hx-trigger="click"
-	  data-bs-toggle="modal"
-	  data-bs-target="#extraModal">
-	  Edit Extra
-	</button>
-    </div>
 
-    <div class="modal-footer mt-3">
-      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save Recipe</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
     </div>
-  </form>
+  </div>
 </div>
