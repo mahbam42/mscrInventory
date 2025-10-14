@@ -35,7 +35,6 @@ urlpatterns = [
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
     path("products/", products_dashboard_view, name="products_dashboard"),
     path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
-    path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
     path("recipes/<int:product_id>/edit/", edit_recipe_view, name="edit_recipe"),
     path("recipes/<int:product_id>/add-ingredient/", add_recipe_ingredient_view, name="add_recipe_ingredient"),
     path("recipes/ingredient/<int:ingredient_id>/delete/", delete_recipe_ingredient_view, name="delete_recipe_ingredient"),
