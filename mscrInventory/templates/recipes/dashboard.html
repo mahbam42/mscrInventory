@@ -55,9 +55,8 @@
            <button 
   class="btn btn-sm btn-primary"
   hx-get="{% url 'edit_recipe' product.id %}"
-  hx-target="#recipeModal .modal-content"
-	     hx-trigger="click"
-	     hx-on::after-on-load="new bootstrap.Modal(document.getElementById('recipeModal')).show()">
+  hx-target="#modal-area"
+  hx-swap="innerHTML">
   Edit Recipe
 </button>
           </td>

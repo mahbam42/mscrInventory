@@ -1,88 +1,74 @@
-{% load static %}
-<div class="modal fade" id="editRecipeModal" tabindex="-1" aria-labelledby="editRecipeModalLabel" aria-hidden="true">
+<div class="modal fade" id="editRecipeModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
+
       <div class="modal-header">
-        <h5 class="modal-title" id="editRecipeModalLabel">
-          Edit Recipe – {{ product.name }}
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h5 class="modal-title">Edit Recipe – {{ product.name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
 
-      <form 
-        hx-post="{% url 'edit_recipe' product.id %}" 
+      <form
+        hx-post="{% url 'edit_recipe' product.id %}"
         hx-target="#editRecipeModal .modal-body"
         hx-swap="innerHTML"
-        method="post"
-      >
+        method="post">
         {% csrf_token %}
         <div class="modal-body">
-          <!-- Ingredients Table -->
-          <h6>Ingredients</h6>
-          <table class="table table-sm align-middle" id="ingredients-table">
+          <!-- Ingredients table -->
+          <h6 class="mb-2">Ingredients</h6>
+          <table class="table table-sm align-middle">
             <thead>
-              <tr>
-                <th>Ingredient</th>
-                <th>Qty</th>
-                <th>Unit</th>
-                <th>Cost</th>
-                <th>Price</th>
-                <th></th>
-              </tr>
+              <tr><th>Ingredient</th><th style="width:120px">Qty</th><th style="width:120px">Unit</th><th style="width:60px"></th></tr>
             </thead>
             <tbody id="ingredients-table-body">
-              {% for ri in recipe_items %}
-	      {% for item in product.recipe_items.all %}
-      {% include "recipes/partials/recipe_ingredient_row.html" with item=item %}
-    {% endfor %}
-              <tr>
-                <td>
-                  <button type="button" class="btn btn-sm btn-danger" 
-                          hx-delete="{% url 'delete_recipe_ingredient' ri.id %}"
-                          hx-target="#ingredients-table tbody"
-                          hx-swap="outerHTML">
-                    ✕
-                  </button>
-                </td>
-              </tr>
+              {% for item in product.recipe_items.all %}
+                {% include "recipes/partials/recipe_ingredient_row.html" with item=item %}
+              {% empty %}
+                <tr class="text-muted"><td colspan="4">No ingredients yet.</td></tr>
               {% endfor %}
             </tbody>
           </table>
 
-	  <div class="mt-3">
-	    <button 
-	      hx-post="{% url 'add_recipe_ingredient' product.id %}" 
-	      hx-target="#ingredients-table-body"
-	      hx-swap="beforeend"
-	      class="btn btn-primary btn-sm">
-	      + Add Ingredient
-	    </button>
-	  </div>
-
-          <!-- <button type="button" class="btn btn-sm btn-outline-primary"  -->
-          <!--         hx-get="{% url 'add_recipe_ingredient' product.id %}"  -->
-          <!--         hx-target="#ingredients-table tbody"  -->
-          <!--         hx-swap="beforeend"> -->
-          <!--   + Add Ingredient -->
-          <!-- </button> -->
+          <!-- Add ingredient row -->
+          <form
+            hx-post="{% url 'add_recipe_ingredient' product.id %}"
+            hx-target="#ingredients-table-body"
+            hx-swap="beforeend"
+            class="row g-2 align-items-end mb-3">
+            {% csrf_token %}
+            <div class="col-6">
+              <label class="form-label">Ingredient</label>
+              <select name="ingredient_id" class="form-select form-select-sm">
+                {% for ing in all_ingredients %}
+                  <option value="{{ ing.id }}">{{ ing.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-3">
+              <label class="form-label">Qty</label>
+              <input type="number" step="0.01" name="quantity" value="0" class="form-control form-control-sm">
+            </div>
+            <div class="col-2">
+              <label class="form-label">Unit</label>
+              <input type="text" name="unit" value="unit" class="form-control form-control-sm">
+            </div>
+            <div class="col-1">
+              <button type="submit" class="btn btn-sm btn-outline-primary w-100">+</button>
+            </div>
+          </form>
 
           <hr>
 
           <!-- Modifiers -->
-          <h6>Modifiers</h6>
-          <div class="mb-2">
+          <h6 class="mb-2">Modifiers</h6>
+          <div class="d-flex flex-wrap gap-3">
             {% for modifier in all_modifiers %}
-            <div class="form-check form-check-inline">
-              <input 
-                class="form-check-input" 
-                type="checkbox" 
-                name="modifiers" 
-                id="mod-{{ modifier.id }}" 
-                value="{{ modifier.id }}" 
-                {% if modifier.id in current_modifiers %}checked{% endif %}
-              >
-              <label class="form-check-label" for="mod-{{ modifier.id }}">{{ modifier.name }}</label>
-            </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modifiers"
+                       id="mod-{{ modifier.id }}" value="{{ modifier.id }}"
+                       {% if modifier.id in current_modifiers %}checked{% endif %}>
+                <label class="form-check-label" for="mod-{{ modifier.id }}">{{ modifier.name }}</label>
+              </div>
             {% endfor %}
           </div>
         </div>
@@ -92,6 +78,7 @@
           <button type="submit" class="btn btn-primary">Save changes</button>
         </div>
       </form>
+
     </div>
   </div>
 </div>
