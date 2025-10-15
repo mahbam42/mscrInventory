@@ -136,6 +136,8 @@ document.body.addEventListener('htmx:configRequest', evt=>{
 </script>
 
 <!-- temp button for modal testing -->
+<!-- wrapped with safety conditional --> 
+{% if product.id %}
 <button
   class="btn btn-sm btn-primary"
   hx-get="{% url 'edit_recipe' product.id %}"
@@ -143,6 +145,11 @@ document.body.addEventListener('htmx:configRequest', evt=>{
   hx-swap="innerHTML">
   Edit Recipe
 </button>
+{% else %}
+  <span class="text-muted">No Recipe</span>
+  {% endif %}
+ <!-- end edit recipe button -->
+  
 
 </body>
 </html>
