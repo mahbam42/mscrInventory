@@ -24,6 +24,20 @@ def edit_recipe_modal(request, pk):
         "current_modifiers": list(product.modifiers.values_list("id", flat=True)) if hasattr(product, "modifiers") else [],
     }
     return render(request, "recipes/_edit_modal.html", context)
+@require_http_methods(["GET"])
+def edit_recipe_view(request, pk):
+    """
+    Return the full modal for a given product (as a fragment injected by HTMX).
+    """
+    product = get_object_or_404(Product, pk=pk)
+    context = {
+        "product": product,
+        "recipe_items": product.recipe_items.select_related("ingredient").all(),
+        "all_ingredients": Ingredient.objects.all().order_by("name"),
+        "all_modifiers": RecipeModifier.objects.all().order_by("type", "name"),
+        "current_modifiers": list(product.modifiers.values_list("id", flat=True)) if hasattr(product, "modifiers") else [],
+    }
+    return render(request, "recipes/_edit_modal.html", context)
 
 
 @require_http_methods(["POST"])
