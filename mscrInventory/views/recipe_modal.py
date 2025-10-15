@@ -26,17 +26,28 @@ def edit_recipe_modal(request, pk):
     return render(request, "recipes/_edit_modal.html", context)
 @require_http_methods(["GET"])
 def edit_recipe_view(request, pk):
-    """
-    Return the full modal for a given product (as a fragment injected by HTMX).
-    """
     product = get_object_or_404(Product, pk=pk)
+    recipe_items = RecipeItem.objects.filter(product=product)
+    all_ingredients = Ingredient.objects.all().order_by("type", "name")
+    all_modifiers = Modifier.objects.all().order_by("name")
+
+    # collect distinct units (from Ingredient or a static list)
+    units = Ingredient.objects.values_list("unit", flat=True).distinct().order_by("unit")
+
+    # build a dict {modifier_id: quantity}
+    current_modifiers = {
+        ri.modifier.id: ri.quantity for ri in recipe_items if getattr(ri, "modifier", None)
+    }
+
     context = {
         "product": product,
-        "recipe_items": product.recipe_items.select_related("ingredient").all(),
-        "all_ingredients": Ingredient.objects.all().order_by("name"),
-        "all_modifiers": RecipeModifier.objects.all().order_by("type", "name"),
-        "current_modifiers": list(product.modifiers.values_list("id", flat=True)) if hasattr(product, "modifiers") else [],
+        "recipe_items": recipe_items,
+        "all_ingredients": all_ingredients,
+        "all_modifiers": all_modifiers,
+        "units": units,
+        "current_modifiers": current_modifiers,
     }
+
     return render(request, "recipes/_edit_modal.html", context)
 
 
