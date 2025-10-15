@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Recipes{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">☕ Recipe Dashboard</h2>
+
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Product</th>
+        <th>Categories</th>
+        <th>Modifiers</th>
+        <th>Edit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+      <tr>
+        <td>{{ product.id }}</td>
+        <td>{{ product.name }}</td>
+        <td>
+          {% for cat in product.categories.all %}
+            <span class="badge bg-secondary">{{ cat.name }}</span>
+          {% empty %}
+            <em>No categories</em>
+          {% endfor %}
+        </td>
+        <td>{{ product.modifiers.count }}</td>
+        <td>
+          <button 
+            class="btn btn-sm btn-primary"
+            hx-get="{% url 'edit_recipe' product.id %}"
+            hx-target="#globalModal .modal-content"
+            hx-trigger="click"
+            data-bs-toggle="modal"
+            data-bs-target="#globalModal">
+            Edit Recipe
+          </button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" class="text-center text-muted py-4">
+          No products found yet.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Global modal container -->
+<div class="modal fade" id="globalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content"></div>
+  </div>
+</div>
+{% endblock %}
