@@ -29,15 +29,15 @@
         </td>
         <td>{{ product.modifiers.count }}</td>
         <td>
-          <button 
-            class="btn btn-sm btn-primary"
-            hx-get="{% url 'edit_recipe' product.id %}"
-            hx-target="#globalModal .modal-content"
-            hx-trigger="click"
-            data-bs-toggle="modal"
-            data-bs-target="#globalModal">
-            Edit Recipe
+          <button hx-get="{% url 'edit_recipe' product.id %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
+            class="btn btn-sm btn-outline-primary">
+            Edit
           </button>
+
+          <!-- <button class="btn btn-primary btn-sm" hx-get="{% url 'edit_recipe' product.id %}"
+            hx-target="#globalModal .modal-content" hx-trigger="click" data-bs-toggle="modal" data-bs-target="#globalModal">
+            Edit Recipe
+          </button> -->
         </td>
       </tr>
       {% empty %}
