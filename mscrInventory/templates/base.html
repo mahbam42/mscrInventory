@@ -68,6 +68,16 @@
   </script>
   
   {% block extra_js %}{% endblock %}
-  </body>
   
+  </body>
+  <script>
+    document.body.addEventListener("htmx:afterSwap", function (event) {
+      // When modal content is loaded via HTMX
+      if (event.detail.target && event.detail.target.closest("#globalModal")) {
+        const modalEl = document.getElementById("globalModal");
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      }
+    });
+  </script>
   </html>

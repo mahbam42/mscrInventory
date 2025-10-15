@@ -4,11 +4,12 @@
   <td>{{ item.unit }}</td>
   <td class="text-center">
     <button
-      hx-post="{% url 'delete_recipe_ingredient' item.id %}"
+      hx-delete="{% url 'delete_recipe_ingredient' item.product.id item.id %}"
       hx-target="#ingredient-row-{{ item.id }}"
       hx-swap="outerHTML remove"
       class="btn btn-sm btn-outline-danger"
-      title="Delete">
+      title="Delete"
+      hx-confirm="Are you sure you want to delete this ingredient?">
       ✕
     </button>
   </td>
