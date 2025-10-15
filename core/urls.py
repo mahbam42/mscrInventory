@@ -20,7 +20,7 @@ from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
 #from mscrInventory.views import recipes_modal
-from mscrInventory.views.recipes_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, delete_recipe_ingredient
+from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, delete_recipe_ingredient
 #
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
