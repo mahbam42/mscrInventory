@@ -69,7 +69,7 @@ class Ingredient(models.Model):
         ("oz", "Ounce"),
         ("lb", "Pound"),
         ("fl_oz", "Fluid Ounce"),
-        ("unit", "Unit"),
+        ("unit", "Unit/portion"),
         ("g", "Gram"),
         ("kg", "Kilogram"),
     )
@@ -86,7 +86,9 @@ class Ingredient(models.Model):
     ]
 
     name = models.CharField(max_length=255, unique=True)
-    unit_type = models.CharField(max_length=16, choices=UNIT_CHOICES, default="unit")
+    unit_type = models.CharField(max_length=16, choices=UNIT_CHOICES, default="unit", help_text="Unit of measurement for this ingredient.")
+    type = models.CharField(max_length=50, choices=type, default="misc", help_text="Category of ingredient.")  # 👈 NEW FIELD
+
     current_stock = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
     case_size = models.PositiveIntegerField(null=True, blank=True, help_text="Units per case, if applicable.")
     reorder_point = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
