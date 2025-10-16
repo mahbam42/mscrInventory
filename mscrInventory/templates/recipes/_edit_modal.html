@@ -6,17 +6,18 @@
 </div>
 
 <div class="modal-body">
-  <form hx-post="{% url 'extend_recipe' product.id %}" hx-swap="none" class="mb-3">
+  <!-- EXTEND FROM BASE ITEM -->
+  <form hx-post="{% url 'extend_recipe' product.id %}" hx-trigger="change" hx-swap="none" hx-target="#globalModal .modal-content" hx-swap="innerHTML" class="mb-3">
     {% csrf_token %}
-    <label class="form-label">Extend from existing recipe</label>
-    <select name="base_recipe" class="form-select form-select-sm">
-      <option value="">None</option>
-      {% for r in all_recipes %}
-      <option value="{{ r.id }}">{{ r.name }}</option>
+    <label for="source_recipe_id" class="form-label">Extend From Base Item</label>
+    <select name="source_recipe_id" id="source_recipe_id" class="form-select form-select-sm">
+      <option value="">-- Select Base Item --</option>
+      {% for base in base_items %}
+      <option value="{{ base.id }}">{{ base.name }}</option>
       {% endfor %}
     </select>
-    <button class="btn btn-sm btn-outline-primary mt-1">Apply</button>
   </form>
+  <hr class="my-3">
   <!-- INGREDIENTS SECTION -->
   <h6 class="mb-2">Ingredients</h6>
   <table class="table table-sm align-middle">

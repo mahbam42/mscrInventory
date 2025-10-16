@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.views.decorators.http import require_http_methods
 from django.db import transaction
 from django.template.loader import render_to_string
+from django.contrib import messages
 
 from ..models import Product, Ingredient, RecipeItem, RecipeModifier
 
@@ -31,12 +32,56 @@ def recipes_dashboard_view(request):
         .order_by("categories__name")
     )
 
+    base_items = (
+    Product.objects
+    .filter(categories__name__iexact="Base Item")
+    .order_by("name")
+)
+
     ctx = {
         "products": products,
         "categories": categories,   # list of dicts with keys categories__id / categories__name
         "selected_category": q,
+        "base_items": base_items,
     }
     return render(request, "recipes/dashboard.html", ctx)
+
+def extend_recipe(request, pk):
+    """
+    Extend a product's recipe using another product marked as a 'Base Item' category.
+    """
+    product = get_object_or_404(Product, pk=pk)
+    source_id = request.POST.get("source_recipe_id")
+
+    if not source_id:
+        return JsonResponse({"error": "No base item selected."}, status=400)
+
+    source_product = get_object_or_404(
+        Product, pk=source_id, categories__name__iexact="Base Item"
+    )
+
+    # Copy ingredients
+    for item in RecipeItem.objects.filter(product=source_product):
+        RecipeItem.objects.create(
+            product=product,
+            ingredient=item.ingredient,
+            quantity=item.quantity,
+            unit=item.unit,
+        )
+
+    # Copy modifiers (optional)
+    for mod in RecipeModifier.objects.filter(product=source_product):
+        RecipeModifier.objects.create(
+            name=mod.name,
+            ingredient=mod.ingredient,
+            base_quantity=mod.base_quantity,
+            unit=mod.unit,
+            size_multiplier=mod.size_multiplier,
+            type=mod.type,
+        )
+
+    messages.success(request, f"Copied ingredients from base recipe: {source_product.name}")
+    return HttpResponse(status=204)
 
 @require_http_methods(["GET"])
 def edit_recipe_modal(request, pk):
