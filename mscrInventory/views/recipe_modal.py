@@ -49,16 +49,13 @@ def edit_recipe_view(request, pk):
     )
 
     # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
-    recipe_modifiers = (
-        RecipeModifier.objects
-        .filter(product=product)
-        .order_by("id")
-    )
+    recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name")
+    
 
     # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
-    current_modifiers = {rm.id: rm.quantity for rm in recipe_modifiers}
+    current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers}
 
-    context = {
+    ctx = {
         "product": product,
         "recipe_items": recipe_items,
         "all_ingredients": all_ingredients,
@@ -66,7 +63,7 @@ def edit_recipe_view(request, pk):
         "recipe_modifiers": recipe_modifiers,          # the ONLY modifier source you have
         "current_modifiers": current_modifiers,        # {id: qty} for prefill
     }
-    return render(request, "recipes/_edit_modal.html", context)
+    return render(request, "recipes/_edit_modal.html", ctx)
 
 
 @require_http_methods(["POST"])
@@ -116,27 +113,19 @@ def delete_recipe_ingredient(request, item_id):
 @require_http_methods(["POST"])
 @transaction.atomic
 def save_recipe_modifiers(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    # fetch only modifiers for this product
-    recipe_modifiers = RecipeModifier.objects.filter(product=product)
-
-    for rm in recipe_modifiers:
+    # TODO: implement per-recipe modifier mapping later
+    """product = get_object_or_404(Product, pk=pk)
+    for rm in RecipeModifier.objects.filter(product=product):
         key = f"modifier_qty_{rm.id}"
         if key in request.POST:
-            raw = request.POST.get(key, "").strip()
-            if raw == "":
-                # choose your policy: treat blank as 0, or leave untouched
+            raw = (request.POST.get(key) or "").strip()
+            try:
+                rm.quantity = Decimal(raw or "0")
+            except (InvalidOperation, TypeError):
                 rm.quantity = Decimal("0")
-            else:
-                try:
-                    rm.quantity = Decimal(raw)
-                except (InvalidOperation, TypeError):
-                    # ignore bad input or set to 0
-                    rm.quantity = Decimal("0")
             rm.save(update_fields=["quantity"])
+    return HttpResponse(status=204) """
 
-    # HTMX-friendly: no content needed, just 204
-    return HttpResponse(status=204)
 """ commenting out old version
 def save_recipe_modifiers(request, pk):
     product = get_object_or_404(Product, pk=pk)
