@@ -34,7 +34,7 @@ def recipes_dashboard_view(request):
 
     base_items = (
     Product.objects
-    .filter(categories__name__iexact="base_item")
+    .filter(categories__name__iexact="Base Item")
     .order_by("name")
 )
 
@@ -124,6 +124,7 @@ def edit_recipe_view(request, pk):
     # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
     recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name")
     
+    base_items = Product.objects.filter(categories__name__iexact="Base Item").order_by("name")
 
     # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
     current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers}
@@ -135,6 +136,7 @@ def edit_recipe_view(request, pk):
         "units": units,                                # e.g. [“weight”, “volume”, “count”, …]
         "recipe_modifiers": recipe_modifiers,          # the ONLY modifier source you have
         "current_modifiers": current_modifiers,        # {id: qty} for prefill
+        "base_items": base_items,
     }
     return render(request, "recipes/_edit_modal.html", ctx)
 
