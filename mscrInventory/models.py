@@ -74,6 +74,17 @@ class Ingredient(models.Model):
         ("kg", "Kilogram"),
     )
 
+    type = [
+        ("MILK", "Milk"),
+        ("FLAVOR", "Flavor Shot"),
+        ("SYRUP", "Syrup"),
+        ("SUGAR", "Sugar"),
+        ("EXTRA", "Extra"),
+        ("coffee", "Coffee"),
+        ("packaging", "Packaging"),
+        ("misc", "Miscellaneous"),
+    ]
+
     name = models.CharField(max_length=255, unique=True)
     unit_type = models.CharField(max_length=16, choices=UNIT_CHOICES, default="unit")
     current_stock = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
