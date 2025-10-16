@@ -7,7 +7,7 @@
 
 <div class="modal-body">
   <!-- EXTEND FROM BASE ITEM -->
-  <form hx-post="{% url 'extend_recipe' product.id %}" hx-trigger="change" hx-swap="none" hx-target="#globalModal .modal-content" hx-swap="innerHTML" class="mb-3">
+  <form hx-post="{% url 'extend_recipe' product.id %}" hx-trigger="change" hx-target="#globalModal .modal-content" hx-swap="innerHTML" class="mb-3">
     {% csrf_token %}
     <label for="source_recipe_id" class="form-label">Extend From Base Item</label>
     <select name="source_recipe_id" id="source_recipe_id" class="form-select form-select-sm">
@@ -20,6 +20,7 @@
   <hr class="my-3">
   <!-- INGREDIENTS SECTION -->
   <h6 class="mb-2">Ingredients</h6>
+  
   <table class="table table-sm align-middle">
     <thead>
       <tr>
@@ -36,15 +37,25 @@
       </tr>
     </tbody>
   </table>
-
+  
   <!-- ADD INGREDIENT FORM -->
   <form hx-post="{% url 'add_recipe_ingredient' product.id %}" hx-target="#ingredients-table-body" hx-swap="beforeend"
-    class="row g-2 align-items-end mb-3">
+    class="row g-2 align-items-start mb-3">
+  
     {% csrf_token %}
-
+  
     <div class="col-6">
       <label class="form-label">Ingredient</label>
-      <select name="ingredient_id" id="add-ingredient-select" class="form-select form-select-sm">
+  
+      <!-- Search bar -->
+      <input type="text" id="ingredient-search" class="form-control form-control-sm mb-1"
+        placeholder="Search ingredients…" style="display: inline; width: 85%;">
+      <button type="button" id="ingredient-clear" class="btn btn-outline-secondary" title="Clear search">
+        ✕
+      </button>
+  
+      <!-- Select with grouped + scrollable options -->
+      <select name="ingredient_id" id="add-ingredient-select" class="form-select form-select-sm" size="8">
         {% regroup all_ingredients by type as ingredients_by_type %}
         {% for group in ingredients_by_type %}
         <optgroup label="{{ group.grouper|title }}">
@@ -55,24 +66,87 @@
         {% endfor %}
       </select>
     </div>
-
+  
     <div class="col-3">
       <label class="form-label">Qty</label>
       <input type="number" step="0.01" name="quantity" class="form-control form-control-sm" placeholder="0">
     </div>
-
+  
     <div class="col-2">
-      <div class="col-2">
-        <label class="form-label">Unit</label>
-        <input type="text" name="unit" style="width: 100px;" id="add-unit-input" 
-         class="form-control form-control-sm" readonly>
-      </div>
+      <label class="form-label">Unit</label>
+      <input type="text" name="unit" id="add-unit-input" class="form-control form-control-sm" readonly>
     </div>
-
+  
     <div class="col-1">
+      <label class="form-label">&nbsp;</label>
       <button type="submit" class="btn btn-sm btn-outline-primary w-100" aria-label="Add ingredient">+</button>
     </div>
   </form>
+  
+  <!-- Ingredient search & unit sync scripts -->
+  <script>
+    (function () {
+      const searchInput = document.getElementById('ingredient-search');
+      const clearBtn = document.getElementById('ingredient-clear');
+      const select = document.getElementById('add-ingredient-select');
+      const unitInput = document.getElementById('add-unit-input');
+      if (!searchInput || !select) return;
+
+      const optgroups = Array.from(select.querySelectorAll('optgroup'));
+
+      // 🔍 Filter + bubble-sort inside groups
+      function filterOptions(term) {
+        const lower = term.toLowerCase();
+
+        optgroups.forEach(group => {
+          const options = Array.from(group.querySelectorAll('option'));
+
+          // score + filter per group
+          const matches = options
+            .map(opt => {
+              const text = opt.textContent.toLowerCase();
+              const idx = text.indexOf(lower);
+              return { opt, score: idx === -1 ? Infinity : idx };
+            })
+            .filter(o => o.score !== Infinity)
+            .sort((a, b) => a.score - b.score)
+            .map(o => o.opt);
+
+          // Hide or rebuild group content
+          options.forEach(o => (o.hidden = true));
+          matches.forEach(o => (o.hidden = false));
+
+          // Move matches to top of their group (bubble effect)
+          matches.forEach(o => group.appendChild(o));
+
+          // Hide group if no matches and a term is typed
+          group.hidden = term && matches.length === 0;
+        });
+      }
+
+      // 🧹 Reset search
+      function clearSearch() {
+        searchInput.value = '';
+        optgroups.forEach(group => {
+          group.hidden = false;
+          group.querySelectorAll('option').forEach(opt => (opt.hidden = false));
+        });
+      }
+
+      searchInput.addEventListener('input', () => filterOptions(searchInput.value));
+      clearBtn.addEventListener('click', clearSearch);
+
+      // 🔁 Unit auto-fill
+      function syncUnitToIngredient() {
+        const opt = select.options[select.selectedIndex];
+        unitInput.value = opt?.dataset.unitType || '';
+      }
+      select.addEventListener('change', syncUnitToIngredient);
+      syncUnitToIngredient();
+    })();
+  </script>
+
+
 
   <hr class="my-3">
 

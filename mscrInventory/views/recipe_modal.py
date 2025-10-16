@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404, render
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 from decimal import Decimal, InvalidOperation
 from django.views.decorators.http import require_http_methods
 from django.db import transaction
@@ -46,22 +46,18 @@ def recipes_dashboard_view(request):
     }
     return render(request, "recipes/dashboard.html", ctx)
 
+@require_http_methods(["POST"])
 def extend_recipe(request, pk):
-    """
-    Extend a product's recipe using another product marked as a 'Base Item' category.
-    """
     product = get_object_or_404(Product, pk=pk)
     source_id = request.POST.get("source_recipe_id")
 
     if not source_id:
-        return JsonResponse({"error": "No base item selected."}, status=400)
+        return HttpResponseBadRequest("No source recipe selected.")
 
-    source_product = get_object_or_404(
-        Product, pk=source_id, categories__name__iexact="Base Item"
-    )
+    source_recipe = get_object_or_404(Product, pk=source_id)
 
-    # Copy ingredients
-    for item in RecipeItem.objects.filter(product=source_product):
+    # Clone recipe items
+    for item in RecipeItem.objects.filter(product=source_recipe):
         RecipeItem.objects.create(
             product=product,
             ingredient=item.ingredient,
@@ -69,19 +65,15 @@ def extend_recipe(request, pk):
             unit=item.unit,
         )
 
-    # Copy modifiers (optional)
-    for mod in RecipeModifier.objects.filter(product=source_product):
-        RecipeModifier.objects.create(
-            name=mod.name,
-            ingredient=mod.ingredient,
-            base_quantity=mod.base_quantity,
-            unit=mod.unit,
-            size_multiplier=mod.size_multiplier,
-            type=mod.type,
-        )
-
-    messages.success(request, f"Copied ingredients from base recipe: {source_product.name}")
-    return HttpResponse(status=204)
+    # Return updated modal content
+    recipe_items = RecipeItem.objects.filter(product=product)
+    ctx = {
+        "product": product,
+        "recipe_items": recipe_items,
+        "all_ingredients": Ingredient.objects.all(),
+        "base_items": Product.objects.filter(categories__name__icontains="base"),
+    }
+    return render(request, "recipes/_edit_modal.html", ctx)
 
 @require_http_methods(["GET"])
 def edit_recipe_modal(request, pk):
@@ -92,7 +84,8 @@ def edit_recipe_modal(request, pk):
     context = {
         "product": product,
         "recipe_items": product.recipe_items.select_related("ingredient").all(),
-        "all_ingredients": Ingredient.objects.all().order_by("name"),
+        #"all_ingredients": Ingredient.objects.all().order_by("name"),
+        "all_ingredients": Ingredient.objects.order_by("type", "name"),
         "all_modifiers": RecipeModifier.objects.all().order_by("type", "name"),
         "current_modifiers": list(product.modifiers.values_list("id", flat=True)) if hasattr(product, "modifiers") else [],
     }
