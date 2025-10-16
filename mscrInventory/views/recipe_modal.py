@@ -124,7 +124,7 @@ def edit_recipe_view(request, pk):
     # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
     recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name")
     
-    base_items = Product.objects.filter(category__name__icontains="base").order_by("name")
+    base_items = Product.objects.filter(categories__name__icontains="base").order_by("name")
 
     # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
     current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers}

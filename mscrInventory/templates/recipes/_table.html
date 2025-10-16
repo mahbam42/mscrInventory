@@ -3,8 +3,8 @@
         <tr>
             <th>ID</th>
             <th>Product</th>
+            <th>Temperature</th>
             <th>Categories</th>
-            <th>Modifiers</th>
             <th>Edit</th>
         </tr>
     </thead>
@@ -13,6 +13,7 @@
         <tr>
             <td>{{ product.id }}</td>
             <td>{{ product.name }}</td>
+            <td>{{ product.get_temperature_type_display }}</td>
             <td>
                 {% for cat in product.categories.all %}
                 <span class="badge bg-secondary">{{ cat.name }}</span>
@@ -20,17 +21,11 @@
                 <em>No categories</em>
                 {% endfor %}
             </td>
-            <td>{{ product.modifiers.count }}</td>
             <td>
                 <button hx-get="{% url 'edit_recipe' product.id %}" hx-target="#globalModal .modal-content"
                     hx-swap="innerHTML" class="btn btn-sm btn-outline-primary">
                     Edit
                 </button>
-
-                <!-- <button class="btn btn-primary btn-sm" hx-get="{% url 'edit_recipe' product.id %}"
-            hx-target="#globalModal .modal-content" hx-trigger="click" data-bs-toggle="modal" data-bs-target="#globalModal">
-            Edit Recipe
-          </button> -->
             </td>
         </tr>
         {% empty %}

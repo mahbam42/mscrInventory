@@ -30,6 +30,7 @@ class Product(models.Model):
     sku = models.CharField(max_length=128, unique=True)
     shopify_id = models.CharField(max_length=128, null=True, blank=True)
     square_id = models.CharField(max_length=128, null=True, blank=True)
+    
     # ✅ Added this
     TEMPERATURE_CHOICES = [
         ("hot", "Hot"),
