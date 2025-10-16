@@ -110,8 +110,10 @@
 </div>
 
 <div class="modal-footer">
-  <!-- #3: label says Save (closes for now; we’ll wire saving/refresh in step 4) -->
-  <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Save</button>
+  <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
+    onclick="htmx.trigger(document.body, 'recipes:refresh')">
+    Save
+  </button>
 </div>
 
 <script>

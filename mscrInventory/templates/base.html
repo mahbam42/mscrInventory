@@ -96,6 +96,18 @@
         }
       });
     });
+
+    // Refresh recipe table whenever the global modal fully hides
+      document.addEventListener('hidden.bs.modal', function (event) {
+        const modal = event.target;
+        if (modal.id === 'globalModal') {
+          const recipeTable = document.querySelector('#recipe-table');
+          if (recipeTable) {
+            // Fire HTMX request to reload the table fragment
+            htmx.ajax('GET', '/recipes/table/', { target: '#recipe-table', swap: 'innerHTML' });
+          }
+        }
+      });
   </script>
 
   {% block extra_js %}{% endblock %}
