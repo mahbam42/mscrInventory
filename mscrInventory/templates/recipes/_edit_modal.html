@@ -36,12 +36,12 @@
 
     <div class="col-6">
       <label class="form-label">Ingredient</label>
-      <select name="ingredient_id" class="form-select form-select-sm">
-        {% regroup all_ingredients by type as ingredient_groups %}
+      <select name="ingredient_id" class="form-select form-select-sm" id="add-ingredient-select">
+        {% regroup all_ingredients by unit_type as ingredient_groups %}
         {% for group in ingredient_groups %}
-        <optgroup label="{{ group.grouper }}">
+        <optgroup label="{{ group.grouper|title }}">
           {% for ing in group.list %}
-          <option value="{{ ing.id }}">{{ ing.name }}</option>
+          <option value="{{ ing.id }}" data-unit-type="{{ ing.unit_type }}">{{ ing.name }}</option>
           {% endfor %}
         </optgroup>
         {% endfor %}
@@ -55,39 +55,43 @@
 
     <div class="col-2">
       <label class="form-label">Unit</label>
-      <select name="unit" class="form-select form-select-sm">
+      <select name="unit" class="form-select form-select-sm" id="add-unit-select">
         {% for u in units %}
-        <option value="{{ u }}">{{ u }}</option>
+        <option value="{{ u }}">{{ u|title }}</option>
         {% endfor %}
       </select>
     </div>
 
     <div class="col-1">
-      <button type="submit" class="btn btn-sm btn-outline-primary w-100">+</button>
+      <button type="submit" class="btn btn-sm btn-outline-primary w-100" aria-label="Add ingredient">+</button>
     </div>
   </form>
 
   <hr class="my-3">
 
-  <!-- MODIFIERS SECTION -->
-  <form hx-post="{% url 'save_recipe_modifiers' product.id %}" hx-trigger="change" hx-swap="none">
+  <!-- MODIFIERS SECTION (uses RecipeModifier rows you already have) -->
+  <form id="modifiers-form" hx-post="{% url 'save_recipe_modifiers' product.id %}" hx-trigger="change" hx-swap="none">
     {% csrf_token %}
     <h6 class="mb-2">Modifiers</h6>
     <table class="table table-sm align-middle">
       <thead>
         <tr>
           <th>Modifier</th>
-          <th style="width:100px">Qty</th>
+          <th style="width:120px">Qty</th>
         </tr>
       </thead>
       <tbody>
-        {% for mod in all_modifiers %}
+        {% for rm in recipe_modifiers %}
         <tr>
-          <td>{{ mod.name }} <small class="text-muted">({{ mod.get_type_display }})</small></td>
+          <td>{{ rm.name }}</td>
           <td>
-            <input type="number" step="0.01" name="modifier_qty_{{ mod.id }}"
-              value="{{ current_modifiers|get_item:mod.id }}" class="form-control form-control-sm">
+            <input type="number" step="0.01" name="modifier_qty_{{ rm.id }}"
+              value="{{ current_modifiers|get_item:rm.id }}" class="form-control form-control-sm">
           </td>
+        </tr>
+        {% empty %}
+        <tr class="text-muted">
+          <td colspan="2">No modifiers yet for this recipe.</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -96,5 +100,33 @@
 </div>
 
 <div class="modal-footer">
+  <!-- #3: label says Save (closes for now; we’ll wire saving/refresh in step 4) -->
   <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Save</button>
 </div>
+
+<script>
+  // UX nicety: when ingredient changes, preselect a matching unit_type if we have it
+  (function () {
+    const ingSelect = document.getElementById('add-ingredient-select');
+    const unitSelect = document.getElementById('add-unit-select');
+    if (!ingSelect || !unitSelect) return;
+
+    function syncUnitToIngredient() {
+      const opt = ingSelect.options[ingSelect.selectedIndex];
+      if (!opt) return;
+      const unitType = opt.getAttribute('data-unit-type');
+      if (!unitType) return;
+      // try to select matching unit type
+      for (let i = 0; i < unitSelect.options.length; i++) {
+        if (unitSelect.options[i].value === unitType) {
+          unitSelect.selectedIndex = i;
+          break;
+        }
+      }
+    }
+
+    ingSelect.addEventListener('change', syncUnitToIngredient);
+    // run once on load
+    syncUnitToIngredient();
+  })();
+</script>

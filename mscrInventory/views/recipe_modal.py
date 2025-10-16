@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse, JsonResponse
+from decimal import Decimal, InvalidOperation
 from django.views.decorators.http import require_http_methods
 from django.db import transaction
 from django.template.loader import render_to_string
@@ -27,27 +28,44 @@ def edit_recipe_modal(request, pk):
 @require_http_methods(["GET"])
 def edit_recipe_view(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    recipe_items = RecipeItem.objects.filter(product=product)
-    all_ingredients = Ingredient.objects.all().order_by("type", "name")
-    all_modifiers = Modifier.objects.all().order_by("name")
 
-    # collect distinct units (from Ingredient or a static list)
-    units = Ingredient.objects.values_list("unit", flat=True).distinct().order_by("unit")
+    # existing ingredients on this recipe
+    recipe_items = (
+        RecipeItem.objects
+        .filter(product=product)
+        .select_related("ingredient")
+        .order_by("ingredient__name")
+    )
 
-    # build a dict {modifier_id: quantity}
-    current_modifiers = {
-        ri.modifier.id: ri.quantity for ri in recipe_items if getattr(ri, "modifier", None)
-    }
+    # all ingredients for selector, grouped by unit_type then name
+    all_ingredients = Ingredient.objects.all().order_by("unit_type", "name")
+
+    # distinct unit “types” (since your model has unit_type, not type/unit)
+    units = (
+        Ingredient.objects
+        .values_list("unit_type", flat=True)
+        .distinct()
+        .order_by("unit_type")
+    )
+
+    # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
+    recipe_modifiers = (
+        RecipeModifier.objects
+        .filter(product=product)
+        .order_by("id")
+    )
+
+    # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
+    current_modifiers = {rm.id: rm.quantity for rm in recipe_modifiers}
 
     context = {
         "product": product,
         "recipe_items": recipe_items,
         "all_ingredients": all_ingredients,
-        "all_modifiers": all_modifiers,
-        "units": units,
-        "current_modifiers": current_modifiers,
+        "units": units,                                # e.g. [“weight”, “volume”, “count”, …]
+        "recipe_modifiers": recipe_modifiers,          # the ONLY modifier source you have
+        "current_modifiers": current_modifiers,        # {id: qty} for prefill
     }
-
     return render(request, "recipes/_edit_modal.html", context)
 
 
@@ -98,9 +116,29 @@ def delete_recipe_ingredient(request, item_id):
 @require_http_methods(["POST"])
 @transaction.atomic
 def save_recipe_modifiers(request, pk):
-    """
-    Save checked modifiers (checkboxes) for a product.
-    """
+    product = get_object_or_404(Product, pk=pk)
+    # fetch only modifiers for this product
+    recipe_modifiers = RecipeModifier.objects.filter(product=product)
+
+    for rm in recipe_modifiers:
+        key = f"modifier_qty_{rm.id}"
+        if key in request.POST:
+            raw = request.POST.get(key, "").strip()
+            if raw == "":
+                # choose your policy: treat blank as 0, or leave untouched
+                rm.quantity = Decimal("0")
+            else:
+                try:
+                    rm.quantity = Decimal(raw)
+                except (InvalidOperation, TypeError):
+                    # ignore bad input or set to 0
+                    rm.quantity = Decimal("0")
+            rm.save(update_fields=["quantity"])
+
+    # HTMX-friendly: no content needed, just 204
+    return HttpResponse(status=204)
+""" commenting out old version
+def save_recipe_modifiers(request, pk):
     product = get_object_or_404(Product, pk=pk)
     try:
         selected_ids = request.POST.getlist("modifiers")
@@ -109,4 +147,4 @@ def save_recipe_modifiers(request, pk):
         product.save(update_fields=["modified"])
         return HttpResponse(status=204)
     except Exception as e:
-        return JsonResponse({"error": f"Could not save modifiers: {e}"}, status=400)
+        return JsonResponse({"error": f"Could not save modifiers: {e}"}, status=400) """
