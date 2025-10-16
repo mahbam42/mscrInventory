@@ -182,6 +182,8 @@ class RecipeItem(models.Model):
     )
     quantity = models.DecimalField(max_digits=6, decimal_places=2, null=False, blank=False)
     unit = models.CharField(max_length=32, null=False, blank=False, default="unit")
+    cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
     class Meta:
         constraints = [

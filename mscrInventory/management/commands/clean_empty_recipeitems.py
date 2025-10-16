@@ -1,26 +1,56 @@
 from django.core.management.base import BaseCommand
-from django.db.models import Count
+from django.db.models import Q, Count
 from mscrInventory.models import RecipeItem
 
 class Command(BaseCommand):
-    help = "Cleans RecipeItems with missing data or duplicates. Deletes orphans and merges duplicates safely."
+    help = "Cleans up invalid or duplicate RecipeItems. Use --dry-run to preview actions. \
+    Examples: \
+    python manage.py clean_empty_recipeitems --dry-run \
+    python manage.py clean_empty_recipeitems"
+
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Preview what would be deleted or merged without applying changes.",
+        )
 
     def handle(self, *args, **options):
+        dry_run = options["dry_run"]
         total_deleted = 0
         total_merged = 0
 
-        # 1️⃣ Remove orphaned RecipeItems
-        bad_items = RecipeItem.objects.filter(product__isnull=True) | RecipeItem.objects.filter(ingredient__isnull=True)
+        if dry_run:
+            self.stdout.write(self.style.WARNING("⚙️ Running in DRY-RUN mode — no changes will be made.\n"))
+
+        # 1️⃣ Find invalid / empty RecipeItems
+        bad_items = RecipeItem.objects.filter(
+            Q(product__isnull=True)
+            | Q(ingredient__isnull=True)
+            | Q(quantity__isnull=True)
+            | Q(quantity=0)
+            | Q(unit__isnull=True)
+            | Q(unit__exact="")
+        )
+
         bad_count = bad_items.count()
-
         if bad_count:
-            self.stdout.write(self.style.WARNING(f"🧹 Removing {bad_count} orphaned RecipeItem(s)..."))
-            total_deleted += bad_count
-            bad_items.delete()
+            self.stdout.write(self.style.WARNING(f"🧹 Found {bad_count} invalid or empty RecipeItem(s):"))
+            for item in bad_items[:20]:
+                self.stdout.write(
+                    f"   - ID {item.id} | product={getattr(item.product, 'name', None)} | "
+                    f"ingredient={getattr(item.ingredient, 'name', None)} | qty={item.quantity} | unit='{item.unit}'"
+                )
+            if bad_count > 20:
+                self.stdout.write(f"   ... and {bad_count - 20} more")
+            if not dry_run:
+                deleted_count, _ = bad_items.delete()
+                total_deleted += deleted_count
         else:
-            self.stdout.write(self.style.SUCCESS("✅ No orphaned RecipeItems found."))
+            self.stdout.write(self.style.SUCCESS("✅ No invalid RecipeItems found."))
 
-        # 2️⃣ Detect duplicates by (product_id, ingredient_id)
+        # 2️⃣ Detect duplicates (same product + ingredient)
         dupes = (
             RecipeItem.objects.values("product_id", "ingredient_id")
             .annotate(count=Count("id"))
@@ -28,34 +58,41 @@ class Command(BaseCommand):
         )
 
         if dupes.exists():
-            self.stdout.write(self.style.WARNING(f"🔍 Found {dupes.count()} duplicate ingredient entries."))
-
+            self.stdout.write(self.style.WARNING(f"\n🔍 Found {dupes.count()} duplicate ingredient groups:"))
             for d in dupes:
                 product_id = d["product_id"]
                 ingredient_id = d["ingredient_id"]
                 duplicates = RecipeItem.objects.filter(product_id=product_id, ingredient_id=ingredient_id).order_by("id")
 
-                # Keep the first, merge quantities, delete extras
                 keeper = duplicates.first()
                 others = duplicates.exclude(id=keeper.id)
-                total_qty = sum([ri.quantity for ri in duplicates])
-
-                keeper.quantity = total_qty
-                keeper.save(update_fields=["quantity"])
-
-                deleted_count = others.count()
-                others.delete()
+                total_qty = sum(ri.quantity for ri in duplicates if ri.quantity)
 
                 self.stdout.write(
-                    f"🧩 Merged {deleted_count} duplicate(s) for product {product_id}, ingredient {ingredient_id}. "
-                    f"New total quantity: {keeper.quantity}"
+                    f"   - Product {product_id}, Ingredient {ingredient_id}: "
+                    f"{duplicates.count()} entries (merged qty={total_qty})"
                 )
 
-                total_deleted += deleted_count
-                total_merged += 1
+                if not dry_run:
+                    keeper.quantity = total_qty
+                    keeper.save(update_fields=["quantity"])
+                    deleted_count = others.count()
+                    others.delete()
+                    total_deleted += deleted_count
+                    total_merged += 1
         else:
             self.stdout.write(self.style.SUCCESS("✅ No duplicate RecipeItems found."))
 
-        self.stdout.write(self.style.SUCCESS(
-            f"\n✅ Cleanup complete. Deleted {total_deleted} invalid entries, merged {total_merged} duplicate groups."
-        ))
+        # ✅ Summary
+        if dry_run:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"\n🔎 DRY RUN COMPLETE — would delete {bad_count} invalid rows and merge {dupes.count()} duplicate groups."
+                )
+            )
+        else:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"\n✅ Cleanup complete — deleted {total_deleted} invalid rows, merged {total_merged} duplicate groups."
+                )
+            )
