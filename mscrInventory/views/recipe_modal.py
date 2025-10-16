@@ -38,7 +38,7 @@ def edit_recipe_view(request, pk):
     )
 
     # all ingredients for selector, grouped by unit_type then name
-    all_ingredients = Ingredient.objects.all().order_by("unit_type", "name")
+    all_ingredients = Ingredient.objects.all().order_by("type", "name")
 
     # distinct unit “types” (since your model has unit_type, not type/unit)
     units = (

@@ -36,12 +36,12 @@
 
     <div class="col-6">
       <label class="form-label">Ingredient</label>
-      <select name="ingredient_id" class="form-select form-select-sm" id="add-ingredient-select">
-        {% regroup all_ingredients by unit_type as ingredient_groups %}
-        {% for group in ingredient_groups %}
+      <select name="ingredient_id" class="form-select form-select-sm">
+        {% regroup all_ingredients by type as ingredients_by_type %}
+        {% for group in ingredients_by_type %}
         <optgroup label="{{ group.grouper|title }}">
           {% for ing in group.list %}
-          <option value="{{ ing.id }}" data-unit-type="{{ ing.unit_type }}">{{ ing.name }}</option>
+          <option value="{{ ing.id }}">{{ ing.name }}</option>
           {% endfor %}
         </optgroup>
         {% endfor %}
