@@ -122,20 +122,20 @@ def edit_recipe_view(request, pk):
     )
 
     # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
-    recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name")
+    #recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name") #commenting out old version
     
     base_items = Product.objects.filter(categories__name__icontains="base").order_by("name")
 
     # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
-    current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers}
+    #current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers} #commenting out old version
 
     ctx = {
         "product": product,
         "recipe_items": recipe_items,
         "all_ingredients": all_ingredients,
         "units": units,                                # e.g. [“weight”, “volume”, “count”, …]
-        "recipe_modifiers": recipe_modifiers,          # the ONLY modifier source you have
-        "current_modifiers": current_modifiers,        # {id: qty} for prefill
+        #"recipe_modifiers": recipe_modifiers,          # the ONLY modifier source you have
+        #"current_modifiers": current_modifiers,        # {id: qty} for prefill
         "base_items": base_items,
     }
     return render(request, "recipes/_edit_modal.html", ctx)
@@ -152,7 +152,7 @@ def recipes_table_fragment(request):
     ctx = {"products": products}
 
     # return render(request, "recipes/_table.html", {"products": products})
-    response = render(request, "recipes/_recipesDashboardTable.html", ctx)
+    response = render(request, "recipes/_table.html", ctx)
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response["Pragma"] = "no-cache"
     return response

@@ -47,12 +47,12 @@
 
     <div class="col-6">
       <label class="form-label">Ingredient</label>
-      <select name="ingredient_id" class="form-select form-select-sm">
+      <select name="ingredient_id" id="add-ingredient-select" class="form-select form-select-sm">
         {% regroup all_ingredients by type as ingredients_by_type %}
         {% for group in ingredients_by_type %}
         <optgroup label="{{ group.grouper|title }}">
           {% for ing in group.list %}
-          <option value="{{ ing.id }}">{{ ing.name }}</option>
+          <option value="{{ ing.id }}" data-unit-type="{{ ing.unit_type }}">{{ ing.name }}</option>
           {% endfor %}
         </optgroup>
         {% endfor %}
@@ -80,7 +80,7 @@
   <hr class="my-3">
 
   <!-- MODIFIERS SECTION (uses RecipeModifier rows you already have) -->
-  <form id="modifiers-form" hx-post="{% url 'save_recipe_modifiers' product.id %}" hx-trigger="change" hx-swap="none">
+  <!-- <form id="modifiers-form" hx-post="{% url 'save_recipe_modifiers' product.id %}" hx-trigger="change" hx-swap="none">
     {% csrf_token %}
     <h6 class="mb-2">Modifiers</h6>
     <table class="table table-sm align-middle">
@@ -106,7 +106,7 @@
         {% endfor %}
       </tbody>
     </table>
-  </form>
+  </form> -->
 </div>
 
 <div class="modal-footer">

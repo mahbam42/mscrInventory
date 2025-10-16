@@ -82,6 +82,7 @@
           }
         }
       });
+      
       // --- Trigger refresh on modal close --->
       document.addEventListener("hidden.bs.modal", function (e) {
         if (e.target && e.target.id === "globalModal") {
@@ -108,6 +109,14 @@
           }
         }
       });
+
+      // Ensure HTMX requests always include CSRF token
+        document.body.addEventListener("htmx:configRequest", (event) => {
+          const token = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
+          if (token) {
+            event.detail.headers["X-CSRFToken"] = token;
+          }
+        });
   </script>
 
   {% block extra_js %}{% endblock %}
