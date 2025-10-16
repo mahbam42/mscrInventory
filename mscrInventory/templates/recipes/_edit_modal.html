@@ -6,7 +6,17 @@
 </div>
 
 <div class="modal-body">
-
+  <form hx-post="{% url 'extend_recipe' product.id %}" hx-swap="none" class="mb-3">
+    {% csrf_token %}
+    <label class="form-label">Extend from existing recipe</label>
+    <select name="base_recipe" class="form-select form-select-sm">
+      <option value="">None</option>
+      {% for r in all_recipes %}
+      <option value="{{ r.id }}">{{ r.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-outline-primary mt-1">Apply</button>
+  </form>
   <!-- INGREDIENTS SECTION -->
   <h6 class="mb-2">Ingredients</h6>
   <table class="table table-sm align-middle">
@@ -22,7 +32,7 @@
       {% for item in recipe_items %}
       {% include "recipes/_edit_ingredient_row.html" with item=item %}
       {% empty %}
-      <tr class="text-muted">
+      <tr id="no-ingredients-row" class="text-muted" hx-swap-oob="true" hx-remove>
         <td colspan="4">No ingredients yet.</td>
       </tr>
       {% endfor %}

@@ -4,23 +4,23 @@
 {% block content %}
 <div class="container mt-4">
   <h2 class="mb-3">☕ Recipe Dashboard</h2>
-  <form method="get" class="mb-3 d-flex gap-2 align-items-center" id="recipes-filter">
-    <label for="category" class="form-label mb-0">Category</label>
-    <select name="category" id="category" class="form-select form-select-sm" onchange="this.form.submit()">
-      <option value="">All</option>
-      {% for c in categories %}
-      {# c has keys: categories__id, categories__name #}
-      <option value="{{ c.categories__id }}" {% if selected_category==c.categories__id|stringformat:"s" or
-        selected_category==c.categories__name %} selected {% endif %}>
-        {{ c.categories__name }}
-      </option>
-      {% endfor %}
-    </select>
-  </form>
+    <form method="get" class="mb-3 d-flex gap-2 align-items-center" id="recipes-filter">
+      <label for="category" class="form-label mb-0">Category</label>
+      <select name="category" id="category" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for c in categories %}
+        {% with c.categories__id|stringformat:"s" as cat_id %}
+        <option value="{{ cat_id }}" {% if selected_category == cat_id or selected_category == c.categories__name %} selected {% endif %}>
+          {{ c.categories__name }}
+        </option>
+        {% endwith %}
+        {% endfor %}
+      </select>
+    </form>
   <div id="recipes-table-wrap"
     hx-get="{% url 'recipes_table_fragment' %}{% if selected_category %}?category={{ selected_category }}{% endif %}"
     hx-trigger="recipes:refresh from:body" hx-target="this" hx-swap="outerHTML">
-    {% include "mscrInventory/recipes/_table.html" with products=products %}
+    {% include "recipes/_table.html" with products=products %}
   </div>
   
 </div>
