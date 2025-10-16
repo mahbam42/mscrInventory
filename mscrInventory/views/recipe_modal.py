@@ -193,12 +193,15 @@ def add_recipe_ingredient(request, pk):
 @require_http_methods(["DELETE"])
 @transaction.atomic
 def delete_recipe_ingredient(request, product_id, item_id):
-    """
-    Deletes a RecipeItem row and removes it from the DOM via HTMX.
-    """
-    item = get_object_or_404(RecipeItem, pk=item_id, product_id=product_id)
+    product = get_object_or_404(Product, pk=product_id)
+    item = get_object_or_404(RecipeItem, pk=item_id, product=product)
     item.delete()
-    return HttpResponse(status=204)
+
+    # Re-render the ingredient table body
+    recipe_items = RecipeItem.objects.filter(product=product)
+    ctx = {"recipe_items": recipe_items, "product": product}
+    html = render_to_string("recipes/_edit_ingredient_body.html", ctx, request=request)
+    return HttpResponse(html)
 
 @require_http_methods(["POST"])
 @transaction.atomic

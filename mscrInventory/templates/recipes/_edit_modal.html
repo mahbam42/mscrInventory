@@ -30,13 +30,10 @@
       </tr>
     </thead>
     <tbody id="ingredients-table-body">
-      {% for item in recipe_items %}
-      {% include "recipes/_edit_ingredient_row.html" with item=item %}
-      {% empty %}
+      {% include "recipes/_edit_ingredient_body.html" with recipe_items=recipe_items %}
       <tr id="no-ingredients-row" class="text-muted" hx-swap-oob="true" hx-remove>
         <td colspan="4">No ingredients yet.</td>
       </tr>
-      {% endfor %}
     </tbody>
   </table>
 
@@ -67,7 +64,7 @@
     <div class="col-2">
       <div class="col-2">
         <label class="form-label">Unit</label>
-        <input type="text" name="unit" id="add-unit-input" 
+        <input type="text" name="unit" style="width: 100px;" id="add-unit-input" 
          class="form-control form-control-sm" readonly>
       </div>
     </div>

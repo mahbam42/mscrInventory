@@ -1,0 +1,7 @@
+{% for item in recipe_items %}
+{% include "recipes/_edit_ingredient_row.html" with item=item %}
+{% empty %}
+<tr id="no-ingredients-row" class="text-muted">
+    <td colspan="4">No ingredients yet.</td>
+</tr>
+{% endfor %}
