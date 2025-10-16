@@ -34,7 +34,7 @@ def recipes_dashboard_view(request):
 
     base_items = (
     Product.objects
-    .filter(categories__name__iexact="Base Item")
+    .filter(categories__name__iexact="base_item")
     .order_by("name")
 )
 
@@ -106,7 +106,7 @@ def edit_recipe_view(request, pk):
     recipe_items = (
         RecipeItem.objects
         .filter(product=product)
-        .select_related("ingredient")
+        .select_related("ingredient", "product")
         .order_by("ingredient__name")
     )
 

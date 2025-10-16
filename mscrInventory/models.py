@@ -164,20 +164,40 @@ class StockEntry(models.Model):
             if is_create and self.quantity_added and self.cost_per_unit is not None:
                 # Update Ingredient aggregate fields
                 self.ingredient.increment_stock(self.quantity_added, self.cost_per_unit)
-
+    
 class RecipeItem(models.Model):
-    """
-    Base ingredients for a product (e.g., Latte base = espresso + milk).
-    """
-    product = models.ForeignKey("Product", on_delete=models.CASCADE, related_name="recipe_items")
-    ingredient = models.ForeignKey("Ingredient", on_delete=models.CASCADE)
-    quantity = models.DecimalField(max_digits=8, decimal_places=2)
-    unit = models.CharField(max_length=20)  # e.g., 'oz', 'g', 'each'
-    cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
-    price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="recipe_items",
+        null=False,
+        blank=False,
+    )
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.CASCADE,
+        related_name="recipe_items",
+        null=False,
+        blank=False,
+    )
+    quantity = models.DecimalField(max_digits=6, decimal_places=2, null=False, blank=False)
+    unit = models.CharField(max_length=32, null=False, blank=False, default="unit")
 
     class Meta:
-        unique_together = ("product", "ingredient")
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(product__isnull=True),
+                name="recipeitem_product_required"
+            ),
+            models.CheckConstraint(
+                check=~models.Q(ingredient__isnull=True),
+                name="recipeitem_ingredient_required"
+            ),
+            models.UniqueConstraint(
+                fields=["product", "ingredient"],
+                name="unique_ingredient_per_recipe"
+            ),
+        ]
 
     def __str__(self):
         return f"{self.product.name} - {self.quantity}{self.unit} {self.ingredient.name}"

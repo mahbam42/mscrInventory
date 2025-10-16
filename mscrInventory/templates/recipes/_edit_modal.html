@@ -65,12 +65,11 @@
     </div>
 
     <div class="col-2">
-      <label class="form-label">Unit</label>
-      <select name="unit" class="form-select form-select-sm" id="add-unit-select">
-        {% for u in units %}
-        <option value="{{ u }}">{{ u|title }}</option>
-        {% endfor %}
-      </select>
+      <div class="col-2">
+        <label class="form-label">Unit</label>
+        <input type="text" name="unit" id="add-unit-input" 
+         class="form-control form-control-sm" readonly>
+      </div>
     </div>
 
     <div class="col-1">
@@ -118,26 +117,18 @@
 <script>
   // UX nicety: when ingredient changes, preselect a matching unit_type if we have it
   (function () {
-    const ingSelect = document.getElementById('add-ingredient-select');
-    const unitSelect = document.getElementById('add-unit-select');
-    if (!ingSelect || !unitSelect) return;
+      const ingSelect = document.getElementById('add-ingredient-select');
+      const unitInput = document.getElementById('add-unit-input');
+      if (!ingSelect || !unitInput) return;
 
-    function syncUnitToIngredient() {
-      const opt = ingSelect.options[ingSelect.selectedIndex];
-      if (!opt) return;
-      const unitType = opt.getAttribute('data-unit-type');
-      if (!unitType) return;
-      // try to select matching unit type
-      for (let i = 0; i < unitSelect.options.length; i++) {
-        if (unitSelect.options[i].value === unitType) {
-          unitSelect.selectedIndex = i;
-          break;
-        }
+      function syncUnitToIngredient() {
+        const opt = ingSelect.options[ingSelect.selectedIndex];
+        if (!opt) return;
+        const unitType = opt.getAttribute('data-unit-type') || '';
+        unitInput.value = unitType;
       }
-    }
 
-    ingSelect.addEventListener('change', syncUnitToIngredient);
-    // run once on load
-    syncUnitToIngredient();
-  })();
+      ingSelect.addEventListener('change', syncUnitToIngredient);
+      syncUnitToIngredient();
+    })();
 </script>
