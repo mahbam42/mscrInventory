@@ -11,6 +11,11 @@ def recipes_dashboard_view(request):
     q = request.GET.get("category", "").strip()
     products = Product.objects.all().order_by("name")
 
+    # Treat 'none' (or similar) as no filter
+    if q.lower() in ("none", "null"):
+        q = ""
+        products = Product.objects.all().order_by("name")
+
     if q:
         # accept either an ID (e.g. "12") or a name (e.g. "Espresso Drinks")
         if q.isdigit():
@@ -31,7 +36,7 @@ def recipes_dashboard_view(request):
         "categories": categories,   # list of dicts with keys categories__id / categories__name
         "selected_category": q,
     }
-    return render(request, "mscrInventory/recipes/dashboard.html", ctx)
+    return render(request, "recipes/dashboard.html", ctx)
 
 @require_http_methods(["GET"])
 def edit_recipe_modal(request, pk):
@@ -98,7 +103,7 @@ def recipes_table_fragment(request):
         else:
             products = products.filter(categories__name=q)
 
-    return render(request, "mscrInventory/recipes/_table.html", {"products": products})
+    return render(request, "recipes/_table.html", {"products": products})
 
 @require_http_methods(["POST"])
 @transaction.atomic
