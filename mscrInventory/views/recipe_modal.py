@@ -124,7 +124,7 @@ def edit_recipe_view(request, pk):
     # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
     recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name")
     
-    base_items = Product.objects.filter(categories__name__iexact="Base Item").order_by("name")
+    base_items = Product.objects.filter(category__name__icontains="base").order_by("name")
 
     # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
     current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers}
@@ -149,8 +149,13 @@ def recipes_table_fragment(request):
             products = products.filter(categories__id=int(q))
         else:
             products = products.filter(categories__name=q)
+    ctx = {"products": products}
 
-    return render(request, "recipes/_table.html", {"products": products})
+    # return render(request, "recipes/_table.html", {"products": products})
+    response = render(request, "recipes/_recipesDashboardTable.html", ctx)
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    return response
 
 @require_http_methods(["POST"])
 @transaction.atomic
@@ -176,9 +181,10 @@ def add_recipe_ingredient(request, pk):
             unit=unit,
         )
 
-        # render just the row fragment
-        row_html = render_to_string("recipes/_edit_ingredient_row.html", {"item": item}, request=request)
-        return HttpResponse(row_html)
+        # Return rendered row so HTMX can insert it immediately
+        ctx = {"item": item, "product": product}
+        html = render_to_string("recipes/_edit_ingredient_row.html", ctx, request=request)
+        return HttpResponse(html)
 
     except Exception as e:
         return JsonResponse({"error": f"Could not add ingredient: {e}"}, status=400)

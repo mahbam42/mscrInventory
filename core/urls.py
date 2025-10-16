@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
@@ -31,6 +31,7 @@ from mscrInventory.views.inventory import inventory_dashboard_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path("__reload__/", include("django_browser_reload.urls")),
 
     # main dashboard 
     path("dashboard/", dashboard_view, name="dashboard"),

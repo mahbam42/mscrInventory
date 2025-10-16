@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'django-browser-reload', #hopefully fixes caching issues
     'mscrInventory', #new app
 ]
 
