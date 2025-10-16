@@ -166,27 +166,29 @@ def add_recipe_ingredient(request, pk):
             return JsonResponse({"error": "Missing ingredient or quantity"}, status=400)
 
         ingredient = get_object_or_404(Ingredient, pk=ingredient_id)
+
         item = RecipeItem.objects.create(
             product=product,
             ingredient=ingredient,
-            quantity=quantity,
+            quantity=Decimal(quantity),
             unit=unit,
         )
 
-        row_html = render_to_string("recipes/_edit_ingredient_row.html", {"item": item})
-        return render(request, "recipes/_edit_ingredient_row.html", {"item": item})
+        # render just the row fragment
+        row_html = render_to_string("recipes/_edit_ingredient_row.html", {"item": item}, request=request)
+        return HttpResponse(row_html)
 
     except Exception as e:
-        return JsonResponse({"error": f"Could not add ingredient:"}, status=400)
+        return JsonResponse({"error": f"Could not add ingredient: {e}"}, status=400)
 
 
 @require_http_methods(["DELETE"])
 @transaction.atomic
-def delete_recipe_ingredient(request, item_id):
+def delete_recipe_ingredient(request, product_id, item_id):
     """
     Deletes a RecipeItem row and removes it from the DOM via HTMX.
     """
-    item = get_object_or_404(RecipeItem, pk=item_id)
+    item = get_object_or_404(RecipeItem, pk=item_id, product_id=product_id)
     item.delete()
     return HttpResponse(status=204)
 
