@@ -8,8 +8,30 @@ from django.template.loader import render_to_string
 from ..models import Product, Ingredient, RecipeItem, RecipeModifier
 
 def recipes_dashboard_view(request):
-    products = Product.objects.all().prefetch_related("categories", "modifiers", "recipe_items")
-    return render(request, "recipes/dashboard.html", {"products": products})
+    q = request.GET.get("category", "").strip()
+    products = Product.objects.all().order_by("name")
+
+    if q:
+        # accept either an ID (e.g. "12") or a name (e.g. "Espresso Drinks")
+        if q.isdigit():
+            products = products.filter(categories__id=int(q))
+        else:
+            products = products.filter(categories__name=q)
+
+    # Build a list of available categories from the related M2M
+    categories = (
+        Product.objects
+        .values("categories__id", "categories__name")
+        .distinct()
+        .order_by("categories__name")
+    )
+
+    ctx = {
+        "products": products,
+        "categories": categories,   # list of dicts with keys categories__id / categories__name
+        "selected_category": q,
+    }
+    return render(request, "mscrInventory/recipes/dashboard.html", ctx)
 
 @require_http_methods(["GET"])
 def edit_recipe_modal(request, pk):
@@ -25,6 +47,7 @@ def edit_recipe_modal(request, pk):
         "current_modifiers": list(product.modifiers.values_list("id", flat=True)) if hasattr(product, "modifiers") else [],
     }
     return render(request, "recipes/_edit_modal.html", context)
+
 @require_http_methods(["GET"])
 def edit_recipe_view(request, pk):
     product = get_object_or_404(Product, pk=pk)
@@ -65,6 +88,17 @@ def edit_recipe_view(request, pk):
     }
     return render(request, "recipes/_edit_modal.html", ctx)
 
+def recipes_table_fragment(request):
+    q = request.GET.get("category", "").strip()
+    products = Product.objects.all().order_by("name")
+
+    if q:
+        if q.isdigit():
+            products = products.filter(categories__id=int(q))
+        else:
+            products = products.filter(categories__name=q)
+
+    return render(request, "mscrInventory/recipes/_table.html", {"products": products})
 
 @require_http_methods(["POST"])
 @transaction.atomic

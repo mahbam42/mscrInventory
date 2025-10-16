@@ -20,7 +20,7 @@ from mscrInventory.views.dashboard import dashboard_view
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
 #from mscrInventory.views import recipes_modal
-from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient
+from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment
 #
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
@@ -49,6 +49,8 @@ urlpatterns = [
     path("recipes/<int:pk>/add-ingredient/", add_recipe_ingredient, name="add_recipe_ingredient"),
     path("recipes/<int:pk>/save-modifiers/", save_recipe_modifiers, name="save_recipe_modifiers"),
     path("recipes/<int:product_id>/delete-ingredient/<int:item_id>/", delete_recipe_ingredient, name="delete_recipe_ingredient"),
+    path("recipes/table/", recipes_table_fragment, name="recipes_table_fragment"),
+    
 
      #recipes_modal.delete_recipe_ingredient, name="delete_recipe_ingredient"),
      #path("recipes/<int:pk>/save-modifiers/", recipes_modal.save_recipe_modifiers, name="save_recipe_modifiers"),

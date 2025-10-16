@@ -81,6 +81,12 @@
           }
         }
       });
+      // --- Trigger refresh on modal close --->
+      document.addEventListener("hidden.bs.modal", function (e) {
+        if (e.target && e.target.id === "globalModal") {
+          htmx.trigger(document.body, "recipes:refresh");
+        }
+      });
 
       // --- Accessibility fix: blur focused element when modal hides ---
       document.addEventListener("hidden.bs.modal", function (event) {
