@@ -1,0 +1,9 @@
+Area	Manual Test	Expected Result
+Recipes Dashboard	Open /recipes/	Loads all products; temperature column visible
+Edit Modal	Click “Edit”	Modal loads with ingredients list
+Add Ingredient	Select, enter qty, click +	Ingredient appears instantly below
+Delete Ingredient	Click ✕, confirm	Ingredient disappears immediately
+Extend Recipe	Choose base, click submit	Ingredients cloned; modal updates
+Search Filter	Type “milk”	Matching options bubble to top; categories collapse
+CSRF Handling	Add/delete while logged out	Safe 403 with “Forbidden” message
+Live Reload	Save template while server running	Page reloads automatically
