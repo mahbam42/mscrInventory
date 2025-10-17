@@ -65,8 +65,27 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+class IngredientType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+    
+class UnitType(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    abbreviation = models.CharField(max_length=10, blank=True)
+    conversion_to_base = models.DecimalField(max_digits=10, decimal_places=4, default=Decimal("1.0000"))
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.abbreviation or self.name
+
 class Ingredient(models.Model):
-    UNIT_CHOICES = (
+    """    
+        Replacing with database models for unit types and ingredient types.
+        UNIT_CHOICES = (
         ("oz", "Ounce"),
         ("lb", "Pound"),
         ("fl_oz", "Fluid Ounce"),
@@ -84,12 +103,18 @@ class Ingredient(models.Model):
         ("coffee", "Coffee"),
         ("packaging", "Packaging"),
         ("misc", "Miscellaneous"),
-    ]
+        ("Bagel", "Bagel"),
+        ("Spread", "Spread"),
+        ("Topping", "Topping"),
+        ("Toast", "Toast"),
+        ("Baked Good", "Baked Good"),
+        ("Muffin", "Muffin"),
+        ("Cookie", "Cookie"),
+    ] """
 
     name = models.CharField(max_length=255, unique=True)
-    unit_type = models.CharField(max_length=16, choices=UNIT_CHOICES, default="unit", help_text="Unit of measurement for this ingredient.")
-    type = models.CharField(max_length=50, choices=type, default="misc", help_text="Category of ingredient.")  # 👈 NEW FIELD
-
+    type = models.ForeignKey(IngredientType, on_delete=models.SET_NULL, null=True, blank=True)
+    unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True, blank=True)
     current_stock = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
     case_size = models.PositiveIntegerField(null=True, blank=True, help_text="Units per case, if applicable.")
     reorder_point = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))

@@ -5,7 +5,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from mscrInventory.models import Ingredient, RecipeModifier
+from mscrInventory.models import Ingredient, RecipeModifier, IngredientType, UnitType
 
 class Command(BaseCommand):
     help = "Batch import ingredients and modifiers from CSV."
@@ -41,37 +41,42 @@ class Command(BaseCommand):
                 cost = Decimal(row["cost_per_unit"] or "0")
                 price = Decimal(row["price_per_unit"] or "0")
 
+                # Process ingredient rows
                 if row_type == "ingredient":
+                    category_name = row.get("modifier_type", "").strip().title() or "Miscellaneous"
+                    unit_name = row.get("unit_type", "").strip().title() or "Unit"
+
+                    category, _ = IngredientType.objects.get_or_create(name=category_name)
+                    unit_obj, _ = UnitType.objects.get_or_create(name=unit_name)
+
                     ing, created = Ingredient.objects.get_or_create(
                         name=name,
                         defaults={
-                            "unit_type": unit_type,
+                            "unit_type": unit_obj,
                             "current_stock": 0,
                             "average_cost_per_unit": cost,
+                            "type": category,
                         },
                     )
+
                     if created:
                         created_ing += 1
                     else:
-                        # option to update cost or unit_type
                         changed = False
-                        if ing.unit_type != unit_type:
-                            ing.unit_type = unit_type
+                        if ing.unit_type_id != unit_obj.id:
+                            ing.unit_type = unit_obj
                             changed = True
                         if ing.average_cost_per_unit != cost:
                             ing.average_cost_per_unit = cost
                             changed = True
+                        if ing.type_id != category.id:
+                            ing.type = category
+                            changed = True
+
                         if changed:
-                            ing.save(update_fields=["unit_type", "average_cost_per_unit"])
+                            ing.save(update_fields=["unit_type", "average_cost_per_unit", "type"])
                             updated_ing += 1
 
-                elif row_type == "modifier":
-                    # must exist ingredient first
-                    try:
-                        ing = Ingredient.objects.get(name=name)
-                    except Ingredient.DoesNotExist:
-                        self.stderr.write(f"Ingredient for modifier '{name}' not found — skipping modifier.")
-                        continue
 
                     base_qty = Decimal(row["base_quantity"] or "0")
                     size_mult = row["size_multiplier"].strip().lower() in ("true", "1", "yes")
@@ -120,8 +125,8 @@ class Command(BaseCommand):
                         if fields_to_update:
                             mod.save(update_fields=fields_to_update)
                             updated_mod += 1
-                else:
-                    self.stderr.write(f"Unknown type '{row_type}' for row: {row}")
+                        else:
+                            self.stderr.write(f"Unknown type '{row_type}' for row: {row}")
 
         self.stdout.write(self.style.SUCCESS(
             f"Ingredients created: {created_ing}, updated: {updated_ing}\n"

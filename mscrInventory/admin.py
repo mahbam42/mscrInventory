@@ -18,6 +18,7 @@ from .models import (
     IngredientUsageLog,
     StockEntry,
     ImportLog,
+    IngredientType,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -77,6 +78,13 @@ class IngredientAdmin(admin.ModelAdmin):
     )
     list_filter = ('unit_type',)
     search_fields = ('name',)     
+
+@admin.register(IngredientType)
+class IngredientTypeAdmin(admin.ModelAdmin):
+    search_fields = ("name",)
+    ordering = ("name",)
+    list_display = ('name', 'type', 'unit_type', 'current_stock', 'average_cost_per_unit')
+    list_filter = ('type', 'unit_type',)
 
 from .models import Order, OrderItem
 
