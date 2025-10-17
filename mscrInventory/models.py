@@ -189,12 +189,16 @@ class RecipeItem(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=~models.Q(product__isnull=True),
+                condition=~models.Q(product__isnull=True),
                 name="recipeitem_product_required"
             ),
             models.CheckConstraint(
-                check=~models.Q(ingredient__isnull=True),
+                condition=~models.Q(ingredient__isnull=True),
                 name="recipeitem_ingredient_required"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=0),
+                name="recipeitem_quantity_nonnegative"
             ),
             models.UniqueConstraint(
                 fields=["product", "ingredient"],
