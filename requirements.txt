@@ -1,0 +1,23 @@
+# Core
+Django>=5.2,<6.0
+django-htmx>=1.18.0
+django-browser-reload>=1.12.1
+requests>=2.31.0
+
+# Data handling (CSV/Shopify/Square imports)
+pandas>=2.2.0
+openpyxl>=3.1.2
+
+# Dev tools
+black>=24.4.0
+flake8>=7.0.0
+isort>=5.13.2
+
+# Testing
+pytest>=8.3.0
+pytest-django>=4.8.0
+pytest-cov>=5.0.0
+factory-boy>=3.3.0
+faker>=25.0.0
+
+python-dotenv>=1.0.1
