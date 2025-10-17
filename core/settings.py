@@ -88,7 +88,11 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    },
+    'backup': {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db_backup_corrupted.sqlite3",
+    },
 }
 
 
