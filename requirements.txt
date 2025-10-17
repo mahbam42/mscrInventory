@@ -2,6 +2,7 @@
 Django>=5.2,<6.0
 django-htmx>=1.18.0
 django-browser-reload>=1.12.1
+django-bulk-admin>=0.1.1
 requests>=2.31.0
 
 # Data handling (CSV/Shopify/Square imports)
