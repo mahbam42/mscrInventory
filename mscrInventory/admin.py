@@ -19,6 +19,7 @@ from .models import (
     StockEntry,
     ImportLog,
     IngredientType,
+    UnitType
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -70,21 +71,28 @@ class ProductAdmin(admin.ModelAdmin):
     category_list.short_description = "Categories"
 
 
+@admin.register(IngredientType)
+class IngredientTypeAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+    ordering = ("name",)
+
+
+@admin.register(UnitType)
+class UnitTypeAdmin(admin.ModelAdmin):
+    list_display = ("name", "abbreviation", "conversion_to_base")
+    search_fields = ("name", "abbreviation")
+    ordering = ("name",)
+
+
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'unit_type', 'current_stock', 'average_cost_per_unit',
-        'reorder_point', 'lead_time', 'last_updated'
+        "name", "type", "unit_type", "current_stock", "average_cost_per_unit",
+        "reorder_point", "lead_time", "last_updated"
     )
-    list_filter = ('unit_type',)
-    search_fields = ('name',)     
-
-@admin.register(IngredientType)
-class IngredientTypeAdmin(admin.ModelAdmin):
+    list_filter = ("type", "unit_type",)
     search_fields = ("name",)
-    ordering = ("name",)
-    list_display = ('name', 'type', 'unit_type', 'current_stock', 'average_cost_per_unit')
-    list_filter = ('type', 'unit_type',)
 
 from .models import Order, OrderItem
 
