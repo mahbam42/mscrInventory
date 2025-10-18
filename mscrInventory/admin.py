@@ -77,7 +77,6 @@ class IngredientTypeAdmin(admin.ModelAdmin):
     search_fields = ("name",)
     ordering = ("name",)
 
-
 @admin.register(UnitType)
 class UnitTypeAdmin(admin.ModelAdmin):
     list_display = ("name", "abbreviation", "conversion_to_base")
@@ -93,8 +92,6 @@ class IngredientAdmin(admin.ModelAdmin):
     )
     list_filter = ("type", "unit_type",)
     search_fields = ("name",)
-
-from .models import Order, OrderItem
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -124,8 +121,4 @@ class RecipeModifierAdmin(admin.ModelAdmin):
     list_display = ("name", "type", "ingredient", "base_quantity", "unit", "size_multiplier")
     list_filter = ("type",)
     search_fields = ("name", "ingredient__name")
-# @admin.register(Product)
-# class ProductAdmin(admin.ModelAdmin):
-#     list_display = ('sku', 'name', 'category')
-#     list_filter = (UnmappedProductFilter, 'category')
-#     search_fields = ('sku', 'name')
+
