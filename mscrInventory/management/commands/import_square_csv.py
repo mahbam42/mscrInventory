@@ -165,26 +165,26 @@ for raw_mod in parse_modifiers_string(row.get("Modifiers Applied", "")):
         modifiers.append(normalize_modifier(raw_mod))
     else:
         modifiers.extend(extras)
-#                modifiers_raw = row.get("Modifiers Applied", "")
-#                modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
+#       modifiers_raw = row.get("Modifiers Applied", "")
+#       modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
 
-                # Handle flavor/syrup detection + special flags here
-                base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
-                base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
-                extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
-                drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
+        # Handle flavor/syrup detection + special flags here
+        base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
+        base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
+        extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
+        drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
 
-                orders_by_id[transaction_id]["items"].append({
-                    "sku_or_handle": row.get("SKU", "").strip(),
-                    "name": row.get("Item", "").strip(),
-                    "quantity": Decimal(row.get("Qty", "1")),
-                    "modifiers": {
-                        "flavors": base_flavors,
-                        "extra_flavor_count": extra_flavor_count,
-                        "syrups": base_syrups,
-                        "drizzle_cup_count": drizzle_cup_count,
-                    },
-                })
+        orders_by_id[transaction_id]["items"].append({
+            "sku_or_handle": row.get("SKU", "").strip(),
+            "name": row.get("Item", "").strip(),
+            "quantity": Decimal(row.get("Qty", "1")),
+            "modifiers": {
+                "flavors": base_flavors,
+                "extra_flavor_count": extra_flavor_count,
+                "syrups": base_syrups,
+                "drizzle_cup_count": drizzle_cup_count,
+            },
+        })
 
         normalized_orders = list(orders_by_id.values())
         self.stdout.write(self.style.NOTICE(f"🧾 Parsed {len(normalized_orders)} Square orders"))
