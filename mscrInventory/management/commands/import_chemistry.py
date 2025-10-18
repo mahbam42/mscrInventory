@@ -117,7 +117,7 @@ class Command(BaseCommand):
                     base_qty = safe_decimal(row.get("base_quantity"))
                     size_mult = str(row.get("size_multiplier", "")).strip().lower() in ("true", "1", "yes")
                     avg_cost = safe_decimal(row.get("cost_per_unit"))
-                    price = safe_decimal(row.get("price_per_unit"))
+                    #price = safe_decimal(row.get("price_per_unit"))
                     category_name = (row.get("modifier_type") or "Miscellaneous").strip().title()
                     unit_name = (row.get("unit_type") or "Unit").strip().title()
                     mod_type = (row.get("modifier_type") or "").strip().upper() or "BASE"
@@ -132,7 +132,7 @@ class Command(BaseCommand):
                         defaults={
                             "unit_type": unit_obj,
                             "average_cost_per_unit": avg_cost,
-                            "price_per_unit": price,
+                            #"price_per_unit": price,
                             "type": category,
                         },
                     )
@@ -147,9 +147,9 @@ class Command(BaseCommand):
                         if ing.average_cost_per_unit != avg_cost:
                             ing.average_cost_per_unit = avg_cost
                             changed_fields.append("average_cost_per_unit")
-                        if getattr(ing, "price_per_unit", None) != price:
-                            ing.price_per_unit = price
-                            changed_fields.append("price_per_unit")
+                        # if getattr(ing, "price_per_unit", None) != price:
+                        #         ing.price_per_unit = price
+                        #         changed_fields.append("price_per_unit"),
                         if ing.type_id != category.id:
                             ing.type = category
                             changed_fields.append("type")
@@ -167,7 +167,7 @@ class Command(BaseCommand):
                             "base_quantity": base_qty,
                             "size_multiplier": size_mult,
                             "cost_per_unit": avg_cost,
-                            "price_per_unit": price,
+                            #"price_per_unit": price,
                             "type": mod_type,
                         },
                     )
@@ -191,9 +191,9 @@ class Command(BaseCommand):
                         if mod.cost_per_unit != avg_cost:
                             mod.cost_per_unit = avg_cost
                             mod_changed.append("cost_per_unit")
-                        if mod.price_per_unit != price:
-                            mod.price_per_unit = price
-                            mod_changed.append("price_per_unit")
+                        #if mod.price_per_unit != price:
+                        #    mod.price_per_unit = price
+                        #    mod_changed.append("price_per_unit")
                         if mod.type != mod_type:
                             mod.type = mod_type
                             mod_changed.append("type")
