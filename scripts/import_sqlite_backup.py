@@ -1,99 +1,215 @@
-import csv
 import os
+import sys
+import csv
 import django
-import logging
-from django.db import IntegrityError, transaction
+import warnings
+import traceback
+from pathlib import Path
+from datetime import datetime
+from django.db import transaction, IntegrityError
 
-# --- Django setup ---
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mscrInventory.settings")
+# ───────────────────────────────────────────────────────────────
+# Django setup
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT))
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 
 from mscrInventory import models  # noqa: E402
+from mscrInventory.models import IngredientType, UnitType, Category
 
-# --- Logging setup ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.FileHandler("import_log.txt"), logging.StreamHandler()],
+# Suppress warnings about naive datetimes
+warnings.filterwarnings("ignore", message="DateTimeField.*received a naive datetime")
+
+# ───────────────────────────────────────────────────────────────
+# Configuration
+BACKUP_DIR = Path("archive/backup_CSVs")
+LATEST = (
+    Path(sys.argv[1])
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("--")
+    else sorted(BACKUP_DIR.glob("backup_*"))[-1] if BACKUP_DIR.exists() else None
 )
-logger = logging.getLogger(__name__)
+DRY_RUN = "--dry-run" in sys.argv
+LOG_FILE = Path("archive") / f"import_log_{datetime.now():%Y%m%d_%H%M}.txt"
 
-# --- Config ---
-DATA_DIR = os.path.join("scripts", "sqlite_backup")
-SKIP_ON_ERROR = True  # Change to False if you want to stop on first error
+TABLE_ORDER = [
+    "mscrInventory_unittype",
+    "mscrInventory_ingredienttype",
+    "mscrInventory_category",
+    "mscrInventory_ingredient",
+    "mscrInventory_product",
+    "mscrInventory_product_categories",
+    "mscrInventory_product_modifiers",
+    "mscrInventory_recipeitem",
+    "mscrInventory_recipemodifier",
+    "mscrInventory_recipemodifier_expands_to",
+    "mscrInventory_stockentry",
+    "mscrInventory_importlog",
+    "mscrInventory_ingredientusagelog",
+    "mscrInventory_order",
+    "mscrInventory_orderitem",
+]
+
+MODEL_MAP = {
+    "mscrInventory_unittype": models.UnitType,
+    "mscrInventory_ingredienttype": models.IngredientType,
+    "mscrInventory_category": models.Category,
+    "mscrInventory_ingredient": models.Ingredient,
+    "mscrInventory_product": models.Product,
+    "mscrInventory_product_categories": models.Product.categories.through,
+    "mscrInventory_product_modifiers": models.Product.modifiers.through,
+    "mscrInventory_recipeitem": models.RecipeItem,
+    "mscrInventory_recipemodifier": models.RecipeModifier,
+    "mscrInventory_recipemodifier_expands_to": models.RecipeModifier.expands_to.through,
+    "mscrInventory_stockentry": models.StockEntry,
+    "mscrInventory_importlog": models.ImportLog,
+    "mscrInventory_ingredientusagelog": models.IngredientUsageLog,
+    "mscrInventory_order": models.Order,
+    "mscrInventory_orderitem": models.OrderItem,
+}
+
+# ───────────────────────────────────────────────────────────────
+def log(message: str):
+    print(message)
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(message + "\n")
 
 
-def import_csv(model, filename, required_fields=None):
-    """Import CSV rows into the given model with validation and logging."""
-    path = os.path.join(DATA_DIR, filename)
-    if not os.path.exists(path):
-        logger.warning(f"⚠️ File not found: {path}")
-        return 0, 0, 0
+def load_csv(csv_path: Path):
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
-    created, skipped, errors = 0, 0, 0
-    required_fields = required_fields or []
 
-    with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Trim whitespace and normalize blanks
-            row = {k: (v.strip() or None) for k, v in row.items()}
+def clean_value(value):
+    if value == "":
+        return None
+    return value
 
-            # Validate required fields
-            if any(not row.get(field) for field in required_fields):
-                skipped += 1
-                logger.warning(f"⏩ Skipping invalid row in {filename}: {row}")
+
+def import_csv(model, csv_path: Path):
+    data = load_csv(csv_path)
+    if not data:
+        log(f"⚠️  Skipping empty file: {csv_path.name}")
+        return 0
+
+    model_fields = {f.name for f in model._meta.get_fields()}
+    count = 0
+    failed_rows = 0
+
+    for row in data:
+        # Skip rows missing mandatory FKs (pre-validation)
+        if "product_id" in row and not row["product_id"]:
+            log(f"⏩ Skipping invalid FK row in {csv_path.name}: missing product_id")
+            continue
+        if "category_id" in row and not row["category_id"]:
+            log(f"⏩ Skipping invalid FK row in {csv_path.name}: missing category_id")
+            continue
+
+        sid = transaction.savepoint()
+        try:
+            cleaned = {}
+            for k, v in row.items():
+                if k not in model_fields:
+                    continue
+                if v == "":
+                    if k in ("case_size", "cost_per_case", "cost_per_unit", "price_per_unit"):
+                        cleaned[k] = 0
+                    else:
+                        cleaned[k] = None
+                else:
+                    cleaned[k] = v
+
+            # Special handling
+            if model.__name__ == "Category":
+                cleaned["description"] = cleaned.get("description") or ""
+
+            elif model.__name__ == "Ingredient":
+                if cleaned.get("type"):
+                    cleaned["type"] = IngredientType.objects.get_or_create(name=cleaned["type"])[0]
+                if cleaned.get("unit_type"):
+                    cleaned["unit_type"] = UnitType.objects.get_or_create(name=cleaned["unit_type"])[0]
+
+            # Drop ID for auto PK
+            if not cleaned.get("id"):
+                cleaned.pop("id", None)
+
+            if DRY_RUN:
+                log(f"🧪 Would import {model.__name__}: {cleaned}")
+                transaction.savepoint_rollback(sid)
+                continue
+
+            model.objects.create(**cleaned)
+            transaction.savepoint_commit(sid)
+            count += 1
+
+        except Exception as e:
+            failed_rows += 1
+            transaction.savepoint_rollback(sid)
+            log(f"    ⚠️ Skipped row in {csv_path.name}: {e}")
+            continue
+
+    if failed_rows:
+        log(f"⚠️  {failed_rows} rows skipped due to errors.")
+    return count
+
+
+# ───────────────────────────────────────────────────────────────
+def run_import():
+    if not LATEST:
+        log("❌ No backup folder found.")
+        return
+
+    log(f"📥 Starting import from {LATEST}")
+    if DRY_RUN:
+        log("🧪 DRY-RUN mode: no data will be written.\n")
+
+    successes, failures = [], []
+
+    base_tables = [
+        "mscrInventory_unittype",
+        "mscrInventory_ingredienttype",
+        "mscrInventory_category",
+        "mscrInventory_ingredient",
+        "mscrInventory_product",
+    ]
+    dependent_tables = [t for t in TABLE_ORDER if t not in base_tables]
+
+    for phase, tables in [("Phase 1", base_tables), ("Phase 2", dependent_tables)]:
+        log(f"\n🔹 {phase} import")
+        for table in tables:
+            csv_path = LATEST / f"{table}.csv"
+            if not csv_path.exists():
+                continue
+
+            model = MODEL_MAP.get(table)
+            if not model:
+                log(f"→ Importing {table} ... ⚠️  No matching model found.")
+                failures.append((table, "No matching model"))
                 continue
 
             try:
-                with transaction.atomic():
-                    model.objects.create(**row)
-                    created += 1
-            except IntegrityError as e:
-                errors += 1
-                logger.warning(f"❌ Skipped row in {filename}: {e}")
-                if not SKIP_ON_ERROR:
-                    raise
+                log(f"→ Importing {table} ...")
+                count = import_csv(model, csv_path)
+                log(f"✅  {count} rows imported")
+                successes.append((table, count))
+            except IntegrityError:
+                log(f"❌  {table}: FOREIGN KEY constraint failed")
+                failures.append((table, "FK constraint"))
             except Exception as e:
-                errors += 1
-                logger.error(f"💥 Unexpected error in {filename}: {e}")
-                if not SKIP_ON_ERROR:
-                    raise
+                log(f"❌  {table}: {e}")
+                failures.append((table, str(e)))
 
-    logger.info(f"✅ Imported {created} rows from {filename} "
-                f"(skipped {skipped}, errors {errors})")
-    return created, skipped, errors
-
-
-def main():
-    logger.info("🚀 Starting SQLite CSV import...")
-    total_created = total_skipped = total_errors = 0
-
-    # --- Define import order (respecting FK dependencies) ---
-    IMPORT_ORDER = [
-        # filename, model, required_fields
-        ("mscrInventory_category.csv", models.Category, ["name"]),
-        ("mscrInventory_ingredient.csv", models.Ingredient, ["name"]),
-        ("mscrInventory_product.csv", models.Product, ["name"]),
-        ("mscrInventory_recipe.csv", models.Recipe, ["name"]),
-        ("mscrInventory_recipeitem.csv", models.RecipeItem, ["recipe_id", "ingredient_id"]),
-        ("mscrInventory_product_categories.csv", models.ProductCategory, ["product_id", "category_id"]),
-        ("mscrInventory_product_modifiers.csv", models.ProductModifier, ["product_id", "modifier_id"]),
-        ("mscrInventory_recipemodifier.csv", models.RecipeModifier, ["recipe_id", "modifier_id"]),
-        ("mscrInventory_recipemodifier_expands_to.csv", models.RecipeModifierExpandsTo, ["recipemodifier_id", "recipeitem_id"]),
-    ]
-
-    for filename, model, required_fields in IMPORT_ORDER:
-        created, skipped, errors = import_csv(model, filename, required_fields)
-        total_created += created
-        total_skipped += skipped
-        total_errors += errors
-
-    logger.info("🎯 Import complete!")
-    logger.info(f"Total created: {total_created}")
-    logger.info(f"Total skipped: {total_skipped}")
-    logger.info(f"Total errors: {total_errors}")
+    # Summary
+    log("\n📊 Import Summary\n" + "─" * 40)
+    for table, count in successes:
+        log(f"✅ {table}: {count} rows imported")
+    if failures:
+        log("\n⚠️  Failures:")
+        for table, reason in failures:
+            log(f"   • {table}: {reason}")
+    log(f"\n🧾 Detailed log saved to: {LOG_FILE.absolute()}")
 
 
+# ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    main()
+    run_import()
