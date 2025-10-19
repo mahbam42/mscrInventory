@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 # ---- CONFIG ----
-DB_FILE = Path("db_backup_corrupted.sqlite3")  # or "db.sqlite3"
+DB_FILE = Path("db.sqlite3")  # or "db_backup_corrupted.sqlite3" if we really need to roll back
 OUTPUT_DIR = Path("archive/backup_csvs") / f"backup_{datetime.now():%Y%m%d_%H%M%S}"
 INCLUDE_PREFIXES = ("mscrInventory_", "auth_", "django_")
 
