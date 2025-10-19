@@ -159,50 +159,51 @@ class Command(BaseCommand):
 
                 # 👇 THIS is where the modifier parsing & normalization should happen
                 modifiers = []
-for raw_mod in parse_modifiers_string(row.get("Modifiers Applied", "")):
-    extras = handle_extras(raw_mod, modifiers)
-    if not extras:  # if it's not a special case, add normally
-        modifiers.append(normalize_modifier(raw_mod))
-    else:
-        modifiers.extend(extras)
-#       modifiers_raw = row.get("Modifiers Applied", "")
-#       modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
+                for raw_mod in parse_modifiers_string(row.get("Modifiers Applied", "")):
 
-        # Handle flavor/syrup detection + special flags here
-        base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
-        base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
-        extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
-        drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
+                    extras = handle_extras(raw_mod, modifiers)
+                    if not extras:  # if it's not a special case, add normally
+                        modifiers.append(normalize_modifier(raw_mod))
+                    else:
+                        modifiers.extend(extras)
+                #       modifiers_raw = row.get("Modifiers Applied", "")
+                #       modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
 
-        orders_by_id[transaction_id]["items"].append({
-            "sku_or_handle": row.get("SKU", "").strip(),
-            "name": row.get("Item", "").strip(),
-            "quantity": Decimal(row.get("Qty", "1")),
-            "modifiers": {
-                "flavors": base_flavors,
-                "extra_flavor_count": extra_flavor_count,
-                "syrups": base_syrups,
-                "drizzle_cup_count": drizzle_cup_count,
-            },
-        })
+                        # Handle flavor/syrup detection + special flags here
+                        base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
+                        base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
+                        extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
+                        drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
 
-        normalized_orders = list(orders_by_id.values())
-        self.stdout.write(self.style.NOTICE(f"🧾 Parsed {len(normalized_orders)} Square orders"))
+                        orders_by_id[transaction_id]["items"].append({
+                            "sku_or_handle": row.get("SKU", "").strip(),
+                            "name": row.get("Item", "").strip(),
+                            "quantity": Decimal(row.get("Qty", "1")),
+                            "modifiers": {
+                                "flavors": base_flavors,
+                                "extra_flavor_count": extra_flavor_count,
+                                "syrups": base_syrups,
+                                "drizzle_cup_count": drizzle_cup_count,
+                            },
+                        })
 
-        persist_orders("square", normalized_orders)
-        self.stdout.write(self.style.SUCCESS(f"✅ Imported {len(normalized_orders)} Square orders successfully"))
+            normalized_orders = list(orders_by_id.values())
+            self.stdout.write(self.style.NOTICE(f"🧾 Parsed {len(normalized_orders)} Square orders"))
 
-        # Summarize totals
-        total_orders = len(normalized_orders)
-        total_line_items = sum(len(o["items"]) for o in normalized_orders)
-        total_revenue = sum(o["total_amount"] for o in normalized_orders)
+            persist_orders("square", normalized_orders)
+            self.stdout.write(self.style.SUCCESS(f"✅ Imported {len(normalized_orders)} Square orders successfully"))
 
-        self.stdout.write("")
-        self.stdout.write(self.style.HTTP_INFO("📊 Import Summary"))
-        self.stdout.write(self.style.HTTP_INFO(f"   Orders:       {total_orders}"))
-        self.stdout.write(self.style.HTTP_INFO(f"   Line items:   {total_line_items}"))
-        self.stdout.write(self.style.HTTP_INFO(f"   Total revenue: ${total_revenue:.2f}"))
-        self.stdout.write("")
+            # Summarize totals
+            total_orders = len(normalized_orders)
+            total_line_items = sum(len(o["items"]) for o in normalized_orders)
+            total_revenue = sum(o["total_amount"] for o in normalized_orders)
+
+            self.stdout.write("")
+            self.stdout.write(self.style.HTTP_INFO("📊 Import Summary"))
+            self.stdout.write(self.style.HTTP_INFO(f"   Orders:       {total_orders}"))
+            self.stdout.write(self.style.HTTP_INFO(f"   Line items:   {total_line_items}"))
+            self.stdout.write(self.style.HTTP_INFO(f"   Total revenue: ${total_revenue:.2f}"))
+            self.stdout.write("")
 
         persist_orders("square", normalized_orders)
         self.stdout.write(self.style.SUCCESS(f"✅ Imported {total_orders} Square orders successfully"))
