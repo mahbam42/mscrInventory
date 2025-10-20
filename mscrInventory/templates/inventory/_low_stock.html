@@ -1,0 +1,32 @@
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Ingredient</th>
+            <th>Quantity</th>
+            <th>Unit</th>
+            <th>Reorder Point</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in low_stock_ingredients %}
+        <tr class="{% if item.stock_quantity <= item.reorder_point %}table-warning{% endif %}">
+            <td>{{ item.name }}</td>
+            <td>{{ item.stock_quantity|default:"–" }}</td>
+            <td>{{ item.unit|default:"" }}</td>
+            <td>{{ item.reorder_point|default:"–" }}</td>
+            <td>
+                {% if item.stock_quantity <= item.reorder_point %} <span class="badge bg-warning text-dark">Reorder
+                    Soon</span>
+                    {% else %}
+                    <span class="badge bg-success">OK</span>
+                    {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" class="text-success text-center">✅ All ingredients sufficiently stocked.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

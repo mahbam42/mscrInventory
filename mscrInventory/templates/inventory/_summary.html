@@ -1,0 +1,20 @@
+<div class="row text-center mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm p-3 border-0">
+            <h6 class="text-muted">Total Ingredients</h6>
+            <p class="fs-4 fw-semibold">{{ total_ingredients }}</p>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm p-3 border-warning border-start border-4">
+            <h6 class="text-muted">Low Stock</h6>
+            <p class="fs-4 text-warning fw-semibold">{{ total_low_stock }}</p>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm p-3 border-success border-start border-4">
+            <h6 class="text-muted">Estimated Inventory Value</h6>
+            <p class="fs-4 text-success fw-semibold">${{ total_cost|floatformat:2 }}</p>
+        </div>
+    </div>
+</div>

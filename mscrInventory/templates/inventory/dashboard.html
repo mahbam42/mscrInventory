@@ -1,7 +1,23 @@
 {% extends "base.html" %}
+{% load static %}
 {% block content %}
+
 <div class="container mt-4">
-  <h1>Inventory Dashboard (Coming Soon)</h1>
+  <h3 class="mb-3">📦 Inventory Dashboard</h3>
+  <hr />
+  <!-- Summary Widgets -->
+
+  <hr />
+  <!-- Inventory Table -->
+  {% include "inventory/_summary.html" %}
+  <hr>
+
+  <h5>Low Stock Ingredients</h5>
+  {% include "inventory/_low_stock.html" %}
+  <hr>
+
+  {% include "inventory/_tools.html" %}
 </div>
+
 {% endblock %}
 
