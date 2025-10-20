@@ -244,10 +244,30 @@ class RecipeModifier(models.Model):
         ("SYRUP", "Syrup"),
         ("SUGAR", "Sugar"),
         ("EXTRA", "Extra"),
+        ("BAGEL", "Bagel"),
+        ("SPREAD", "Spread"),
+        ("TOPPING", "Topping"),
+        ("TOAST", "Toast"),
+        ("MUFFIN", "Muffin"),
+        ("BAKED_GOOD", "Baked Good"),
+        ("COFFEE", "Coffee"),
+        ("COOKIE", "Cookie"),
     ]
 
     name = models.CharField(max_length=100, unique=True)
     type = models.CharField(max_length=20, choices=MODIFIER_TYPES)
+    """    
+    This section is also cursed but needed. 
+    type = models.ForeignKey(
+        "IngredientType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="modifiers",
+        help_text="Links to IngredientType for dynamic categorization",
+    )
+    """
+
     ingredient = models.ForeignKey("Ingredient", on_delete=models.CASCADE)
     base_quantity = models.DecimalField(max_digits=8, decimal_places=2)
     unit = models.CharField(max_length=20)  # 'oz', 'g', etc.
@@ -256,10 +276,24 @@ class RecipeModifier(models.Model):
     price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
      # 👇 optional extras configuration
-    affects_type = models.CharField(
+     # This section is cursed
+    """    affects_type = models.CharField(
         max_length=20, choices=MODIFIER_TYPES, null=True, blank=True,
         help_text="For extras like 'Extra Flavor' or 'Drizzle Cup', specify which modifier type they affect."
-    )
+     ) """
+
+    """
+    affects_type = models.ForeignKey(
+        "IngredientType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="affecting_modifiers",
+        help_text="For extras like Extra Flavor or Drizzle Cup, specify which IngredientType they affect."
+    ) 
+    """
+    #end cursed section
+
     expands_to = models.ManyToManyField(
         "self", blank=True, symmetrical=False,
         help_text="For combo extras like Dirty Chai, specify which modifiers they expand to."
