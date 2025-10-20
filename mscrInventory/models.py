@@ -236,7 +236,8 @@ class RecipeItem(models.Model):
 
 class RecipeModifier(models.Model):
     """
-    Modifiers such as milk options, flavor shots, syrups, sugar, extra shots, etc.
+    Modifiers are extensions of Ingredients (e.g. milk options, syrups, extra shots).
+    Each links to a base Ingredient but may have its own cost, price, and behavior.
     """
     MODIFIER_TYPES = [
         ("MILK", "Milk"),
@@ -268,14 +269,31 @@ class RecipeModifier(models.Model):
     )
     """
 
+    # The ingredient this modifier extends (e.g. "Oat Milk" extends "Milk")
     ingredient = models.ForeignKey("Ingredient", on_delete=models.CASCADE)
+
+    # Default amount used when this modifier is applied
     base_quantity = models.DecimalField(max_digits=8, decimal_places=2)
-    unit = models.CharField(max_length=20)  # 'oz', 'g', etc.
+
+    # Unit of measure (e.g. "oz", "g")
+    unit = models.CharField(max_length=20)
+
+    # Whether recipe size affects this modifier (e.g. extra syrup in large drinks)
     size_multiplier = models.BooleanField(default=True)
+
+    # Optional override for cost and price calculations
     cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
     price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
-     # 👇 optional extras configuration
+    # For compound or special-case modifiers ("Dirty Chai", "Extra Flavor", etc.)
+    expands_to = models.ManyToManyField(
+        "self", blank=True, symmetrical=False,
+        help_text=(
+            "For special modifiers that expand into multiple others. "
+            "E.g., 'Dirty Chai' expands to [Espresso Shot, Chai Concentrate]."
+        )
+    )
+
      # This section is cursed
     """    affects_type = models.CharField(
         max_length=20, choices=MODIFIER_TYPES, null=True, blank=True,
@@ -293,11 +311,6 @@ class RecipeModifier(models.Model):
     ) 
     """
     #end cursed section
-
-    expands_to = models.ManyToManyField(
-        "self", blank=True, symmetrical=False,
-        help_text="For combo extras like Dirty Chai, specify which modifiers they expand to."
-    )
 
     class Meta:
         ordering = ["type", "name"]
