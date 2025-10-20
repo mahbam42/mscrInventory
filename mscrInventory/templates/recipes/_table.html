@@ -3,7 +3,6 @@
         <tr>
             <th>ID</th>
             <th>Product</th>
-            <th>Temperature</th>
             <th>Categories</th>
             <th>Edit</th>
         </tr>
@@ -13,7 +12,6 @@
         <tr>
             <td>{{ product.id }}</td>
             <td>{{ product.name }}</td>
-            <td>{{ product.get_temperature_type_display }}</td>
             <td>
                 {% for cat in product.categories.all %}
                 <span class="badge bg-secondary">{{ cat.name }}</span>
