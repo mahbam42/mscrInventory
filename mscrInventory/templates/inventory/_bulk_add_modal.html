@@ -1,0 +1,36 @@
+<div class="modal-header">
+    <h5 class="modal-title">📦 Bulk Add Stock</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+    <form id="bulk-add-form" hx-post="{% url 'bulk_add_stock' %}" hx-target="#modal-body" hx-swap="innerHTML">
+        <div id="bulk-rows">
+            <div class="row g-2 mb-2 bulk-row">
+                <div class="col-md-5">
+                    <input type="text" name="ingredient" placeholder="Ingredient ID or name" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <input type="number" step="0.001" name="quantity_added" placeholder="Qty" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <input type="number" step="0.000001" name="cost_per_unit" placeholder="Cost/unit"
+                        class="form-control">
+                </div>
+                <div class="col-md-1 d-flex align-items-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-row">✖</button>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" id="add-row">➕ Add Another</button>
+        <button type="submit" class="btn btn-primary float-end">Save All</button>
+    </form>
+</div>
+<script>
+    document.getElementById('add-row').onclick = () => {
+        const first = document.querySelector('.bulk-row');
+        document.getElementById('bulk-rows').appendChild(first.cloneNode(true));
+    };
+    document.querySelectorAll('.remove-row').forEach(btn =>
+        btn.onclick = e => e.target.closest('.bulk-row').remove()
+    );
+</script>

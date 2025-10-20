@@ -1,0 +1,18 @@
+<tr id="ingredient-{{ i.id }}">
+    <td>{{ i.name }}</td>
+    <td>{{ i.type.name|default:"–" }}</td>
+    <td>{{ i.current_stock }}</td>
+    <td>{{ i.case_size }}</td>
+    <td>{{ i.reorder_point }}</td>
+    <td>{{ i.average_cost_per_unit }}</td>
+    <td class="text-nowrap">
+        <button class="btn btn-sm btn-success" hx-post="{% url 'update_ingredient' i.id %}"
+            hx-target="#ingredient-{{ i.id }}" hx-swap="outerHTML" hx-include="closest tr">
+            💾 Update
+        </button>
+        <button class="btn btn-sm btn-outline-primary" hx-post="{% url 'add_case' i.id %}"
+            hx-target="#ingredient-{{ i.id }}" hx-swap="outerHTML">
+            ➕ Add Case
+        </button>
+    </td>
+</tr>
