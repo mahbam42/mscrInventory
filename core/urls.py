@@ -54,14 +54,6 @@ urlpatterns = [
     path("recipes/<int:pk>/extend/", extend_recipe, name="extend_recipe"),
     path("recipes/item/<int:pk>/update/", update_recipe_item, name="update_recipe_item"),
 
-
-     #recipes_modal.delete_recipe_ingredient, name="delete_recipe_ingredient"),
-     #path("recipes/<int:pk>/save-modifiers/", recipes_modal.save_recipe_modifiers, name="save_recipe_modifiers"),
-#    path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
-#    path("recipes/<int:product_id>/edit/", edit_recipe_view, name="edit_recipe"),
-#    path("recipes/<int:product_id>/add-ingredient/", add_recipe_ingredient_view, name="add_recipe_ingredient"),
-#    path("recipes/ingredient/<int:ingredient_id>/delete/", delete_recipe_ingredient_view, name="delete_recipe_ingredient"),
-#    path("recipes/<int:product_id>/save/", save_recipe_view, name="save_recipe"),
     path("modifiers/<int:modifier_id>/edit-extra/", edit_modifier_extra_view, name="edit_modifier_extra"),
     path("inventory/", inventory_dashboard_view, name="inventory_dashboard"),
 ]   

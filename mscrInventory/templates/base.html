@@ -82,8 +82,15 @@
           }
         }
       });
+
+      // --- Process HTMX in modal body after swap ---
+      document.body.addEventListener('htmx:afterSwap', (e) => {
+        if (e.detail.target.id === 'modal-body') {
+          htmx.process(e.detail.target);
+        }
+      });
       
-      // --- Trigger refresh on modal close --->
+      // --- Trigger refresh on modal close ---
       document.addEventListener("hidden.bs.modal", function (e) {
         if (e.target && e.target.id === "globalModal") {
           htmx.trigger(document.body, "recipes:refresh");

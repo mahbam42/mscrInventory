@@ -1,10 +1,10 @@
 <tr id="ingredient-row-{{ item.id }}">
   <td>{{ item.ingredient.name }}</td>
   <td>
-    <input type="number" name="quantity" value="{{ item.quantity }}" step="0.01"
-      class="form-control form-control-sm d-inline-block" style="width: 80px;"
-      hx-post="{% url 'update_recipe_item' item.id %}" hx-trigger="change" hx-target="#recipe-item-{{ item.id }}"
-      hx-swap="outerHTML">
+      <input type="number" name="quantity" value="{{ item.quantity }}" step="0.01"
+        class="form-control form-control-sm d-inline-block" style="width: 80px;"
+        hx-post="{% url 'update_recipe_item' item.id %}" hx-trigger="change delay:300ms"
+        hx-target="closest tr" hx-swap="outerHTML">
   </td>
   <td>{{ item.unit }}</td>
   <td class="text-center">

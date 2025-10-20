@@ -32,9 +32,10 @@
     </thead>
     <tbody id="ingredients-table-body">
       {% include "recipes/_edit_ingredient_body.html" with recipe_items=recipe_items %}
+      <!-- 10/19 I think this is obsolete now with the hx-swap-oob on the no-ingredients row?
       <tr id="no-ingredients-row" class="text-muted" hx-swap-oob="true" hx-remove>
         <td colspan="4">No ingredients yet.</td>
-      </tr>
+      </tr> -->
     </tbody>
   </table>
   

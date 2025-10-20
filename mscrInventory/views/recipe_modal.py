@@ -198,18 +198,20 @@ def delete_recipe_ingredient(request, product_id, item_id):
 
 @require_POST
 def update_recipe_item(request, pk):
-    """Update the quantity for a RecipeItem via HTMX inline edit."""
+    """Inline update for RecipeItem (quantity)."""
     item = get_object_or_404(RecipeItem, pk=pk)
+    product = item.product
 
     qty = request.POST.get("quantity")
     if qty is not None:
-        try:
-            item.quantity = Decimal(qty)
-            item.save(update_fields=["quantity"])
-        except Exception:
-            pass
+        item.quantity = Decimal(qty)
+        item.save(update_fields=["quantity"])
 
-    return render(request, "recipes/_edit_ingredient_row.html", {"item": item})
+    return render(
+        request,
+        "recipes/_edit_ingredient_row.html",
+        {"item": item, "product": product},  # 👈 Include product in context
+    )
 
 @require_http_methods(["POST"])
 @transaction.atomic
