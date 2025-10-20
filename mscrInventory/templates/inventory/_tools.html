@@ -1,4 +1,8 @@
 <div class="d-flex justify-content-end gap-2 mt-3">
+    <button class="btn btn-primary" hx-get="{% url 'inventory_bulk_add_modal' %}" hx-target="#modal-body"
+        data-bs-toggle="modal" data-bs-target="#globalModal">
+        📦 Bulk Add Stock
+    </button>
     <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
         data-bs-toggle="modal" data-bs-target="#globalModal">
         ⚠️ View Unmapped Ingredients

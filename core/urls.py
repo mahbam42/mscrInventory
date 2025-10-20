@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import TemplateView
 from mscrInventory.views.dashboard import dashboard_view
 # top level views.py
 from mscrInventory import app_views
@@ -25,7 +26,7 @@ from mscrInventory.views.imports import imports_dashboard_view, upload_square_vi
 from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
-from mscrInventory.views.inventory import inventory_dashboard_view
+from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
@@ -59,7 +60,14 @@ urlpatterns = [
     path("recipes/table/", recipes_table_fragment, name="recipes_table_fragment"),
     path("recipes/<int:pk>/extend/", extend_recipe, name="extend_recipe"),
     path("recipes/item/<int:pk>/update/", update_recipe_item, name="update_recipe_item"),
-
     path("modifiers/<int:modifier_id>/edit-extra/", edit_modifier_extra_view, name="edit_modifier_extra"),
+
+    #inventory
     path("inventory/", inventory_dashboard_view, name="inventory_dashboard"),
+    path("inventory/update/<int:pk>/", update_ingredient, name="update_ingredient"),
+    path("inventory/add_case/<int:pk>/", add_case, name="add_case"),
+    path("inventory/bulk_add_stock/", bulk_add_stock, name="bulk_add_stock"),
+    path("inventory/bulk_add_modal/",TemplateView.as_view(template_name="inventory/_bulk_add_modal.html"),name="inventory_bulk_add_modal",
+),
+
 ]   
