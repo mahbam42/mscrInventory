@@ -17,11 +17,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from mscrInventory.views.dashboard import dashboard_view
+# top level views.py
+from mscrInventory import app_views
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
 #from mscrInventory.views import recipes_modal
 from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
-#
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
 from mscrInventory.views.inventory import inventory_dashboard_view
@@ -35,6 +36,11 @@ urlpatterns = [
 
     # main dashboard 
     path("dashboard/", dashboard_view, name="dashboard"),
+
+    # edit unmapped products and ingredients
+    path("partials/unmapped-products/", app_views.unmapped_products_partial, name="unmapped_products_partial"),
+    path("partials/unmapped-ingredients/", app_views.unmapped_ingredients_partial, name="unmapped_ingredients_partial"),
+    path("partials/empty-modal/", app_views.empty_modal_partial, name="empty_modal_partial"),
 
     #imports
     path("imports/", imports_dashboard_view, name="imports_dashboard"),

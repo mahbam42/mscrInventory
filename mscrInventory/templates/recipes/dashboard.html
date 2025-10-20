@@ -4,6 +4,14 @@
 {% block content %}
 <div class="container mt-4">
   <h2 class="mb-3">☕ Recipe Dashboard</h2>
+  <hr />
+  <!-- Edit Widgets -->
+  <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
+    data-bs-toggle="modal" data-bs-target="#globalModal">
+    ⚠️ View Unmapped Ingredients
+  </button>
+  <hr />
+  <!-- Category Filter -->
     <form method="get" class="mb-3 d-flex gap-2 align-items-center" id="recipes-filter">
       <label for="category" class="form-label mb-0">Category</label>
       <select name="category" id="category" class="form-select form-select-sm" onchange="this.form.submit()">
