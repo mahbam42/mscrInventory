@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 from decimal import Decimal, InvalidOperation
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.contrib import messages
@@ -195,6 +195,21 @@ def delete_recipe_ingredient(request, product_id, item_id):
     ctx = {"recipe_items": recipe_items, "product": product}
     html = render_to_string("recipes/_edit_ingredient_body.html", ctx, request=request)
     return HttpResponse(html)
+
+@require_POST
+def update_recipe_item(request, pk):
+    """Update the quantity for a RecipeItem via HTMX inline edit."""
+    item = get_object_or_404(RecipeItem, pk=pk)
+
+    qty = request.POST.get("quantity")
+    if qty is not None:
+        try:
+            item.quantity = Decimal(qty)
+            item.save(update_fields=["quantity"])
+        except Exception:
+            pass
+
+    return render(request, "recipes/_edit_ingredient_row.html", {"item": item})
 
 @require_http_methods(["POST"])
 @transaction.atomic
