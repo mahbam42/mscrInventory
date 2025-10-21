@@ -2,9 +2,15 @@
 from django.db.models import F, Sum
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
+from django.template.loader import render_to_string
+from decimal import Decimal, InvalidOperation
 from mscrInventory.models import Ingredient, StockEntry
 
+
+# -----------------------------
+# DASHBOARD
+# -----------------------------
 def inventory_dashboard_view(request):
     """Display inventory with low stock, totals, and editable table."""
     low_stock_ingredients = Ingredient.objects.filter(
@@ -15,7 +21,6 @@ def inventory_dashboard_view(request):
 
     total_ingredients = all_ingredients.count()
     total_low_stock = low_stock_ingredients.count()
-
     total_cost = (
         Ingredient.objects.aggregate(
             total=Sum(F("current_stock") * F("average_cost_per_unit"))
@@ -32,6 +37,10 @@ def inventory_dashboard_view(request):
     }
     return render(request, "inventory/dashboard.html", context)
 
+
+# -----------------------------
+# INLINE ACTIONS
+# -----------------------------
 @require_POST
 def update_ingredient(request, pk):
     """Inline update for ingredient fields."""
@@ -63,36 +72,24 @@ def add_case(request, pk):
     return render(request, "inventory/_ingredient_row.html", {"i": ing})
 
 
-@require_POST
-def bulk_add_stock(request):
-    """Creates multiple StockEntry records from modal submission."""
-    data = request.POST
-    items = zip(
-        data.getlist("ingredient"),
-        data.getlist("quantity_added"),
-        data.getlist("cost_per_unit"),
-    )
-    for ing_id, qty, cost in items:
-        if not qty or not cost:
-            continue
-        ing = Ingredient.objects.get(pk=ing_id)
-        StockEntry.objects.create(
-            ingredient=ing,
-            quantity_added=qty,
-            cost_per_unit=cost,
-            source="bulk",
-            note="Bulk add via dashboard",
-        )
-    return JsonResponse({"status": "success"})
-
+# -----------------------------
+# BULK ADD MODAL
+# -----------------------------
 def bulk_add_modal(request):
+    """Render the bulk stock modal."""
     all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("type__name", "name")
     return render(request, "inventory/_bulk_add_modal.html", {"all_ingredients": all_ingredients})
 
+
 @require_POST
 def bulk_add_stock(request):
-    """Creates multiple StockEntry records and updates ingredient details."""
+    """Creates multiple StockEntry records and updates ingredient metadata."""
     data = request.POST
+    # temp debug
+    print("📦 POST KEYS:", list(data.keys()))
+    print("📦 POST ITEMS:", data)
+    # end temp debug
+
     items = zip(
         data.getlist("ingredient"),
         data.getlist("quantity_added"),
@@ -105,10 +102,19 @@ def bulk_add_stock(request):
         if not qty or not cost:
             continue
         ing = Ingredient.objects.get(pk=ing_id)
+        try:
+            qty_val = Decimal(qty)
+            cost_val = Decimal(cost)
+        except InvalidOperation:
+            continue  # skip invalid rows
+
+        if qty_val <= 0 or cost_val < 0:
+            continue
+
         StockEntry.objects.create(
             ingredient=ing,
-            quantity_added=qty,
-            cost_per_unit=cost,
+            quantity_added=qty_val,
+            cost_per_unit=cost_val,
             source="bulk",
             note="Bulk add via dashboard",
         )
@@ -118,5 +124,23 @@ def bulk_add_stock(request):
         if lead:
             ing.lead_time = lead
         ing.save(update_fields=["case_size", "lead_time", "last_updated"])
-    return JsonResponse({"status": "success"})
 
+    # ✅ Return success fragment that triggers dashboard refresh + closes modal
+    return render(request, "inventory/_bulk_add_success.html")
+
+
+# -----------------------------
+# PARTIALS (for HTMX refresh)
+# -----------------------------
+def inventory_low_stock_partial(request):
+    """Return the low-stock table partial."""
+    low_stock_ingredients = Ingredient.objects.filter(
+        current_stock__lte=F("reorder_point")
+    ).order_by("name")
+    return render(request, "inventory/_low_stock.html", {"low_stock_ingredients": low_stock_ingredients})
+
+
+def inventory_all_ingredients_partial(request):
+    """Return the all-ingredients table partial."""
+    all_ingredients = Ingredient.objects.select_related("type").order_by("name")
+    return render(request, "inventory/_all_ingredients.html", {"all_ingredients": all_ingredients})

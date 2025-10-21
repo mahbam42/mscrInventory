@@ -1,0 +1,20 @@
+<div class="alert alert-success text-center mb-0">
+    ✅ Stock entries added successfully!
+</div>
+
+<!-- Auto-close modal and refresh tables -->
+<div hx-get="{% url 'inventory_all_ingredients_partial' %}" hx-target="#all-ingredients-table" hx-trigger="load"
+    hx-swap="outerHTML"></div>
+
+<div hx-get="{% url 'inventory_low_stock_partial' %}" hx-target="#low-stock-wrapper" hx-trigger="load"
+    hx-swap="outerHTML"></div>
+
+<script>
+    // Close modal after 1.5s and refresh tables
+    setTimeout(() => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById("globalModal"));
+        if (modal) modal.hide();
+        htmx.ajax("GET", "{% url 'inventory_all_ingredients_partial' %}", "#all-ingredients-wrapper");
+        htmx.ajax("GET", "{% url 'inventory_low_stock_partial' %}", "#low-stock-wrapper");
+    }, 1500);
+</script>

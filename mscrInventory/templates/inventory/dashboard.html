@@ -11,35 +11,38 @@
   <!-- Inventory Table -->
   {% include "inventory/_summary.html" %}
   <hr>
-
+  {% include "inventory/_tools.html" %}
+  <hr />
   <!-- 🧾 Low Stock Ingredients (collapsible card) -->
   <div class="card mb-3 shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
-      data-bs-target="#lowStockCollapse" style="cursor:pointer;">
+      data-bs-target="#lowStockCollapse" aria-controls="lowStockCollapse" aria-expanded="true" style="cursor:pointer;">
       <h5 class="mb-0">⚠️ Low Stock Ingredients</h5>
-      <span class="badge bg-warning text-dark">
+      <span id="low-stock-count" class="badge bg-warning text-dark">
         {{ low_stock_ingredients|length }} Low
       </span>
     </div>
     <!-- 
-           ⬇️ When this collapse section opens, it triggers HTMX to fetch the partial again.
-           hx-trigger="show.bs.collapse from:body" means:
-           - Listen for the Bootstrap event on the whole body.
-           - When triggered, fire the hx-get on this element.
+        ⬇️ When this collapse section opens, it triggers HTMX to fetch the partial again.
+        hx-trigger="show.bs.collapse from:body" means:
+        - Listen for the Bootstrap event on the whole body.
+        - When triggered, fire the hx-get on this element.
       -->
     <div class="collapse show" id="lowStockCollapse" hx-get="{% url 'inventory_low_stock_partial' %}"
-      hx-trigger="show.bs.collapse from:body" hx-target="#low-stock-body" hx-swap="innerHTML">
+      hx-target="#low-stock-body" hx-trigger="show.bs.collapse from:body" hx-swap="innerHTML">
       <div class="card-body p-0" id="low-stock-body">
         {% include "inventory/_low_stock.html" %}
       </div>
     </div>
   </div>
+
   <hr>
 
-  {% include "inventory/_tools.html" %}
-  <hr />
-
-  {% include "inventory/_all_ingredients.html" %}
+  <h5 class="mt-4">All Ingredients</h5>
+  <div id="all-ingredients-wrapper" hx-get="{% url 'inventory_all_ingredients_partial' %}"
+    hx-trigger="load, ingredient:refresh from:body" hx-target="this" hx-swap="innerHTML">
+    {% include "inventory/_all_ingredients.html" %}
+  </div>
 </div>
 
 {% endblock %}

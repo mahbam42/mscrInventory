@@ -1,16 +1,7 @@
 <div class="d-flex justify-content-end gap-2 mt-3">
     <button class="btn btn-primary" hx-get="{% url 'inventory_bulk_add_modal' %}" hx-target="#modal-body"
-        data-bs-toggle="modal" data-bs-target="#globalModal">
+        hx-swap="innerHTML" data-bs-toggle="modal" data-bs-target="#globalModal">
         📦 Bulk Add Stock
-    </button>
-    <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
-        data-bs-toggle="modal" data-bs-target="#globalModal">
-        ⚠️ View Unmapped Ingredients
-    </button>
-
-    <button class="btn btn-outline-secondary" hx-get="{% url 'unmapped_products_partial' %}" hx-target="#modal-body"
-        data-bs-toggle="modal" data-bs-target="#globalModal">
-        ⚠️ View Unmapped Products
     </button>
 
     <button class="btn btn-outline-primary">
@@ -19,5 +10,15 @@
 
     <button class="btn btn-outline-success">
         📤 Export CSV
+    </button>
+    <br />
+    <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
+        data-bs-toggle="modal" data-bs-target="#globalModal">
+        ⚠️ View Unmapped Ingredients
+    </button>
+    
+    <button class="btn btn-outline-secondary" hx-get="{% url 'unmapped_products_partial' %}" hx-target="#modal-body"
+        data-bs-toggle="modal" data-bs-target="#globalModal">
+        ⚠️ View Unmapped Products
     </button>
 </div>

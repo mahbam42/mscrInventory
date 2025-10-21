@@ -1,4 +1,3 @@
-<h5 class="mt-4">All Ingredients</h5>
 <div id="all-ingredients-table">
     <table class="table table-hover align-middle">
         <thead>
@@ -26,6 +25,7 @@
                 <td><input type="number" name="average_cost_per_unit" value="{{ i.average_cost_per_unit }}"
                         class="form-control form-control-sm" step="0.000001"></td>
                 <td class="text-nowrap">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                     <button class="btn btn-sm btn-outline-primary" hx-post="{% url 'add_case' i.id %}"
                         hx-target="#ingredient-{{ i.id }}" hx-swap="outerHTML">
                         ➕ Add Case

@@ -24,3 +24,6 @@
         {% endfor %}
     </tbody>
 </table>
+<span id="low-stock-count" class="badge bg-warning text-dark" hx-swap-oob="true">
+    {{ low_stock_ingredients|length }} Low
+</span>
