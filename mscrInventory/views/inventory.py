@@ -83,3 +83,39 @@ def bulk_add_stock(request):
             note="Bulk add via dashboard",
         )
     return JsonResponse({"status": "success"})
+
+def bulk_add_modal(request):
+    all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("type__name", "name")
+    return render(request, "inventory/_bulk_add_modal.html", {"all_ingredients": all_ingredients})
+
+@require_POST
+def bulk_add_stock(request):
+    """Creates multiple StockEntry records and updates ingredient details."""
+    data = request.POST
+    items = zip(
+        data.getlist("ingredient"),
+        data.getlist("quantity_added"),
+        data.getlist("cost_per_unit"),
+        data.getlist("case_size"),
+        data.getlist("lead_time"),
+    )
+
+    for ing_id, qty, cost, case, lead in items:
+        if not qty or not cost:
+            continue
+        ing = Ingredient.objects.get(pk=ing_id)
+        StockEntry.objects.create(
+            ingredient=ing,
+            quantity_added=qty,
+            cost_per_unit=cost,
+            source="bulk",
+            note="Bulk add via dashboard",
+        )
+        # Update metadata
+        if case:
+            ing.case_size = case
+        if lead:
+            ing.lead_time = lead
+        ing.save(update_fields=["case_size", "lead_time", "last_updated"])
+    return JsonResponse({"status": "success"})
+

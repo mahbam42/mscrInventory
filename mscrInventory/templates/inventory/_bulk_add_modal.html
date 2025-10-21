@@ -1,36 +1,131 @@
 <div class="modal-header">
     <h5 class="modal-title">📦 Bulk Add Stock</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
+
 <div class="modal-body">
-    <form id="bulk-add-form" hx-post="{% url 'bulk_add_stock' %}" hx-target="#modal-body" hx-swap="innerHTML">
-        <div id="bulk-rows">
-            <div class="row g-2 mb-2 bulk-row">
-                <div class="col-md-5">
-                    <input type="text" name="ingredient" placeholder="Ingredient ID or name" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <input type="number" step="0.001" name="quantity_added" placeholder="Qty" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <input type="number" step="0.000001" name="cost_per_unit" placeholder="Cost/unit"
-                        class="form-control">
-                </div>
-                <div class="col-md-1 d-flex align-items-center">
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-row">✖</button>
-                </div>
-            </div>
+    <!-- 🧾 Table of Added Items -->
+    <table class="table table-sm table-bordered align-middle mb-3" id="bulk-stock-table">
+        <thead class="table-light">
+            <tr>
+                <th>Ingredient</th>
+                <th>Qty</th>
+                <th>Cost</th>
+                <th>Case</th>
+                <th>Lead Time</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="bulk-stock-body"></tbody>
+    </table>
+    <!-- ➕ Bulk Add Form -->
+    <form hx-post="{% url 'bulk_add_stock' %}" hx-target="#modal-body" hx-swap="outerHTML"
+        class="row g-2 align-items-start mb-3">
+        {% csrf_token %}
+
+        <!-- Ingredient Search + Select -->
+        <div class="col-6">
+            <label class="form-label">Ingredient</label>
+
+            <!-- Search input -->
+            <input type="text" id="ingredient-search" class="form-control form-control-sm mb-1"
+                placeholder="Search ingredients…" style="display:inline; width:85%;">
+            <button type="button" id="ingredient-clear" class="btn btn-outline-secondary"
+                title="Clear search">✕</button>
+
+            <!-- Scrollable grouped ingredient list -->
+            <select name="ingredient" id="bulk-ingredient-select" class="form-select form-select-sm" size="8">
+                {% regroup all_ingredients by type as ingredients_by_type %}
+                {% for group in ingredients_by_type %}
+                <optgroup label="{{ group.grouper|title }}">
+                    {% for ing in group.list %}
+                    <option value="{{ ing.id }}">{{ ing.name }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
         </div>
-        <button type="button" class="btn btn-outline-secondary" id="add-row">➕ Add Another</button>
-        <button type="submit" class="btn btn-primary float-end">Save All</button>
+
+        <!-- Quantity -->
+        <div class="col-3">
+            <label class="form-label">Qty Added</label>
+            <input type="number" step="0.01" name="quantity_added" style="width: 80%;" class="form-control form-control-sm" placeholder="0">
+            <!-- Case Size -->
+            <label class="form-label mt-2">Case Size</label>
+            <input type="number" step="1" name="case_size" style="width: 80%;" class="form-control form-control-sm"
+                placeholder="Units per case">
+        </div>
+        <!-- Cost -->
+        <div class="col-3">
+            <label class="form-label">Cost / Unit</label>
+            <input type="number" step="0.0001" name="cost_per_unit" style="width: 80%;" class="form-control form-control-sm" placeholder="0.00">
+            <!-- Lead Time -->
+            <label class="form-label mt-2">Lead Time (days)</label>
+            <input type="number" step="1" name="lead_time" style="width: 80%;" class="form-control form-control-sm" placeholder="0">
+        </div>
+        <!-- Add another line (HTMX append) & Submit -->
+        <div class="col-12 mt-3 text-end">
+            <button type="button" id="add-row" class="btn btn-outline-secondary">➕ Add another</button>
+            <button type="submit" class="btn btn-primary">💾 Save All</button>
+        </div>
     </form>
 </div>
+
 <script>
-    document.getElementById('add-row').onclick = () => {
-        const first = document.querySelector('.bulk-row');
-        document.getElementById('bulk-rows').appendChild(first.cloneNode(true));
-    };
-    document.querySelectorAll('.remove-row').forEach(btn =>
-        btn.onclick = e => e.target.closest('.bulk-row').remove()
-    );
+    // --- Ingredient search filter (keep this exactly as you had) ---
+    const searchInput = document.getElementById('ingredient-search');
+    const clearButton = document.getElementById('ingredient-clear');
+    const select = document.getElementById('bulk-ingredient-select');
+
+    if (searchInput && select) {
+        searchInput.addEventListener('input', function () {
+            const term = this.value.toLowerCase();
+            select.querySelectorAll('option').forEach(opt => {
+                opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
+            });
+        });
+        clearButton.addEventListener('click', function () {
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input'));
+        });
+    }
+
+    // --- NEW: Add Another → append a row to table ---
+    const tableBody = document.getElementById('bulk-stock-body');
+    const form = document.getElementById('bulk-add-form');
+    const addRowBtn = document.getElementById('add-row');
+
+    addRowBtn.addEventListener('click', () => {
+        const ingSelect = form.querySelector('[name="ingredient"]');
+        const ingId = ingSelect.value;
+        const ingName = ingSelect.options[ingSelect.selectedIndex]?.text || '';
+        const qty = form.querySelector('[name="quantity_added"]').value;
+        const cost = form.querySelector('[name="cost_per_unit"]').value;
+        const caseSize = form.querySelector('[name="case_size"]').value;
+        const leadTime = form.querySelector('[name="lead_time"]').value;
+
+        if (!ingId || !qty || !cost) {
+            alert('Please select ingredient, quantity, and cost.');
+            return;
+        }
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+      <td><input type="hidden" name="ingredient" value="${ingId}">${ingName}</td>
+      <td><input type="hidden" name="quantity_added" value="${qty}">${qty}</td>
+      <td><input type="hidden" name="cost_per_unit" value="${cost}">${cost}</td>
+      <td><input type="hidden" name="case_size" value="${caseSize}">${caseSize || '-'}</td>
+      <td><input type="hidden" name="lead_time" value="${leadTime}">${leadTime || '-'}</td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button></td>
+    `;
+        tableBody.appendChild(row);
+        form.reset();
+    });
+
+    // --- Remove a row ---
+    tableBody.addEventListener('click', e => {
+        if (e.target.classList.contains('remove-row')) {
+            e.target.closest('tr').remove();
+        }
+    });
 </script>
