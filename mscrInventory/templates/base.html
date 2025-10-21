@@ -124,9 +124,46 @@
             event.detail.headers["X-CSRFToken"] = token;
           }
         });
+        document.body.addEventListener('htmx:afterRequest', (e) => {
+            const header = e.detail.xhr.getResponseHeader('HX-Trigger');
+            if (!header) return;
+            try {
+              const data = JSON.parse(header);
+
+              // Close modal if instructed
+              if (data.closeModal) {
+                const modalEl = document.getElementById('globalModal');
+                const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                instance.hide();
+              }
+
+              // Reload partials if instructed
+              if (data["ingredient:refresh"]) {
+                htmx.trigger(document.body, "ingredient:refresh");
+              }
+            } catch { }
+          });
+          document.body.addEventListener("showMessage", (e) => {
+              const { text, level } = e.detail;
+              const alertDiv = document.createElement("div");
+              alertDiv.className = `alert alert-${level} alert-dismissible fade show mt-2`;
+              alertDiv.role = "alert";
+              alertDiv.innerHTML = `
+    ${text}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+              document.querySelector(".container.mt-3")?.appendChild(alertDiv);
+
+              // ✅ close the modal if open
+              const modalEl = document.getElementById("globalModal");
+              const modal = bootstrap.Modal.getInstance(modalEl);
+              if (modal) modal.hide();
+            });
   </script>
 
   {% block extra_js %}{% endblock %}
+  <!-- Some debug scripts -->
+  {% block extra_scripts %}{% endblock %}
 </body>
 
 </html>

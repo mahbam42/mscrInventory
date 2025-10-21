@@ -69,24 +69,20 @@
 </div>
 
 <script>
-    document.addEventListener("shown.bs.modal", (event) => {
-        const modal = event.target;
-        if (modal.id === "globalModal" && modal.querySelector("#bulk-ingredient-select")) {
-            console.log("✅ Bulk Add Modal fully shown");
-            initBulkAddModal();
-        }
-    });
-
     function initBulkAddModal() {
-        const searchInput = document.getElementById("ingredient-search");
-        const clearButton = document.getElementById("ingredient-clear");
-        const ingredientSelect = document.getElementById("bulk-ingredient-select");
-        const addRowBtn = document.getElementById("add-row");
-        const form = document.querySelector("#bulk-modal-inner form");
-        const modalBody = document.querySelector(".modal-body");
+        const modalBody = document.getElementById("modal-body");
+        const addRowBtn = modalBody.querySelector("#add-row");
+        const tbody = modalBody.querySelector("#bulk-stock-body");
+        const form = modalBody.querySelector("form");
+        const ingredientSelect = modalBody.querySelector("#bulk-ingredient-select");
+        const searchInput = modalBody.querySelector("#ingredient-search");
+        const clearButton = modalBody.querySelector("#ingredient-clear");
 
-        if (searchInput && ingredientSelect) {
-            searchInput.addEventListener("input", () => {
+        if (!form || !ingredientSelect) return;
+
+        // --- Ingredient Search Filter ---
+        if (searchInput && clearButton) {
+            const filterIngredients = () => {
                 const term = searchInput.value.toLowerCase();
                 ingredientSelect.querySelectorAll("optgroup").forEach(group => {
                     let anyVisible = false;
@@ -99,29 +95,24 @@
                     });
                     group.style.display = anyVisible ? "" : "none";
                 });
-            });
-            clearButton.addEventListener("click", () => {
-                searchInput.value = "";
-                searchInput.dispatchEvent(new Event("input"));
-            });
-            searchInput.dispatchEvent(new Event("input"));
+            };
+            searchInput.oninput = filterIngredients;
+            clearButton.onclick = () => { searchInput.value = ""; filterIngredients(); };
+            filterIngredients(); // initial run (hides "extras")
         }
 
-        if (addRowBtn && form) {
-            addRowBtn.addEventListener("click", () => {
-                console.log("➕ Add Another clicked");
-                const ingSelect = form.querySelector("[name='ingredient']");
-                const ingId = ingSelect.value;
-                const ingName = ingSelect.options[ingSelect.selectedIndex]?.text || "(No name)";
+        // --- Add Another Row ---
+        if (addRowBtn && tbody) {
+            addRowBtn.onclick = (event) => {
+                event.preventDefault();
+                const ingId = ingredientSelect.value;
+                const ingName = ingredientSelect.options[ingredientSelect.selectedIndex]?.text || "(No name)";
                 const qty = form.querySelector("[name='quantity_added']").value;
                 const cost = form.querySelector("[name='cost_per_unit']").value;
                 const caseSize = form.querySelector("[name='case_size']").value;
                 const leadTime = form.querySelector("[name='lead_time']").value;
-                if (!ingId || !qty || !cost) {
-                    alert("Please fill in Ingredient, Quantity, and Cost.");
-                    return;
-                }
-                const tbody = document.getElementById("bulk-stock-body");
+                if (!ingId || !qty || !cost) return;
+
                 const row = document.createElement("tr");
                 row.innerHTML = `
         <td>${ingName}<input type="hidden" name="ingredient" value="${ingId}"></td>
@@ -132,14 +123,29 @@
         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button></td>`;
                 tbody.appendChild(row);
                 form.reset();
-            });
+                filterIngredients(); // reapply filter after reset
+            };
         }
 
+        // --- Remove Row ---
         modalBody.addEventListener("click", (e) => {
-            if (e.target.classList.contains("remove-row")) {
-                e.target.closest("tr").remove();
-                console.log("🗑️ Row removed");
-            }
+            if (e.target.classList.contains("remove-row")) e.target.closest("tr")?.remove();
         });
     }
+
+    // Run both on first HTMX load and on modal open
+    document.body.addEventListener("htmx:afterSwap", (e) => {
+        if (e.target.id === "modal-body") initBulkAddModal();
+    });
+    document.addEventListener("shown.bs.modal", (e) => {
+        if (e.target.id === "globalModal") initBulkAddModal();
+    });
+
+    // Listen for modal close → trigger inventory refresh
+    /* document.addEventListener("hidden.bs.modal", (event) => {
+        if (event.target.id === "globalModal") {
+            console.log("📦 Modal closed — refreshing inventory");
+            htmx.trigger(document.body, "inventory:refresh");
+        }
+    }); */
 </script>

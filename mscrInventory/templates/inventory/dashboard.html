@@ -29,20 +29,37 @@
         - When triggered, fire the hx-get on this element.
       -->
     <div class="collapse show" id="lowStockCollapse" hx-get="{% url 'inventory_low_stock_partial' %}"
-      hx-target="#low-stock-body" hx-trigger="show.bs.collapse from:body" hx-swap="innerHTML">
-      <div class="card-body p-0" id="low-stock-body">
-        {% include "inventory/_low_stock.html" %}
+      hx-target="#low-stock-body" 
+      hx-trigger="show.bs.collapse from:body" hx-swap="innerHTML">
+      <div id="low-stock-body">
+        <div class="card-body p-0"  id="low-stock-wrapper" hx-get="{% url 'inventory_low_stock_partial' %}"
+          hx-trigger="load, ingredient:refresh from:body" hx-target="this" hx-swap="innerHTML">
+          {% include 'inventory/_low_stock.html' %}
+        </div>
       </div>
     </div>
   </div>
 
-  <hr>
+  <hr />
 
   <h5 class="mt-4">All Ingredients</h5>
   <div id="all-ingredients-wrapper" hx-get="{% url 'inventory_all_ingredients_partial' %}"
     hx-trigger="load, ingredient:refresh from:body" hx-target="this" hx-swap="innerHTML">
     {% include "inventory/_all_ingredients.html" %}
   </div>
+</div>
+
+<!-- HTMX Triggers to refresh parts of the dashboard when inventory changes -->
+<div hx-trigger="inventory:refresh from:body"
+     hx-get="{% url 'inventory_low_stock_partial' %}"
+     hx-target="#low-stock-wrapper"
+     hx-swap="innerHTML">
+</div>
+
+<div hx-trigger="inventory:refresh from:body"
+     hx-get="{% url 'inventory_all_ingredients_partial' %}"
+     hx-target="#all-ingredients-table"
+     hx-swap="innerHTML">
 </div>
 
 {% endblock %}

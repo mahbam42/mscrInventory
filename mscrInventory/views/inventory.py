@@ -81,15 +81,20 @@ def bulk_add_modal(request):
     return render(request, "inventory/_bulk_add_modal.html", {"all_ingredients": all_ingredients})
 
 
+# mscrInventory/views/inventory.py
+from decimal import Decimal, InvalidOperation
+from django.contrib import messages
+from django.db import transaction
+from django.http import HttpResponse
+from django.views.decorators.http import require_POST
+from mscrInventory.models import Ingredient, StockEntry
+import json
+
+
 @require_POST
 def bulk_add_stock(request):
-    """Creates multiple StockEntry records and updates ingredient metadata."""
+    """Create multiple StockEntry records and refresh dashboard via HTMX triggers."""
     data = request.POST
-    # temp debug
-    print("📦 POST KEYS:", list(data.keys()))
-    print("📦 POST ITEMS:", data)
-    # end temp debug
-
     items = zip(
         data.getlist("ingredient"),
         data.getlist("quantity_added"),
@@ -98,35 +103,51 @@ def bulk_add_stock(request):
         data.getlist("lead_time"),
     )
 
-    for ing_id, qty, cost, case, lead in items:
-        if not qty or not cost:
-            continue
-        ing = Ingredient.objects.get(pk=ing_id)
-        try:
-            qty_val = Decimal(qty)
-            cost_val = Decimal(cost)
-        except InvalidOperation:
-            continue  # skip invalid rows
+    created = 0
 
-        if qty_val <= 0 or cost_val < 0:
-            continue
+    with transaction.atomic():
+        for ing_id, qty, cost, case, lead in items:
+            if not qty or not cost:
+                continue
 
-        StockEntry.objects.create(
-            ingredient=ing,
-            quantity_added=qty_val,
-            cost_per_unit=cost_val,
-            source="bulk",
-            note="Bulk add via dashboard",
-        )
-        # Update metadata
-        if case:
-            ing.case_size = case
-        if lead:
-            ing.lead_time = lead
-        ing.save(update_fields=["case_size", "lead_time", "last_updated"])
+            try:
+                ing = Ingredient.objects.get(pk=ing_id)
+                qty_val = Decimal(qty)
+                cost_val = Decimal(cost)
+            except (Ingredient.DoesNotExist, InvalidOperation):
+                continue
 
-    # ✅ Return success fragment that triggers dashboard refresh + closes modal
-    return render(request, "inventory/_bulk_add_success.html")
+            # Create new StockEntry
+            StockEntry.objects.create(
+                ingredient=ing,
+                quantity_added=qty_val,
+                cost_per_unit=cost_val,
+                source="bulk",
+                note="Bulk add via dashboard",
+            )
+
+            # Update metadata fields
+            if case:
+                ing.case_size = case
+            if lead:
+                ing.lead_time = lead
+            ing.save(update_fields=["case_size", "lead_time", "last_updated"])
+
+            created += 1
+
+        # ✅ Use HX-Trigger to refresh tables and show a message (no modal re-render)
+        response = JsonResponse({"status": "success"})
+        response["HX-Trigger"] = json.dumps({
+            "inventory:refresh": True,
+            "showMessage": {
+                "text": (
+                    f"✅ {created} stock entries added successfully!"
+                    if created else "⚠️ No valid stock entries were added."
+                ),
+                "level": "success" if created else "warning",
+            }
+        })
+        return response
 
 
 # -----------------------------
