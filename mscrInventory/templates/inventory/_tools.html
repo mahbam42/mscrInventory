@@ -11,6 +11,8 @@
     <button class="btn btn-outline-success">
         📤 Export CSV
     </button>
+</div>
+<div class="d-flex justify-content-end gap-2 mt-3">
     <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
         data-bs-toggle="modal" data-bs-target="#globalModal">
         ⚠️ View Unmapped Ingredients

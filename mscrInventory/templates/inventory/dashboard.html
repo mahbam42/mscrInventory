@@ -6,9 +6,6 @@
   <h3 class="mb-3">📦 Inventory Dashboard</h3>
   <hr />
   <!-- Summary Widgets -->
-
-  <hr />
-  <!-- Inventory Table -->
   {% include "inventory/_summary.html" %}
   <hr>
   {% include "inventory/_tools.html" %}
@@ -41,6 +38,43 @@
   </div>
 
   <hr />
+  <!-- 📋 All Ingredients Table -->
+  <!-- 🔍 Search + Category Filter -->
+  <div id="inventory-filter-bar" class="d-flex flex-wrap align-items-center mb-3 gap-2">
+    <input type="text" id="ingredient-search" class="form-control form-control-sm" placeholder="Search ingredients by name…"
+      style="width: 200px;">
+    <button class="btn btn-sm btn-outline-primary ms-2" hx-get="{% url 'inventory_all_ingredients_partial' %}"
+      hx-target="#all-ingredients-table" hx-swap="innerHTML">
+      Show All
+    </button>
+    {% for type in ingredient_types %}
+    <button class="btn btn-sm btn-outline-secondary category-btn"
+      hx-get="{% url 'inventory_all_ingredients_partial' %}?type={{ type.id }}" hx-target="#all-ingredients-table"
+      hx-swap="innerHTML" data-type="{{ type.id }}">
+      {{ type.name }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- JS to handle search input with debounce -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const search = document.getElementById("ingredient-search");
+      if (search) {
+        let timeout;
+        search.addEventListener("input", () => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            const query = search.value.trim();
+            htmx.ajax('GET', `{% url 'inventory_all_ingredients_partial' %}?q=${encodeURIComponent(query)}`, {
+              target: '#all-ingredients-table',
+              swap: 'innerHTML'
+            });
+          }, 250);
+        });
+      }
+    });
+  </script>
 
   <h5 class="mt-4">All Ingredients</h5>
   <div id="all-ingredients-wrapper" hx-get="{% url 'inventory_all_ingredients_partial' %}"
