@@ -5,16 +5,20 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from mscrInventory.models import Ingredient, StockEntry
 
-def inventory_dashboard(request):
+def inventory_dashboard_view(request):
+    """Display inventory with low stock, totals, and editable table."""
     low_stock_ingredients = Ingredient.objects.filter(
-        stock_quantity__lte=F("reorder_point")
+        current_stock__lte=F("reorder_point")
     ).order_by("name")
 
-    total_ingredients = Ingredient.objects.count()
+    all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("name")
+
+    total_ingredients = all_ingredients.count()
     total_low_stock = low_stock_ingredients.count()
+
     total_cost = (
         Ingredient.objects.aggregate(
-            total=Sum(F("stock_quantity") * F("cost_per_unit"))
+            total=Sum(F("current_stock") * F("average_cost_per_unit"))
         )["total"]
         or 0
     )
@@ -24,12 +28,9 @@ def inventory_dashboard(request):
         "total_low_stock": total_low_stock,
         "total_cost": total_cost,
         "low_stock_ingredients": low_stock_ingredients,
+        "all_ingredients": all_ingredients,
     }
     return render(request, "inventory/dashboard.html", context)
-
-
-def inventory_dashboard_view(request):
-    return render(request, "inventory/dashboard.html")
 
 @require_POST
 def update_ingredient(request, pk):

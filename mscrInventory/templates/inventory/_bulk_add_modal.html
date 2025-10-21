@@ -72,60 +72,114 @@
 </div>
 
 <script>
-    // --- Ingredient search filter (keep this exactly as you had) ---
-    const searchInput = document.getElementById('ingredient-search');
-    const clearButton = document.getElementById('ingredient-clear');
-    const select = document.getElementById('bulk-ingredient-select');
-
-    if (searchInput && select) {
-        searchInput.addEventListener('input', function () {
-            const term = this.value.toLowerCase();
-            select.querySelectorAll('option').forEach(opt => {
-                opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
-            });
+    // Run this code only after HTMX swaps modal content into the page
+    document.addEventListener("shown.bs.modal", function (event) {
+            // Only run if this is the global modal and it contains our bulk form
+            const modal = event.target;
+            if (modal.id === "globalModal" && modal.querySelector("#bulk-ingredient-select")) {
+                console.log("✅ Bulk Add Modal fully shown");
+                initBulkAddModal();
+            }
         });
-        clearButton.addEventListener('click', function () {
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
+
+    function initBulkAddModal() {
+        // --- Get key DOM elements ---
+        const searchInput = document.getElementById("ingredient-search");
+        const clearButton = document.getElementById("ingredient-clear");
+        const ingredientSelect = document.getElementById("bulk-ingredient-select");
+        const addRowBtn = document.getElementById("add-row");
+        const form = document.querySelector("form");
+        const modalBody = document.querySelector(".modal-body");
+
+        // --- 1. Ingredient search filter ---
+        if (searchInput && ingredientSelect) {
+            searchInput.addEventListener("input", () => {
+                const term = searchInput.value.toLowerCase();
+
+                // Loop through each optgroup
+                ingredientSelect.querySelectorAll("optgroup").forEach((group) => {
+                    let anyVisible = false;
+
+                    // Loop through each option in this group
+                    group.querySelectorAll("option").forEach((opt) => {
+                        const name = opt.textContent.toLowerCase();
+                        const isExtra = ["extra", "dirty chai", "drizzle cup"].some(p => name.includes(p));
+
+                        // Show only if it matches the term and is not an "extra"
+                        const visible =
+                            !isExtra && (term === "" || name.includes(term));
+
+                        opt.style.display = visible ? "" : "none";
+                        if (visible) anyVisible = true;
+                    });
+
+                    // Hide the group entirely if no options are visible
+                    group.style.display = anyVisible ? "" : "none";
+                });
+            });
+
+            clearButton.addEventListener("click", () => {
+                searchInput.value = "";
+                searchInput.dispatchEvent(new Event("input"));
+            });
+
+            // Run initial filter once on load (so "extras" are hidden from the start)
+            searchInput.dispatchEvent(new Event("input"));
+        }
+
+        // --- 2. "Add Another" button logic ---
+        if (addRowBtn && form) {
+            addRowBtn.addEventListener("click", () => {
+                console.log("➕ Add Another clicked");
+
+                // Collect form values
+                const ingSelect = form.querySelector("[name='ingredient']");
+                const ingId = ingSelect.value;
+                const ingName =
+                    ingSelect.options[ingSelect.selectedIndex]?.text || "(No name)";
+                const qty = form.querySelector("[name='quantity_added']").value;
+                const cost = form.querySelector("[name='cost_per_unit']").value;
+                const caseSize = form.querySelector("[name='case_size']").value;
+                const leadTime = form.querySelector("[name='lead_time']").value;
+
+                // Quick validation
+                if (!ingId || !qty || !cost) {
+                    alert("Please fill in Ingredient, Quantity, and Cost.");
+                    return;
+                }
+
+                // Create a simple preview row above the form
+                const newRow = document.createElement("div");
+                newRow.className = "row g-2 align-items-center mb-1 border-top pt-2";
+                newRow.innerHTML = `
+          <div class="col-4 small">${ingName}</div>
+          <div class="col-2 small">${qty}</div>
+          <div class="col-2 small">${cost}</div>
+          <div class="col-2 small">${caseSize || "-"}</div>
+          <div class="col-1 small">${leadTime || "-"}</div>
+          <div class="col-1 text-end">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button>
+          </div>
+
+          <!-- Hidden inputs to include these in the POST -->
+          <input type="hidden" name="ingredient" value="${ingId}">
+          <input type="hidden" name="quantity_added" value="${qty}">
+          <input type="hidden" name="cost_per_unit" value="${cost}">
+          <input type="hidden" name="case_size" value="${caseSize}">
+          <input type="hidden" name="lead_time" value="${leadTime}">
+        `;
+
+                modalBody.insertBefore(newRow, form);
+                form.reset();
+            });
+        }
+
+        // --- 3. Remove added rows if needed ---
+        modalBody.addEventListener("click", (e) => {
+            if (e.target.classList.contains("remove-row")) {
+                e.target.closest(".row").remove();
+                console.log("🗑️ Row removed");
+            }
         });
     }
-
-    // --- NEW: Add Another → append a row to table ---
-    const tableBody = document.getElementById('bulk-stock-body');
-    const form = document.getElementById('bulk-add-form');
-    const addRowBtn = document.getElementById('add-row');
-
-    addRowBtn.addEventListener('click', () => {
-        const ingSelect = form.querySelector('[name="ingredient"]');
-        const ingId = ingSelect.value;
-        const ingName = ingSelect.options[ingSelect.selectedIndex]?.text || '';
-        const qty = form.querySelector('[name="quantity_added"]').value;
-        const cost = form.querySelector('[name="cost_per_unit"]').value;
-        const caseSize = form.querySelector('[name="case_size"]').value;
-        const leadTime = form.querySelector('[name="lead_time"]').value;
-
-        if (!ingId || !qty || !cost) {
-            alert('Please select ingredient, quantity, and cost.');
-            return;
-        }
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-      <td><input type="hidden" name="ingredient" value="${ingId}">${ingName}</td>
-      <td><input type="hidden" name="quantity_added" value="${qty}">${qty}</td>
-      <td><input type="hidden" name="cost_per_unit" value="${cost}">${cost}</td>
-      <td><input type="hidden" name="case_size" value="${caseSize}">${caseSize || '-'}</td>
-      <td><input type="hidden" name="lead_time" value="${leadTime}">${leadTime || '-'}</td>
-      <td><button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button></td>
-    `;
-        tableBody.appendChild(row);
-        form.reset();
-    });
-
-    // --- Remove a row ---
-    tableBody.addEventListener('click', e => {
-        if (e.target.classList.contains('remove-row')) {
-            e.target.closest('tr').remove();
-        }
-    });
 </script>
