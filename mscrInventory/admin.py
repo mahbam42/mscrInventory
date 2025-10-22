@@ -25,6 +25,37 @@ from .utils.reports import cogs_by_day, usage_detail_by_day
 
 
 # Register your models here.
+
+@admin.register(StockEntry)
+class StockEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        "ingredient",
+        "quantity_added",
+        "cost_per_unit",
+        "source",
+        "note",
+        "date_received",
+    )
+    list_filter = ("source", "ingredient")
+    search_fields = ("ingredient__name", "note")
+    ordering = ("date_received",)
+    readonly_fields = ("date_received",)
+
+    fieldsets = (
+        (None, {
+            "fields": (
+                "ingredient",
+                ("quantity_added", "cost_per_unit"),
+                ("source", "note"),
+                "date_received",
+            )
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # Optional: prevent manual entry through admin — keep it data-driven
+        return False
+
 class UnmappedProductFilter(admin.SimpleListFilter):
     title = 'Mapping Status'
     parameter_name = 'mapped'
@@ -83,6 +114,11 @@ class UnitTypeAdmin(admin.ModelAdmin):
     search_fields = ("name", "abbreviation")
     ordering = ("name",)
 
+class StockEntryInline(admin.TabularInline):
+    model = StockEntry
+    extra = 0
+    readonly_fields = ("quantity_added", "cost_per_unit", "source", "note", "date_received")
+    can_delete = False
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
@@ -92,6 +128,7 @@ class IngredientAdmin(admin.ModelAdmin):
     )
     list_filter = ("type", "unit_type",)
     search_fields = ("name",)
+    inlines = [StockEntryInline]
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -122,3 +159,4 @@ class RecipeModifierAdmin(admin.ModelAdmin):
     list_filter = ("type",)
     search_fields = ("name", "ingredient__name")
 
+    

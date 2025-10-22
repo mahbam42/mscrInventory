@@ -9,6 +9,7 @@ from django.template.loader import render_to_string
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import json, csv, io
+from itertools import zip_longest
 from mscrInventory.models import Ingredient, StockEntry, IngredientType
 
 # -----------------------------
@@ -88,46 +89,70 @@ def bulk_add_modal(request):
 def bulk_add_stock(request):
     """Create multiple StockEntry records and refresh dashboard via HTMX triggers."""
     data = request.POST
-    items = zip(
-        data.getlist("ingredient"),
-        data.getlist("Rowquantity_added"),
-        data.getlist("Rowcost_per_unit"),
-        data.getlist("Rowcase_size"),
-        data.getlist("Rowlead_time"),
-        data.getlist("Rowreorder_point")
-    )
+
+    #degug data
+    print("POST keys:", list(data.keys()))
+    print("reason:", data.get("reason"))
+    print("note:", data.get("note"))
+    print("Rowquantity_added:", data.getlist("Rowquantity_added"))
+    # end debug
+
+    reason = data.get("reason") or "Bulk Add"
+    note = data.get("note") or "Added via bulk add modal"
+    # Use Row* lists if present; otherwise fall back to Modal*
+    qty_list = data.getlist("Rowquantity_added") or data.getlist("Modalquantity_added")
+    cost_list = data.getlist("Rowcost_per_unit") or data.getlist("Modalcost_per_unit")
+    case_list = data.getlist("Rowcase_size") or data.getlist("Modalcase_size")
+    lead_list = data.getlist("Rowlead_time") or data.getlist("Modallead_time")
+    reorder_list = data.getlist("Rowreorder_point") or []
+
+    # Clean empty strings
+    ingredients = [i for i in data.getlist("ingredient") if i.strip()]
+
+    items = zip_longest(ingredients, qty_list, cost_list, case_list, lead_list, reorder_list, fillvalue=None)
 
     created = 0
 
     with transaction.atomic():
         for ing_id, qty, cost, case, lead, reorder in items:
-            if not qty or not cost:
+            if not ing_id or qty in (None, "", " "):
                 continue
 
             try:
                 ing = Ingredient.objects.get(pk=ing_id)
-                qty_val = Decimal(qty)
-                cost_val = Decimal(cost)
+                qty_val = Decimal(str(qty).strip())
+                cost_val = Decimal(str(cost or "0").strip())
             except (Ingredient.DoesNotExist, InvalidOperation):
                 continue
 
-            # Create new StockEntry
+            # ✅ Create the StockEntry (allow negatives)
             StockEntry.objects.create(
                 ingredient=ing,
                 quantity_added=qty_val,
                 cost_per_unit=cost_val,
-                source="bulk",
-                note="Bulk add via dashboard",
+                source=reason.lower(),
+                note=note,
             )
 
-            # Update metadata fields
+            # ✅ Update Ingredient stock and metadata
+            ing.current_stock = (ing.current_stock or Decimal(0)) + qty_val
+
             if case:
                 ing.case_size = case
             if lead:
                 ing.lead_time = lead
             if reorder:
                 ing.reorder_point = reorder
-            ing.save(update_fields=["case_size", "lead_time", "reorder_point", "last_updated"])
+
+            ing.save(
+                update_fields=[
+                    "current_stock",
+                    "case_size",
+                    "lead_time",
+                    "reorder_point",
+                    "last_updated",
+                ]
+            )
 
             created += 1
 
@@ -279,7 +304,7 @@ def import_inventory_csv(request):
             else:
                 row_errors.append("No stock increase detected.")
 
-        if qty_added is None or qty_added <= 0:
+        if qty_added is None or "":
             row_errors.append("Quantity must be positive or computable delta.")
 
         if row_errors:

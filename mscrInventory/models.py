@@ -55,6 +55,21 @@ class Product(models.Model):
             models.Index(fields=["square_id"]),
         ]
 
+    @property
+    def calculated_cogs(self):
+        """
+        Returns total cost of goods sold for this product,
+        based on linked ingredients and their average cost.
+        """
+        total = Decimal("0")
+        for item in self.recipe_items.select_related("ingredient"):
+            if not item.ingredient:
+                continue
+            qty = item.quantity or Decimal("0")
+            cost = item.ingredient.average_cost_per_unit or Decimal("0")
+            total += qty * cost
+        return total.quantize(Decimal("0.0001"))
+
     def __str__(self):
         return f"{self.name} ({self.sku})"
     
@@ -83,35 +98,6 @@ class UnitType(models.Model):
         return self.abbreviation or self.name
 
 class Ingredient(models.Model):
-    """    
-        Replacing with database models for unit types and ingredient types.
-        UNIT_CHOICES = (
-        ("oz", "Ounce"),
-        ("lb", "Pound"),
-        ("fl_oz", "Fluid Ounce"),
-        ("unit", "Unit/portion"),
-        ("g", "Gram"),
-        ("kg", "Kilogram"),
-    )
-
-    type = [
-        ("MILK", "Milk"),
-        ("FLAVOR", "Flavor Shot"),
-        ("SYRUP", "Syrup"),
-        ("SUGAR", "Sugar"),
-        ("EXTRA", "Extra"),
-        ("coffee", "Coffee"),
-        ("packaging", "Packaging"),
-        ("misc", "Miscellaneous"),
-        ("Bagel", "Bagel"),
-        ("Spread", "Spread"),
-        ("Topping", "Topping"),
-        ("Toast", "Toast"),
-        ("Baked Good", "Baked Good"),
-        ("Muffin", "Muffin"),
-        ("Cookie", "Cookie"),
-    ] """
-
     name = models.CharField(max_length=255, unique=True)
     type = models.ForeignKey(IngredientType, on_delete=models.SET_NULL, null=True, blank=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True, blank=True)
