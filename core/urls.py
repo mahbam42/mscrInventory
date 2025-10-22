@@ -26,7 +26,7 @@ from mscrInventory.views.imports import imports_dashboard_view, upload_square_vi
 from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
-from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient, bulk_add_modal, inventory_low_stock_partial, inventory_all_ingredients_partial, ingredient_details
+from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient, bulk_add_modal, inventory_low_stock_partial, inventory_all_ingredients_partial, ingredient_details, export_inventory_csv, import_inventory_csv, import_inventory_modal, confirm_inventory_import, download_inventory_csv_template
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
@@ -71,5 +71,10 @@ urlpatterns = [
     path("inventory/low_stock_partial/", inventory_low_stock_partial, name="inventory_low_stock_partial"),
     path("inventory/all_ingredients_partial/", inventory_all_ingredients_partial, name="inventory_all_ingredients_partial",),
     path("inventory/ingredient/<int:pk>/details/", ingredient_details, name="ingredient_details"),
+    path("inventory/export/", export_inventory_csv, name="export_inventory_csv"),
+    path("inventory/import/template/", download_inventory_csv_template, name="download_inventory_csv_template"),
+    path("inventory/import/", import_inventory_csv, name="import_inventory_csv"),
+    path("inventory/import/modal/", import_inventory_modal, name="import_inventory_modal"),
+    path("inventory/import/confirm/", confirm_inventory_import, name="confirm_inventory_import"),
 
 ]   
