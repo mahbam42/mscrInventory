@@ -6,25 +6,37 @@
   <h2 class="mb-3">☕ Recipe Dashboard</h2>
   <hr />
   <!-- Edit Widgets -->
-  <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
-    data-bs-toggle="modal" data-bs-target="#globalModal">
-    ⚠️ View Unmapped Ingredients
-  </button>
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{% url 'export_recipes_csv' %}" class="btn btn-sm btn-outline-secondary me-2">
+      📤 Export CSV
+    </a>
+    <button hx-get="{% url 'import_recipes_csv' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
+      class="btn btn-sm btn-outline-primary">
+      📥 Import CSV
+    </button>
+  </div>
+  <div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
+      data-bs-toggle="modal" data-bs-target="#globalModal">
+      ⚠️ View Unmapped Ingredients
+    </button>
+  </div>
   <hr />
   <!-- Category Filter -->
-    <form method="get" class="mb-3 d-flex gap-2 align-items-center" id="recipes-filter">
-      <label for="category" class="form-label mb-0">Category</label>
-      <select name="category" id="category" class="form-select form-select-sm" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for c in categories %}
-        {% with c.categories__id|stringformat:"s" as cat_id %}
-        <option value="{{ cat_id }}" {% if selected_category == cat_id or selected_category == c.categories__name %} selected {% endif %}>
-          {{ c.categories__name }}
-        </option>
-        {% endwith %}
-        {% endfor %}
-      </select>
-    </form>
+    <label class="form-label">Category</label>
+    <div class="d-flex align-items-start gap-2 mb-2">
+      <input type="text" id="category-search" class="form-control form-control-sm" placeholder="Search categories…"
+        style="width: 80%;">
+      <button type="button" id="category-clear" class="btn btn-outline-secondary btn-sm" title="Clear search">
+        ✕
+      </button>
+    </div>
+    
+    <select id="category-select" name="category" class="form-select form-select-sm" size="8">
+      {% for cat in all_categories %}
+      <option value="{{ cat.id }}">{{ cat.name }}</option>
+      {% endfor %}
+    </select>
   <!-- Recipes Table -->
   <div id="recipes-table-wrap"
     hx-get="{% url 'recipes_table_fragment' %}{% if selected_category %}?category={{ selected_category }}{% endif %}"
@@ -37,9 +49,43 @@
 </div>
 
 <!-- Global modal container -->
-<div class="modal fade" id="globalModal" tabindex="-1" aria-hidden="true">
+<!-- <div class="modal fade" id="globalModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content"></div>
   </div>
-</div>
+</div> -->
+
+<script>
+  // Category filter logic
+  document.addEventListener("DOMContentLoaded", () => {
+    const search = document.getElementById("category-search");
+    const clear = document.getElementById("category-clear");
+    const select = document.getElementById("category-select");
+
+    if (!search || !select) return;
+
+    const filterCategories = () => {
+      const term = search.value.toLowerCase();
+      let anyVisible = false;
+      select.querySelectorAll("option").forEach(opt => {
+        const visible = term === "" || opt.textContent.toLowerCase().includes(term);
+        opt.style.display = visible ? "" : "none";
+        if (visible) anyVisible = true;
+      });
+      // Optional UX: hide select if no matches
+      select.style.display = anyVisible ? "" : "none";
+    };
+
+    search.addEventListener("input", filterCategories);
+    clear.addEventListener("click", () => {
+      search.value = "";
+      filterCategories();
+    });
+
+    // initial render
+    filterCategories();
+  });
+  // end Category filter logic
+  // next
+</script>
 {% endblock %}

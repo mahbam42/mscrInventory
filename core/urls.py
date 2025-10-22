@@ -23,7 +23,7 @@ from mscrInventory import app_views
 # from mscrInventory.views import dashboard_view
 from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
 #from mscrInventory.views import recipes_modal
-from mscrInventory.views.recipe_modal import recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
+from mscrInventory.views.recipe_modal import export_recipes_csv, import_recipes_csv, recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
 from mscrInventory.views.modifiers import edit_modifier_extra_view
 from mscrInventory.views.products import products_dashboard_view
 from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient, bulk_add_modal, inventory_low_stock_partial, inventory_all_ingredients_partial, ingredient_details, export_inventory_csv, import_inventory_csv, import_inventory_modal, confirm_inventory_import, download_inventory_csv_template
@@ -61,6 +61,8 @@ urlpatterns = [
     path("recipes/<int:pk>/extend/", extend_recipe, name="extend_recipe"),
     path("recipes/item/<int:pk>/update/", update_recipe_item, name="update_recipe_item"),
     path("modifiers/<int:modifier_id>/edit-extra/", edit_modifier_extra_view, name="edit_modifier_extra"),
+    path("recipes/export/", export_recipes_csv, name="export_recipes_csv"),
+    path("recipes/import/", import_recipes_csv, name="import_recipes_csv"),
 
     #inventory
     path("inventory/", inventory_dashboard_view, name="inventory_dashboard"),

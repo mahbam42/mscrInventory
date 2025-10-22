@@ -1,11 +1,12 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 from decimal import Decimal, InvalidOperation
 from django.views.decorators.http import require_http_methods, require_POST
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.contrib import messages
-
+from decimal import Decimal
+import csv, io, json
 from ..models import Product, Ingredient, RecipeItem, RecipeModifier
 
 def recipes_dashboard_view(request):
@@ -240,3 +241,59 @@ def save_recipe_modifiers(request, pk):
         return HttpResponse(status=204)
     except Exception as e:
         return JsonResponse({"error": f"Could not save modifiers: {e}"}, status=400) """
+
+def export_recipes_csv(request):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="recipes_snapshot.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["id", "name", "category", "ingredient", "quantity"])
+    for recipe in Product.objects.prefetch_related("recipe_items__ingredient").all():
+        for item in recipe.recipe_items.all():
+            writer.writerow([
+                recipe.id,
+                recipe.name,
+                recipe.category.name if recipe.category else "",
+                item.ingredient.name if item.ingredient else "",
+                item.quantity or "",
+            ])
+    return response
+
+
+@require_POST
+def import_recipes_csv(request):
+    csv_file = request.FILES.get("file")
+    if not csv_file:
+        messages.error(request, "⚠️ No file uploaded.")
+        return redirect("recipes_dashboard")
+
+    decoded = csv_file.read().decode("utf-8")
+    reader = csv.DictReader(io.StringIO(decoded))
+    updated, skipped = 0, 0
+    for row in reader:
+        try:
+            recipe = Product.objects.get(pk=row["id"])
+        except Product.DoesNotExist:
+            skipped += 1
+            continue
+
+        ing_name = (row.get("ingredient") or "").strip()
+        if not ing_name:
+            skipped += 1
+            continue
+        try:
+            ing = Ingredient.objects.get(name__iexact=ing_name)
+        except Ingredient.DoesNotExist:
+            # placeholder for "unmapped items" modal in Phase 3
+            skipped += 1
+            continue
+
+        qty = Decimal(row.get("quantity") or "0")
+        RecipeItem.objects.update_or_create(
+            product=recipe, ingredient=ing, defaults={"quantity": qty}
+        )
+        updated += 1
+
+    messages.success(request, f"✅ {updated} recipe items updated, {skipped} skipped.")
+    response = redirect("recipes_dashboard")
+    response["HX-Trigger"] = json.dumps({"recipes:refresh": True})
+    return response

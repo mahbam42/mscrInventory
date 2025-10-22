@@ -1,0 +1,18 @@
+<div class="modal-header">
+    <h5 class="modal-title">📥 Import Recipes from CSV</h5>
+</div>
+
+<div class="modal-body">
+    <form hx-post="{% url 'import_recipes_csv' %}" enctype="multipart/form-data" hx-target="#globalModal .modal-content"
+        hx-swap="innerHTML" class="d-flex flex-column gap-3">
+        {% csrf_token %}
+        <p class="text-muted small">
+            Upload a CSV containing <code>id,name,category,ingredient,quantity</code> columns.
+            Existing entries will update automatically.
+        </p>
+        <input type="file" name="file" accept=".csv" class="form-control" required>
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary btn-sm">Preview &amp; Import</button>
+        </div>
+    </form>
+</div>
