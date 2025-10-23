@@ -10,9 +10,9 @@
     <a href="{% url 'export_recipes_csv' %}" class="btn btn-sm btn-outline-secondary me-2">
       📤 Export CSV
     </a>
-    <button hx-get="{% url 'import_recipes_csv' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
+    <button hx-get="{% url 'import_recipes_modal' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
       class="btn btn-sm btn-outline-primary">
-      📥 Import CSV
+      📥 Import Recipes CSV
     </button>
   </div>
   <div class="d-flex justify-content-end mb-3">

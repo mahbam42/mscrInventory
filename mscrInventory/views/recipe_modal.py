@@ -6,9 +6,23 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
 from django.contrib import messages
+from datetime import datetime
+from pathlib import Path
 from decimal import Decimal
 import csv, io, json
 from ..models import Product, Ingredient, RecipeItem, RecipeModifier
+
+LOG_DIR = Path("archive/logs")
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "import_recipes.log"
+
+def log_import(action: str, message: str):
+    """Append an entry to the recipe import log."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    LOG_FILE.write_text(
+        f"[{timestamp}] {action}: {message}\n",
+        encoding="utf-8",
+    )
 
 def recipes_dashboard_view(request):
     category = request.GET.get("category", "").strip()
@@ -145,22 +159,24 @@ def edit_recipe_view(request, pk):
     return render(request, "recipes/_edit_modal.html", ctx)
 
 def recipes_table_fragment(request):
-   def recipes_table_fragment(request):
-    q = request.GET.get("category", "").strip()
+    category = request.GET.get("category", "").strip()
+    query = request.GET.get("q", "").strip()
+
     products = Product.objects.all().order_by("name")
 
-    if q:
-        if q.isdigit():
-            products = products.filter(categories__id=int(q))
+    if category:
+        if category.isdigit():
+            products = products.filter(categories__id=int(category))
         else:
-            products = products.filter(categories__name=q)
+            products = products.filter(categories__name__icontains=category)
+
+    if query:
+        products = products.filter(name__icontains=query)
+
     ctx = {"products": products}
 
-    # return render(request, "recipes/_table.html", {"products": products})
-    response = render(request, "recipes/_table.html", ctx)
-    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response["Pragma"] = "no-cache"
-    return response
+    # ✅ Always return an HttpResponse
+    return render(request, "recipes/_table.html", ctx)
 
 @require_http_methods(["POST"])
 @transaction.atomic
@@ -307,4 +323,186 @@ def import_recipes_csv(request):
     messages.success(request, f"✅ {updated} recipe items updated, {skipped} skipped.")
     response = redirect("recipes_dashboard")
     response["HX-Trigger"] = json.dumps({"recipes:refresh": True})
+    return response
+
+def export_recipes_csv(request):
+    """Export all recipes and their ingredient breakdowns as CSV."""
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="recipes_export.csv"'
+    writer = csv.writer(response)
+
+    writer.writerow([
+        "product_id",
+        "product_name",
+        "categories",
+        "ingredient_id",
+        "ingredient_name",
+        "quantity",
+        "average_cost_per_unit",
+        "cogs_subtotal",
+    ])
+
+    # Iterate through all recipes with prefetch for performance
+    recipes = Product.objects.prefetch_related("recipe_items__ingredient", "categories").all().order_by("name")
+
+    for product in recipes:
+        categories = ", ".join([c.name for c in product.categories.all()])
+        for item in product.recipe_items.all():
+            ingredient = item.ingredient
+            if not ingredient:
+                continue
+            qty = Decimal(item.quantity or 0)
+            cost = Decimal(ingredient.average_cost_per_unit or 0)
+            subtotal = qty * cost
+            writer.writerow([
+                product.id,
+                product.name,
+                categories,
+                ingredient.id,
+                ingredient.name,
+                qty,
+                cost,
+                subtotal.quantize(Decimal("0.0001")),
+            ])
+
+    return response
+
+
+def import_recipes_modal(request):
+    """Render upload modal."""
+    return render(request, "recipes/_import_recipes.html")
+
+
+@require_POST
+def import_recipes_csv(request):
+    """Parse CSV, validate rows, show preview (supports dry-run)."""
+    csv_file = request.FILES.get("file")
+    dry_run = request.POST.get("dry_run") == "on"
+
+    if not csv_file:
+        messages.error(request, "⚠️ No file uploaded.")
+        return redirect("recipes_dashboard")
+
+    decoded = csv_file.read().decode("utf-8")
+    reader = csv.DictReader(io.StringIO(decoded))
+
+    valid_rows, invalid_rows = [], []
+
+    for row in reader:
+        product_id = row.get("product_id") or ""
+        ingredient_id = row.get("ingredient_id") or ""
+        qty = row.get("quantity") or ""
+
+        if not product_id or not ingredient_id:
+            invalid_rows.append({**row, "error": "Missing product_id or ingredient_id"})
+            continue
+
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            invalid_rows.append({**row, "error": "Product not found"})
+            continue
+
+        try:
+            ingredient = Ingredient.objects.get(pk=ingredient_id)
+        except Ingredient.DoesNotExist:
+            invalid_rows.append({**row, "error": "Ingredient not found"})
+            continue
+
+        try:
+            qty_val = Decimal(qty or "0")
+        except Exception:
+            invalid_rows.append({**row, "error": "Invalid quantity"})
+            continue
+
+        valid_rows.append({
+            "product_id": product.id,
+            "product_name": product.name,
+            "ingredient_id": ingredient.id,
+            "ingredient_name": ingredient.name,
+            "quantity": str(qty_val),
+        })
+        
+    if dry_run:
+        dry_log = LOG_DIR / f"import_recipes_dryrun_{datetime.now():%Y%m%d}.txt"
+        dry_log.write_text(json.dumps(valid_rows, indent=2))
+    else:
+        log_import(
+            "DRY-RUN" if dry_run else "PREVIEW",
+            f"{len(valid_rows)} valid, {len(invalid_rows)} invalid uploaded by {request.user if request.user.is_authenticated else 'anonymous'}"
+        )
+
+    ctx = {
+    "valid_rows": valid_rows,
+    "invalid_rows": invalid_rows,
+    "count_valid": len(valid_rows),
+    "count_invalid": len(invalid_rows),
+    "dry_run": dry_run,
+    "collapse_valid": len(valid_rows) > 50,
+    "valid_rows_json": json.dumps(valid_rows),  # ✅ add this
+    }
+    return render(request, "recipes/_import_recipes_preview.html", ctx)
+
+@require_POST
+def confirm_recipes_import(request):
+    """Write validated CSV rows into RecipeItems."""
+    data_json = request.POST.get("valid_rows") or request.body.decode("utf-8")
+
+    try:
+        # Some browsers double-encode JSON through hx-vals
+        rows = json.loads(data_json)
+        # If it’s a string again (nested JSON), decode one more level
+        if isinstance(rows, str):
+            rows = json.loads(rows)
+    except Exception as e:
+        return JsonResponse(
+            {"status": "error", "message": f"Invalid JSON payload: {e}"},
+            status=400,
+        )
+
+    created, updated = 0, 0
+
+    with transaction.atomic():
+        for row in rows:
+            try:
+                product = Product.objects.get(pk=row["product_id"])
+                ingredient = Ingredient.objects.get(pk=row["ingredient_id"])
+                qty_val = Decimal(row["quantity"])
+
+                obj, created_flag = RecipeItem.objects.update_or_create(
+                    product=product,
+                    ingredient=ingredient,
+                    defaults={"quantity": qty_val},
+                )
+                created += int(created_flag)
+                updated += int(not created_flag)
+            except Exception as e:
+                # you can log or skip bad rows silently for now
+                continue
+
+    response = JsonResponse({"status": "success"})
+
+    log_import(
+        "IMPORT",
+        f"{created} created, {updated} updated by {request.user if request.user.is_authenticated else 'anonymous'}"
+    )
+
+    response["HX-Trigger"] = json.dumps({
+        "recipes:refresh": True,
+        "showMessage": {
+            "text": f"✅ {created} created, {updated} updated from CSV.",
+            "level": "success",
+        },
+    })
+    return response
+
+def download_recipes_template(request):
+    """Generate a blank CSV template for recipe imports."""
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="recipes_template.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["product_id", "product_name", "ingredient_id", "ingredient_name", "quantity"])
+    writer.writerow(["101", "Demo Latte", "12", "Espresso", "2.0"])
+    writer.writerow(["101", "Demo Latte", "14", "Milk", "1.0"])
+    writer.writerow(["102", "Hot Brew", "22", "Cold Brew Base", "1.0"])
     return response

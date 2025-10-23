@@ -1,0 +1,86 @@
+<div class="modal-header">
+    <h5 class="modal-title">📊 Preview Import</h5>
+</div>
+{% csrf_token %}
+<div class="modal-body">
+    {% if dry_run %}
+    <div class="alert alert-info small mb-3">
+        🔍 Dry run mode: No changes will be written to the database.
+    </div>
+    {% endif %}
+    {% if count_invalid %}
+    <div class="alert alert-warning small">
+        ⚠️ {{ count_invalid }} invalid rows detected. They will be skipped.
+    </div>
+    {% endif %}
+
+    {% if valid_rows %}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div><strong>{{ count_valid }}</strong> valid rows</div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+            data-bs-target="#validTable">
+            📦 Show Valid Rows
+        </button>
+    </div>
+    
+    <div class="collapse {% if not collapse_valid %}show{% endif %}" id="validTable">
+        <table class="table table-sm table-bordered mb-3">
+            <thead class="table-light">
+                <tr>
+                    <th>Product</th>
+                    <th>Ingredient</th>
+                    <th class="text-end">Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in valid_rows %}
+                <tr>
+                    <td>{{ row.product_name }}</td>
+                    <td>{{ row.ingredient_name }}</td>
+                    <td class="text-end">{{ row.quantity }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% if invalid_rows %}
+    <div class="mt-3">
+        <div class="alert alert-warning small mb-2">
+            ⚠️ {{ count_invalid }} invalid rows detected. They will be skipped.
+        </div>
+    
+        <div class="collapse show" id="invalidTable">
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Ingredient Name</th>
+                        <th>Quantity</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in invalid_rows %}
+                    <tr>
+                        <td>{{ row.product_name }}</td>
+                        <td>{{ row.ingredient_name }}</td>
+                        <td>{{ row.quantity|default:"–" }}</td>
+                        <td class="text-danger">{{ row.error }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    <textarea id="importData" hidden>{{ valid_rows_json|safe }}</textarea>
+    <div class="text-end mt-3">
+        <button class="btn btn-success btn-sm" hx-post="{% url 'confirm_recipes_import' %}" hx-vals='js:{
+            csrfmiddlewaretoken: document.querySelector("[name=csrfmiddlewaretoken]").value,
+            valid_rows: JSON.stringify(JSON.parse(document.getElementById("importData").value))
+          }' hx-target="#globalModal .modal-content" hx-swap="innerHTML" {% if not count_valid %}disabled{% endif %}>
+            Confirm Import
+        </button>
+    </div>
+</div>

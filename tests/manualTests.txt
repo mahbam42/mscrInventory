@@ -7,3 +7,11 @@ Extend Recipe	Choose base, click submit	Ingredients cloned; modal updates
 Search Filter	Type “milk”	Matching options bubble to top; categories collapse
 CSRF Handling	Add/delete while logged out	Safe 403 with “Forbidden” message
 Live Reload	Save template while server running	Page reloads automatically
+
+# Recipes: 
+
+## Export to CSV:
+    1. Go to /recipes/.
+    2. Click “📤 Export Recipes CSV.”
+    3. Open the CSV — you should see all products listed once per ingredient.
+    4. Verify category names and COGS subtotals populate as expected.

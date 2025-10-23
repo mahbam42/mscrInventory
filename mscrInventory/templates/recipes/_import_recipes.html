@@ -1,18 +1,31 @@
 <div class="modal-header">
-    <h5 class="modal-title">📥 Import Recipes from CSV</h5>
+    <h5 class="modal-title">📥 Import Recipes CSV</h5>
 </div>
 
 <div class="modal-body">
     <form hx-post="{% url 'import_recipes_csv' %}" enctype="multipart/form-data" hx-target="#globalModal .modal-content"
-        hx-swap="innerHTML" class="d-flex flex-column gap-3">
+        hx-swap="innerHTML">
         {% csrf_token %}
-        <p class="text-muted small">
-            Upload a CSV containing <code>id,name,category,ingredient,quantity</code> columns.
-            Existing entries will update automatically.
+        <p class="small text-muted">
+            Upload a CSV with columns: <code>product_id,product_name,ingredient_id,ingredient_name,quantity</code>
         </p>
-        <input type="file" name="file" accept=".csv" class="form-control" required>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="dry_run" id="dry-run">
+                <label class="form-check-label small" for="dry-run">
+                    Dry run (validate only, don’t save)
+                </label>
+            </div>
+
+            <a href="{% url 'download_recipes_template' %}" class="btn btn-sm btn-outline-secondary">
+                📄 Download Template
+            </a>
+        </div>
+
+        <input type="file" name="file" accept=".csv" class="form-control mb-3" required>
         <div class="text-end">
-            <button type="submit" class="btn btn-primary btn-sm">Preview &amp; Import</button>
+            <button type="submit" class="btn btn-primary btn-sm">Preview</button>
         </div>
     </form>
 </div>
