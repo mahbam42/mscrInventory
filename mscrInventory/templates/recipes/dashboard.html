@@ -23,20 +23,31 @@
   </div>
   <hr />
   <!-- Category Filter -->
-    <label class="form-label">Category</label>
-    <div class="d-flex align-items-start gap-2 mb-2">
-      <input type="text" id="category-search" class="form-control form-control-sm" placeholder="Search categories…"
-        style="width: 80%;">
-      <button type="button" id="category-clear" class="btn btn-outline-secondary btn-sm" title="Clear search">
-        ✕
-      </button>
-    </div>
-    
-    <select id="category-select" name="category" class="form-select form-select-sm" size="8">
-      {% for cat in all_categories %}
-      <option value="{{ cat.id }}">{{ cat.name }}</option>
-      {% endfor %}
-    </select>
+<div class="d-flex align-items-start flex-wrap gap-2 mb-3">
+
+  <!-- 🔍 Search field -->
+  <div class="d-flex align-items-start gap-2">
+    <input type="text" id="recipe-search" class="form-control form-control-sm"
+      placeholder="Search recipes or categories…" style="width: 250px;">
+    <button type="button" id="recipe-clear" class="btn btn-outline-secondary btn-sm" title="Clear search">
+      ✕
+    </button>
+  </div>
+
+  <!-- 📋 Show All -->
+  <button class="btn btn-sm btn-outline-primary" hx-get="/recipes/" hx-target="#recipes-table-wrap" hx-swap="innerHTML">
+    Show All
+  </button>
+
+  <!-- 🗂 Category buttons -->
+  {% for cat in categories %}
+  <button class="btn btn-sm btn-outline-secondary category-btn" hx-get="/recipes/" hx-target="#recipes-table-wrap"
+    hx-swap="innerHTML" hx-vals='{"category": "{{ cat.categories__id }}"}'>
+    {{ cat.categories__name }}
+  </button>
+  {% endfor %}
+</div>
+
   <!-- Recipes Table -->
   <div id="recipes-table-wrap"
     hx-get="{% url 'recipes_table_fragment' %}{% if selected_category %}?category={{ selected_category }}{% endif %}"
@@ -45,47 +56,34 @@
     hx-swap="innerHTML">
     {% include "recipes/_table.html" with products=products %}
   </div>
-  
 </div>
 
-<!-- Global modal container -->
-<!-- <div class="modal fade" id="globalModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content"></div>
-  </div>
-</div> -->
-
 <script>
-  // Category filter logic
   document.addEventListener("DOMContentLoaded", () => {
-    const search = document.getElementById("category-search");
-    const clear = document.getElementById("category-clear");
-    const select = document.getElementById("category-select");
+    const search = document.getElementById("recipe-search");
+    const clear = document.getElementById("recipe-clear");
 
-    if (!search || !select) return;
+    let timeout;
 
-    const filterCategories = () => {
-      const term = search.value.toLowerCase();
-      let anyVisible = false;
-      select.querySelectorAll("option").forEach(opt => {
-        const visible = term === "" || opt.textContent.toLowerCase().includes(term);
-        opt.style.display = visible ? "" : "none";
-        if (visible) anyVisible = true;
+    function triggerSearch() {
+      const query = search.value.trim();
+      const url = query ? `/recipes/?q=${encodeURIComponent(query)}` : "/recipes/";
+      htmx.ajax("GET", url, { target: "#recipes-table-wrap", swap: "innerHTML" });
+    }
+
+    if (search) {
+      search.addEventListener("input", () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(triggerSearch, 300);
       });
-      // Optional UX: hide select if no matches
-      select.style.display = anyVisible ? "" : "none";
-    };
+    }
 
-    search.addEventListener("input", filterCategories);
-    clear.addEventListener("click", () => {
-      search.value = "";
-      filterCategories();
-    });
-
-    // initial render
-    filterCategories();
+    if (clear) {
+      clear.addEventListener("click", () => {
+        search.value = "";
+        triggerSearch();
+      });
+    }
   });
-  // end Category filter logic
-  // next
 </script>
 {% endblock %}

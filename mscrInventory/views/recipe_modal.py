@@ -4,28 +4,33 @@ from decimal import Decimal, InvalidOperation
 from django.views.decorators.http import require_http_methods, require_POST
 from django.db import transaction
 from django.template.loader import render_to_string
+from django.template.response import TemplateResponse
 from django.contrib import messages
 from decimal import Decimal
 import csv, io, json
 from ..models import Product, Ingredient, RecipeItem, RecipeModifier
 
 def recipes_dashboard_view(request):
-    q = request.GET.get("category", "").strip()
+    category = request.GET.get("category", "").strip()
+    query = request.GET.get("q", "").strip()
+
     products = Product.objects.all().order_by("name")
 
     # Treat 'none' (or similar) as no filter
-    if q.lower() in ("none", "null"):
-        q = ""
-        products = Product.objects.all().order_by("name")
+    if category.lower() in ("none", "null"):
+        category = ""
 
-    if q:
-        # accept either an ID (e.g. "12") or a name (e.g. "Espresso Drinks")
-        if q.isdigit():
-            products = products.filter(categories__id=int(q))
+    if category:
+        # Accept either ID or name
+        if category.isdigit():
+            products = products.filter(categories__id=int(category))
         else:
-            products = products.filter(categories__name=q)
+            products = products.filter(categories__name=category)
 
-    # Build a list of available categories from the related M2M
+    if query:
+        products = products.filter(name__icontains=query)
+
+    # Build available categories
     categories = (
         Product.objects
         .values("categories__id", "categories__name")
@@ -34,17 +39,22 @@ def recipes_dashboard_view(request):
     )
 
     base_items = (
-    Product.objects
-    .filter(categories__name__iexact="Base Item")
-    .order_by("name")
-)
+        Product.objects
+        .filter(categories__name__iexact="Base Item")
+        .order_by("name")
+    )
 
     ctx = {
         "products": products,
-        "categories": categories,   # list of dicts with keys categories__id / categories__name
-        "selected_category": q,
+        "categories": categories,
+        "selected_category": category,
         "base_items": base_items,
     }
+
+    # 🧩 HTMX support: only return the table partial when requested
+    if request.headers.get("HX-Request"):
+        return TemplateResponse(request, "recipes/_table.html", ctx)
+
     return render(request, "recipes/dashboard.html", ctx)
 
 @require_http_methods(["POST"])
@@ -135,6 +145,7 @@ def edit_recipe_view(request, pk):
     return render(request, "recipes/_edit_modal.html", ctx)
 
 def recipes_table_fragment(request):
+   def recipes_table_fragment(request):
     q = request.GET.get("category", "").strip()
     products = Product.objects.all().order_by("name")
 
