@@ -1,5 +1,6 @@
 # Core
 Django>=5.2,<6.0
+djangorestframework==3.16.1
 django-htmx>=1.18.0
 django-browser-reload>=1.12.1
 requests>=2.31.0
