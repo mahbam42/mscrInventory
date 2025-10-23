@@ -422,7 +422,7 @@ def import_recipes_csv(request):
             "ingredient_name": ingredient.name,
             "quantity": str(qty_val),
         })
-        
+
     if dry_run:
         dry_log = LOG_DIR / f"import_recipes_dryrun_{datetime.now():%Y%m%d}.txt"
         dry_log.write_text(json.dumps(valid_rows, indent=2))
