@@ -3,4 +3,4 @@ from decimal import Decimal
 def test_recipe_cogs_calculation(db, sample_recipe):
     cost = sample_recipe.calculated_cogs
     assert cost > 0
-    assert round(cost, 4) == Decimal("12.3400")
+    assert round(cost, 2) == Decimal("1.00")

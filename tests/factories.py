@@ -1,25 +1,27 @@
 import factory
-from mscrInventory.models import Product, Ingredient, RecipeItem
+from mscrInventory.models import Product, Ingredient, RecipeItem, IngredientType
+
+class IngredientTypeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = IngredientType
+    name = factory.Sequence(lambda n: f"Type {n}")
 
 class IngredientFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Ingredient
-
-    name = factory.Faker("word")
-    type = "base"
-    unit_type = "oz"
+    name = factory.Sequence(lambda n: f"Ingredient {n}")
+    type = factory.SubFactory(IngredientTypeFactory)  # ✅ required
+    average_cost_per_unit = 1.00
+    current_stock = 10
 
 class ProductFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Product
-
-    name = factory.Faker("word")
+    name = factory.Sequence(lambda n: f"Product {n}")
 
 class RecipeItemFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = RecipeItem
-
     product = factory.SubFactory(ProductFactory)
     ingredient = factory.SubFactory(IngredientFactory)
-    quantity = 1
-    unit = "oz"
+    quantity = 2.5
