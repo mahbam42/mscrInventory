@@ -57,33 +57,33 @@ Example tests
 
 ### 🧰 Management Commands
 Command	Description: 
-python manage.py import_square_csv
-:	Parse daily Square sales exports
+- python manage.py import_square_csv
+ - Parse daily Square sales exports
 
-python manage.py import_recipes_from_csv
-: Bulk create or update recipes
+- python manage.py import_recipes_from_csv
+ -  Bulk create or update recipes
 
-python manage.py import_chemistry
-: Import or sync from stored CSV chemistry data
+- python manage.py import_chemistry
+ - Import or sync from stored CSV chemistry data
 
-python manage.py clean_empty_recipeitems
-: Remove orphaned or duplicate recipe items
+- python manage.py clean_empty_recipeitems
+ - Remove orphaned or duplicate recipe items
 
 All commands support a --dry-run flag for safe testing.
 
 ### 🪵 Logs & Archives
 
-archive/logs/
-: Import logs and dry-run records.
+- ~~~ archive/logs/ ~~~
+ - Import logs and dry-run records.
 
-archive/recipes/
-: Archived recipe CSVs.
+- ~~~ archive/recipes/ ~~~
+ - Archived recipe CSVs.
 
-archive/squareCSVs/
-: Imported Square data snapshots.
+- ~~~ archive/squareCSVs/ ~~~
+ - Imported Square data snapshots.
 
-archive/data/seed.json
-: Optional fixture for seeding dev DBs.
+- ~~~ archive/data/seed.json ~~~
+ - Optional fixture for seeding dev DBs.
 
 ### 🧱 Phase Overview
 
