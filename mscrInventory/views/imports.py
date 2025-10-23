@@ -2,16 +2,16 @@
 import datetime
 import tempfile
 from pathlib import Path
-
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
-
 from django.core.management import call_command
-
 from mscrInventory.models import ImportLog
 from django.utils import timezone
+
+from importers import SquareImporter
+from mscrInventory.models import ImportLog
 
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
@@ -20,23 +20,38 @@ def imports_dashboard_view(request):
 
 @require_POST
 def upload_square_view(request):
-    """Handle Square CSV upload."""
+    """Handle Square CSV upload via dashboard (supports dry run)."""
     uploaded_file = request.FILES.get("square_csv")
+    dry_run = bool(request.POST.get("dry_run"))  # Checkbox or hidden input
+
     if not uploaded_file:
         messages.error(request, "No file uploaded.")
         return redirect("imports_dashboard")
 
+    # Save upload to a temp file
     tmp_path = Path(tempfile.gettempdir()) / uploaded_file.name
     with open(tmp_path, "wb+") as f:
         for chunk in uploaded_file.chunks():
             f.write(chunk)
 
     try:
-        call_command("import_square_csv", file=str(tmp_path))
+        importer = SquareImporter(dry_run=dry_run)
+        importer.run_from_file(tmp_path)
+
+        # Save or update log
         ImportLog.objects.update_or_create(
-            source="square", defaults={"last_run": timezone.now()}
+            source="square",
+            defaults={"last_run": timezone.now()},
         )
-        messages.success(request, f"✅ Imported Square CSV: {uploaded_file.name}")
+
+        # Display summary
+        summary = importer.buffer.getvalue()
+        messages.success(
+            request,
+            f"{'🧪 Dry-run complete' if dry_run else '✅ Import complete'} — {uploaded_file.name}",
+        )
+        messages.info(request, f"<pre>{summary}</pre>")
+
     except Exception as e:
         messages.error(request, f"❌ Error importing Square CSV: {e}")
 

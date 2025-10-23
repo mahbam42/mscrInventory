@@ -389,6 +389,7 @@ class ImportLog(models.Model):
 
     source = models.CharField(max_length=50, choices=SOURCE_CHOICES, unique=True)
     last_run = models.DateTimeField(default=timezone.now)
+    log_excerpt = models.TextField(blank=True, null=True)  # optional, for dry-run logs
 
     def __str__(self):
         return f"{self.get_source_display()} import @ {self.last_run:%Y-%m-%d %H:%M}"
