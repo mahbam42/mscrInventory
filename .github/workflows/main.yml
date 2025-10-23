@@ -36,7 +36,7 @@ jobs:
         run: python manage.py migrate --noinput
 
       - name: 🧪 Run pytest
-        run: pytest --cov=mscrInventory --cov-report=term-missing
+        run: pytest #--cov=mscrInventory --cov-report=term-missing
 
       - name: ✅ Lint check
         run: |
