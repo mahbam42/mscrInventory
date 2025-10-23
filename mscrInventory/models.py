@@ -220,6 +220,12 @@ class RecipeItem(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.quantity}{self.unit} {self.ingredient.name}"
 
+
+class ModifierBehavior(models.TextChoices):
+    ADD = "add", "Add"
+    REPLACE = "replace", "Replace"
+    SCALE = "scale", "Scale"
+
 class RecipeModifier(models.Model):
     """
     Modifiers are extensions of Ingredients (e.g. milk options, syrups, extra shots).
@@ -243,6 +249,11 @@ class RecipeModifier(models.Model):
 
     name = models.CharField(max_length=100, unique=True)
     type = models.CharField(max_length=20, choices=MODIFIER_TYPES)
+    behavior = models.CharField(
+        max_length=10,
+        choices=ModifierBehavior.choices,
+        default=ModifierBehavior.ADD,
+    )
     """    
     This section is also cursed but needed. 
     type = models.ForeignKey(
