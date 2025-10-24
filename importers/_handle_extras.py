@@ -8,33 +8,42 @@ RecipeModifier behavior to in-memory recipe maps. Used by SquareImporter,
 and designed to extend to future importers (e.g. Shopify, Doordash).
 """
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Iterable, Tuple, List, Optional
 from mscrInventory.models import Ingredient, RecipeModifier, ModifierBehavior
 
-# --- selection helpers -------------------------------------------------
-
-def _select_targets(
-    recipe_map: Dict[Ingredient, Dict],
-    by_type: Optional[Iterable[str]] = None,
-    by_name: Optional[Iterable[str]] = None,
-) -> List[Tuple[Ingredient, Dict]]:
-    """Return [(ingredient, meta)] from recipe_map matching any type or name."""
+def _select_targets(recipe_map, by_type=None, by_name=None):
+    """Return [(ingredient_name, meta)] matching type or name."""
     by_type = {t.strip().upper() for t in (by_type or [])}
     by_name = {n.strip().lower() for n in (by_name or [])}
     out = []
+
     for ing, meta in recipe_map.items():
-        ing_type = (meta.get("type") or getattr(getattr(ing, "type", None), "name", "")).upper()
-        if (by_type and ing_type in by_type) or (by_name and ing.name.lower() in by_name) or (not by_type and not by_name):
-            out.append((ing, meta))
+        ing_name = ing if isinstance(ing, str) else getattr(ing, "name", "")
+        ing_type = (meta.get("type") or "").upper()
+
+        if (
+            (by_type and ing_type in by_type)
+            or (by_name and ing_name.lower() in by_name)
+            or (not by_type and not by_name)
+        ):
+            out.append((ing_name, meta))
     return out
 
-def _add_ingredient(recipe_map: Dict[Ingredient, Dict], ing: Ingredient, qty: Decimal, ing_type: Optional[str] = None):
-    """Add/accumulate an ingredient in the working recipe map."""
-    if ing in recipe_map:
-        recipe_map[ing]["qty"] = recipe_map[ing]["qty"] + qty
+
+def _add_ingredient(recipe_map, name, qty, type_hint=None):
+    """Add (or increment) an ingredient safely."""
+    if not name:
+        return
+    if name in recipe_map:
+        recipe_map[name]["qty"] = (
+            recipe_map[name]["qty"] + Decimal(qty)
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     else:
-        recipe_map[ing] = {"qty": qty, "type": ing_type or getattr(getattr(ing, "type", None), "name", None)}
+        recipe_map[name] = {
+            "qty": Decimal(qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            "type": type_hint or "",
+        }
 
 def _remove_ingredient(recipe_map: Dict[Ingredient, Dict], ing: Ingredient):
     recipe_map.pop(ing, None)
@@ -42,66 +51,84 @@ def _remove_ingredient(recipe_map: Dict[Ingredient, Dict], ing: Ingredient):
 def _resolve_ingredient_by_name(name: str) -> Optional[Ingredient]:
     return Ingredient.objects.filter(name__iexact=name.strip()).first()
 
-# --- main: handle_extras -----------------------------------------------
+# ---------------------------------------------------------------------
+# MAIN HANDLER
+# ---------------------------------------------------------------------
 
-def handle_extras(modifier_name: str, recipe_map: Dict[Ingredient, Dict], normalized_modifiers: List[Dict]):
-    """
-    Apply DB-defined RecipeModifier effects to the in-memory recipe_map.
+def handle_extras(modifier_name: str, recipe_map: dict, normalized_modifiers: list):
+    """Apply RecipeModifier rules to a recipe_map."""
 
-    - Supports ADD (adds expands_to * quantity_factor)
-    - Supports REPLACE by type or name (replaces -> to list with optional weights)
-    - Supports SCALE by type or name (multiplies qty by quantity_factor)
-    - Composite effects naturally supported by combining replaces + expands_to in one modifier (e.g., Dirty Chai)
-    """
-    mod = (
-        RecipeModifier.objects.filter(name__iexact=modifier_name).first()
-        or RecipeModifier.objects.filter(name__icontains=modifier_name.strip()).first()
-    )
-    if not mod:
-        return  # unknown/irrelevant → no-op
+    from mscrInventory.models import RecipeModifier, ModifierBehavior
 
-    selector = (mod.target_selector or {})
-    sel_types = selector.get("by_type") or []
-    sel_names = selector.get("by_name") or []
+    try:
+        mod = RecipeModifier.objects.get(name__iexact=modifier_name)
+    except RecipeModifier.DoesNotExist:
+        return recipe_map
 
-    # 1) REPLACE: target by type or name, swap to one or many ingredients
-    if mod.behavior == ModifierBehavior.REPLACE:
-        # Targets to remove
-        targets = _select_targets(recipe_map, by_type=sel_types, by_name=sel_names)
-        # Who to replace with
-        rep = (mod.replaces or {})
-        to_list = rep.get("to") or []  # list of [name, weight]
-        # If to_list contains single string, normalize to [[name, 1.0]]
-        if to_list and isinstance(to_list[0], str):
-            to_list = [[to_list[0], 1.0]]
+    # Safely parse JSON fields
+    sel_types = []
+    sel_names = []
+    if isinstance(mod.target_selector, dict):
+        sel_types = mod.target_selector.get("by_type", [])
+        sel_names = mod.target_selector.get("by_name", [])
 
-        # Remove targets
-        for ing, _meta in targets:
-            _remove_ingredient(recipe_map, ing)
+    quantity_factor = getattr(mod, "quantity_factor", Decimal("1.0")) or Decimal("1.0")
 
-        # Add replacements (weights scaled by quantity_factor)
-        for name, weight in to_list:
-            repl_ing = _resolve_ingredient_by_name(name)
-            if repl_ing:
-                factor = Decimal(mod.quantity_factor) * Decimal(str(weight or 1.0))
-                _add_ingredient(recipe_map, repl_ing, factor)
-
-    # 2) ADD: add expands_to ingredients (each * quantity_factor)
-    if mod.behavior == ModifierBehavior.ADD:
-        for ing in mod.expands_to.all():
-            _add_ingredient(recipe_map, ing, Decimal(mod.quantity_factor))
-
-    # 3) SCALE: multiply qty for selected targets
+    # --- SCALE ----------------------------------------------------------
     if mod.behavior == ModifierBehavior.SCALE:
         targets = _select_targets(recipe_map, by_type=sel_types, by_name=sel_names)
         for ing, meta in targets:
-            meta["qty"] = (meta.get("qty") or Decimal(1)) * Decimal(mod.quantity_factor)
+            meta["qty"] = (
+                Decimal(meta["qty"]) * Decimal(quantity_factor)
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # Record normalized modifier for logging/analytics (optional)
-    normalized_modifiers.append({
-        "name": mod.name,
-        "behavior": mod.behavior,
-        "quantity": Decimal(mod.quantity_factor),
-        "targets_by_type": sel_types,
-        "targets_by_name": sel_names,
-    })
+    # --- REPLACE --------------------------------------------------------
+    elif mod.behavior == ModifierBehavior.REPLACE and mod.replaces:
+        targets = _select_targets(recipe_map, by_type=sel_types, by_name=sel_names)
+
+        # total quantity of removed items (to preserve overall volume)
+        total_qty = Decimal("0.0")
+        removed_keys = []
+
+        for ing, meta in targets:
+            total_qty += Decimal(meta.get("qty", 0))
+            removed_keys.append(ing)
+
+        # remove matched keys case-insensitively
+        for key in removed_keys:
+            for existing in list(recipe_map.keys()):
+                if existing.lower() == key.lower():
+                    recipe_map.pop(existing, None)
+
+        # add new replacements scaled to the removed total
+        for name, factor in (mod.replaces.get("to", []) or []):
+            _add_ingredient(
+                recipe_map,
+                name,
+                (Decimal(factor) * total_qty).quantize(Decimal("0.01")),
+                type_hint=mod.type,
+            )
+
+    # --- ADD ------------------------------------------------------------
+    elif mod.behavior == ModifierBehavior.ADD:
+        _add_ingredient(
+            recipe_map,
+            mod.ingredient.name,
+            Decimal(mod.base_quantity),
+            type_hint=mod.type,
+        )
+
+    # --- EXPANSIONS -----------------------------------------------------
+    for expanded in mod.expands_to.all():
+        if expanded.behavior == ModifierBehavior.ADD:
+            _add_ingredient(
+                recipe_map,
+                expanded.ingredient.name,
+                Decimal(expanded.base_quantity),
+                type_hint=expanded.type,
+            )
+        else:
+            recipe_map = handle_extras(expanded.name, recipe_map, normalized_modifiers)
+
+    # --- FINALIZE -------------------------------------------------------
+    return recipe_map
