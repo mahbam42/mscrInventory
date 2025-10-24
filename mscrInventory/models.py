@@ -178,6 +178,16 @@ class StockEntry(models.Model):
                 self.ingredient.increment_stock(self.quantity_added, self.cost_per_unit)
     
 class RecipeItem(models.Model):
+    """
+    Represents a single ingredient entry within a product's recipe.
+
+    Each RecipeItem links one Product to one Ingredient, with a specific
+    quantity, unit, and optional cost/price data. Together, all RecipeItems
+    for a Product define that product's complete recipe and cost-of-goods basis.
+
+    Example:
+        Latte  →  [ (Espresso Shot, 1 unit), (Milk, 8 oz), (Foam, 1 unit) ]
+    """
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
