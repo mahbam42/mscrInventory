@@ -7,17 +7,20 @@ from django.core.files.storage import default_storage
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 from django.core.management import call_command
-from mscrInventory.models import ImportLog
 from django.utils import timezone
-
-from importers import SquareImporter
+from importers.square_importer import SquareImporter
 from mscrInventory.models import ImportLog
 
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
     return render(request, "imports/dashboard.html")
 
+"""
+Web dashboard view for uploading Square CSVs and running imports (dry-run or live).
 
+This is NOT a Django management command.
+It should live under `mscrInventory/views/` and call `SquareImporter`.
+"""
 @require_POST
 def upload_square_view(request):
     """Handle Square CSV upload via dashboard (supports dry run)."""
@@ -35,16 +38,20 @@ def upload_square_view(request):
             f.write(chunk)
 
     try:
+        # Create and run the importer
+        from importers import SquareImporter
         importer = SquareImporter(dry_run=dry_run)
         importer.run_from_file(tmp_path)
 
-        # Save or update log
+        # Save or update log *inside this block* where importer exists
         ImportLog.objects.update_or_create(
             source="square",
-            defaults={"last_run": timezone.now()},
+            defaults={
+                "last_run": timezone.now(),
+                "log_excerpt": importer.buffer.getvalue()[:2000],  # ✅ now in scope
+            },
         )
 
-        # Display summary
         summary = importer.buffer.getvalue()
         messages.success(
             request,

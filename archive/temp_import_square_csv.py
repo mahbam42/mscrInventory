@@ -9,6 +9,11 @@ from mscrInventory.models import ImportLog
 
 from django.utils import timezone
 
+""" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Temporary partial view definition to handle Square CSV uploads. Moved to imports.py. 10/24/2025
+"""
+
+
 @require_POST
 def upload_square_view(request):
     """Handle Square CSV upload via dashboard (supports dry run)."""

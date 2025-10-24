@@ -10,6 +10,10 @@ import datetime
 
 from mscrInventory.management.commands.sync_orders import persist_orders
 
+"""
+Old version of Square CSV importer, kept for reference. Replaced by importers/square.py and BaseImporter. 10/24/25
+"""
+
 def handle_extras(modifier_name, normalized_modifiers):
     """
     Expand or adjust special modifiers like Dirty Chai, Extra Flavor, Drizzle Cup.

@@ -1,15 +1,17 @@
 import csv
 from pathlib import Path
-from importers import BaseImporter
+from importers._base_Importer import BaseImporter
 from mscrInventory.models import Product, RecipeModifier
 
+"""
+SquareImporter
+-----------------
+Parses Square daily CSV exports into structured product/modifier data.
+Uses BaseImporter for dry-run, logging, and summary reporting.
 
+Outputs a normalized order structure suitable for persist_orders().
+"""
 class SquareImporter(BaseImporter):
-    """
-    Handles parsing Square CSV exports into structured product + modifier usage.
-    Supports dry_run mode and logging via BaseImporter.
-    """
-
     def run_from_file(self, filepath):
         """Convenience method to open CSV and pass reader to run()."""
         path = Path(filepath)
