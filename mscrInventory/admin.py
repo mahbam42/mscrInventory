@@ -155,8 +155,57 @@ class OrderItemAdmin(admin.ModelAdmin):
 
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):
-    list_display = ("name", "type", "ingredient", "base_quantity", "unit", "size_multiplier")
-    list_filter = ("type",)
+    """
+    Admin interface for RecipeModifier, supporting new DB-driven behavior logic.
+    Includes JSON editing for target_selector and replaces fields.
+    """
+
+    list_display = ("name", "type", "behavior", "quantity_factor", "updated_at")
+    list_filter = ("type", "behavior")
     search_fields = ("name", "ingredient__name")
+
+    readonly_fields = ("updated_at", "created_at")
+
+    fieldsets = (
+        ("Basic Info", {
+            "fields": ("name", "type", "ingredient", "behavior", "quantity_factor")
+        }),
+        ("Advanced Logic", {
+            "fields": (
+                ("target_selector", "replaces"),
+                "expands_to",
+            ),
+            "description": (
+                "<strong>target_selector</strong>: JSON filter for affected ingredients "
+                "(e.g. {'by_type':['MILK'], 'by_name':['Bacon']}).<br>"
+                "<strong>replaces</strong>: JSON map of replacements for REPLACE behavior "
+                "(e.g. {'to': [['Oat Milk', 1.0]]}).<br>"
+                "<strong>expands_to</strong>: Select ingredients this modifier adds."
+            ),
+        }),
+        ("Cost & Pricing", {
+            "fields": ("base_quantity", "unit", "cost_per_unit", "price_per_unit")
+        }),
+        ("Timestamps", {
+            "fields": ("created_at", "updated_at")
+        }),
+    )
+
+    # alias JSON fields with friendlier labels in the UI
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, **kwargs)
+        if db_field.name == "target_selector":
+            formfield.label = "Target Rules (JSON)"
+            formfield.help_text = (
+                "Defines which ingredients this modifier affects. "
+                "Example: {'by_type':['MILK'], 'by_name':['Bacon']}"
+            )
+        elif db_field.name == "replaces":
+            formfield.label = "Replacement Mapping (JSON)"
+            formfield.help_text = (
+                "Defines replacements for REPLACE behavior. "
+                "Example: {'to': [['Oat Milk', 1.0]]}"
+            )
+        return formfield
 
     

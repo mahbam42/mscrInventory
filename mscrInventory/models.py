@@ -240,7 +240,19 @@ class RecipeModifier(models.Model):
     """
     Modifiers are extensions of Ingredients (e.g. milk options, syrups, extra shots).
     Each links to a base Ingredient but may have its own cost, price, and behavior.
+
+    Extended behavior system:
+        - behavior: ADD, REPLACE, SCALE
+        - quantity_factor: scaling multiplier (replaces size_multiplier)
+        - target_selector: defines which ingredients to target (by type/name)
+        - replaces: specifies replacements for REPLACE behavior
     """
+
+    class ModifierBehavior(models.TextChoices):
+        ADD = "add", "Add"
+        REPLACE = "replace", "Replace"
+        SCALE = "scale", "Scale"
+
     MODIFIER_TYPES = [
         ("MILK", "Milk"),
         ("FLAVOR", "Flavor Shot"),
@@ -259,71 +271,74 @@ class RecipeModifier(models.Model):
 
     name = models.CharField(max_length=100, unique=True)
     type = models.CharField(max_length=20, choices=MODIFIER_TYPES)
+
+    # ⚙️ The new unified behavior system
     behavior = models.CharField(
         max_length=10,
         choices=ModifierBehavior.choices,
         default=ModifierBehavior.ADD,
     )
-    """    
-    This section is also cursed but needed. 
-    type = models.ForeignKey(
-        "IngredientType",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="modifiers",
-        help_text="Links to IngredientType for dynamic categorization",
-    )
-    """
 
-    # The ingredient this modifier extends (e.g. "Oat Milk" extends "Milk")
+    quantity_factor = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal("1.0"),
+        help_text="Multiplier applied to matching ingredients. Replaces size_multiplier."
+    )
+
+    target_selector = models.JSONField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Filter for which ingredients this modifier affects, e.g. "
+            '{"by_type":["MILK"],"by_name":["Bacon"]}'
+        ),
+    )
+
+    replaces = models.JSONField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Mapping of replacements for REPLACE behavior, e.g. "
+            '{"to":[["Oat Milk",1.0]]}'
+        ),
+    )
+
+    # The ingredient this modifier extends (e.g. 'Oat Milk' extends 'Milk')
     ingredient = models.ForeignKey("Ingredient", on_delete=models.CASCADE)
 
     # Default amount used when this modifier is applied
     base_quantity = models.DecimalField(max_digits=8, decimal_places=2)
 
-    # Unit of measure (e.g. "oz", "g")
+    # Unit of measure (e.g. 'oz', 'g')
     unit = models.CharField(max_length=20)
 
-    # Whether recipe size affects this modifier (e.g. extra syrup in large drinks)
+    # ⚠️ Legacy field (deprecated)
     size_multiplier = models.BooleanField(default=True)
 
     # Optional override for cost and price calculations
     cost_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
     price_per_unit = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
-    # For compound or special-case modifiers ("Dirty Chai", "Extra Flavor", etc.)
     expands_to = models.ManyToManyField(
-        "self", blank=True, symmetrical=False,
+        "self",
+        blank=True,
+        symmetrical=False,
         help_text=(
             "For special modifiers that expand into multiple others. "
             "E.g., 'Dirty Chai' expands to [Espresso Shot, Chai Concentrate]."
-        )
+        ),
     )
-
-     # This section is cursed
-    """    affects_type = models.CharField(
-        max_length=20, choices=MODIFIER_TYPES, null=True, blank=True,
-        help_text="For extras like 'Extra Flavor' or 'Drizzle Cup', specify which modifier type they affect."
-     ) """
-
-    """
-    affects_type = models.ForeignKey(
-        "IngredientType",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="affecting_modifiers",
-        help_text="For extras like Extra Flavor or Drizzle Cup, specify which IngredientType they affect."
-    ) 
-    """
-    #end cursed section
+    # logging fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["type", "name"]
 
     def __str__(self):
         return f"{self.name} ({self.get_type_display()})"
+
 
 class Order(models.Model):
     order_id = models.CharField(max_length=255, help_text="Platform-specific order id")
