@@ -1,3 +1,9 @@
+"""
+Import Framework
+----------------
+Defines BaseImporter and shared logic for specific importers.
+Example subclasses: SquareImporter, ShopifyImporter.
+"""
 
 import datetime
 import tempfile
@@ -52,11 +58,15 @@ def upload_square_view(request):
             },
         )
 
-        summary = importer.buffer.getvalue()
+        """ summary = importer.buffer.getvalue()
         messages.success(
             request,
             f"{'🧪 Dry-run complete' if dry_run else '✅ Import complete'} — {uploaded_file.name}",
         )
+        messages.info(request, f"<pre>{summary}</pre>") """
+
+        summary = importer.summarize()
+        messages.success(request, "Dry-run complete." if dry_run else "Import complete.")
         messages.info(request, f"<pre>{summary}</pre>")
 
     except Exception as e:

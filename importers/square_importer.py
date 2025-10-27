@@ -1,9 +1,124 @@
-import csv
-from decimal import Decimal
-from pathlib import Path #Don't need this yet?
+"""
+SquareImporter
+--------------
+Main class for parsing and importing Square CSVs (dry-run or live).
+- Handles reading CSV rows
+- Normalizes modifiers
+- Applies RecipeModifiers via handle_extras()
+- Logs results and provides a human-readable summary
+
+Does NOT set up Django — it assumes Django is already initialized
+(e.g., from management command or web view).
+"""
+
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from importers._base_Importer import BaseImporter
 from importers._handle_extras import handle_extras
 from mscrInventory.models import Product, Ingredient, IngredientType, RecipeItem, RecipeModifier, ModifierBehavior
+
+def parse_money(value) -> Decimal:
+    """
+    Convert a raw currency string from Square CSV into a Decimal.
+
+    Examples:
+        "$3.50"  → Decimal("3.50")
+        "3.5"    → Decimal("3.50")
+        "" or None → Decimal("0.00")
+    """
+    if not value:
+        return Decimal("0.00")
+    try:
+        clean = str(value).replace("$", "").replace(",", "").strip()
+        return Decimal(clean)
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal("0.00")
+
+
+def build_sku_or_handle(row):
+    """Construct a stable identifier for mapping based on SKU / Item / Modifiers."""
+    sku = row.get("SKU", "").strip()
+    item = row.get("Item", "").strip()
+    price_point = row.get("Price Point Name", "").strip()
+    #modifiers = row.get("Modifiers Applied", "").strip()
+    modifiers = [m.strip() for m in row.get("Modifiers Applied", "").split(",") if m.strip()]
+    #base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
+    #base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
+
+    # Detect special flags
+    #extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
+    #drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
+    
+    if sku:
+        return sku
+
+    parts = [item]
+    if price_point:
+        parts.append(price_point)
+    if modifiers:
+        parts.append(modifiers)
+
+    return " [".join([parts[0], " | ".join(parts[1:]) + "]"]) if len(parts) > 1 else item
+
+
+def parse_datetime(date_str: str, time_str: str, tz_str: str):
+    """
+    Parse Square's date and time with timezone.
+    Example: '2025-10-09', '22:40:39', 'Eastern Time (US & Canada)'
+    """
+    dt_str = f"{date_str} {time_str}"
+    dt_naive = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+    # Square reports are in local tz; for now assume US/Eastern
+    local_tz = timezone.get_fixed_timezone(-300)  # UTC-5 baseline; DST may be ignored for simplicity
+    dt_local = local_tz.localize(dt_naive) if hasattr(local_tz, "localize") else dt_naive.replace(tzinfo=local_tz)
+
+    return dt_local.astimezone(datetime.timezone.utc)
+    #return dt_local.astimezone(timezone.utc)
+
+from collections import Counter
+from datetime import datetime
+
+class SquareImporter(BaseImporter):
+    # ... existing methods ...
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stats = Counter()
+        self.errors = []
+        self.start_time = datetime.now()
+
+    def log_success(self, event: str):
+        """Increment a success counter for a given event type."""
+        self.stats[event] += 1
+
+    def log_error(self, msg: str):
+        """Record and count errors without crashing the run."""
+        self.stats["errors"] += 1
+        self.errors.append(msg)
+        self.buffer.write(f"❌ {msg}\n")
+
+    def summarize(self) -> str:
+        """Return a human-readable summary of import activity."""
+        elapsed = (datetime.now() - self.start_time).total_seconds()
+        lines = [
+            "",
+            "📊 **Square Import Summary**",
+            f"Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Elapsed: {elapsed:.2f}s",
+            "",
+            f"🧾 Rows processed: {self.stats.get('rows', 0)}",
+            f"✅ Products matched: {self.stats.get('matched', 0)}",
+            f"➕ New products added: {self.stats.get('new', 0)}",
+            f"⚙️ Modifiers applied: {self.stats.get('modifiers_applied', 0)}",
+            f"⚠️ Errors: {self.stats.get('errors', 0)}",
+            "",
+        ]
+        if self.errors:
+            lines.append("Most recent errors:")
+            for err in self.errors[-5:]:
+                lines.append(f"  - {err}")
+        return "\n".join(lines)
+
 
 """
 SquareImporter
