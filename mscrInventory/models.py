@@ -418,5 +418,3 @@ class ImportLog(models.Model):
 
     def __str__(self):
         return f"{self.get_source_display()} import @ {self.last_run:%Y-%m-%d %H:%M}"
-
-# Create your models here.
