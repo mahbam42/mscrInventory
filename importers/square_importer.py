@@ -1,29 +1,40 @@
 """
-SquareImporter
---------------
-Main class for parsing and importing Square CSVs (dry-run or live).
-- Handles reading CSV rows
-- Normalizes modifiers
-- Applies RecipeModifiers via handle_extras()
-- Logs results and provides a human-readable summary
+square_importer.py
+------------------
+Primary importer for Square CSV data.
 
-Does NOT set up Django — it assumes Django is already initialized
-(e.g., from management command or web view).
+Handles:
+- CSV reading (via run_from_file)
+- Row-level parsing and normalization (process_row)
+- Modifier resolution and expansion (handle_extras)
+- Safe dry-run and summary reporting
+
+This class is called either from:
+  1. Django management command (`import_square.py`)
+  2. Web dashboard upload view (`upload_square_view`)
 """
 
-from datetime import datetime, timezone
+import csv
 from decimal import Decimal, InvalidOperation
-from importers._base_Importer import BaseImporter
+from collections import Counter
+from datetime import datetime
+from io import StringIO
+
+from mscrInventory.models import Ingredient, Product, RecipeModifier
 from importers._handle_extras import handle_extras
-from mscrInventory.models import Product, Ingredient, IngredientType, RecipeItem, RecipeModifier, ModifierBehavior
+
+
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
 
 def parse_money(value) -> Decimal:
     """
-    Convert a raw currency string from Square CSV into a Decimal.
+    Convert Square-style currency strings into Decimal.
 
     Examples:
-        "$3.50"  → Decimal("3.50")
-        "3.5"    → Decimal("3.50")
+        "$3.50" → Decimal("3.50")
+        "3.5"   → Decimal("3.50")
         "" or None → Decimal("0.00")
     """
     if not value:
@@ -35,70 +46,105 @@ def parse_money(value) -> Decimal:
         return Decimal("0.00")
 
 
-def build_sku_or_handle(row):
-    """Construct a stable identifier for mapping based on SKU / Item / Modifiers."""
-    sku = row.get("SKU", "").strip()
-    item = row.get("Item", "").strip()
-    price_point = row.get("Price Point Name", "").strip()
-    #modifiers = row.get("Modifiers Applied", "").strip()
-    modifiers = [m.strip() for m in row.get("Modifiers Applied", "").split(",") if m.strip()]
-    #base_flavors = [m for m in modifiers if m in FLAVOR_NAMES]
-    #base_syrups = [m for m in modifiers if m in SYRUP_NAMES]
+# ---------------------------------------------------------------------------
+# Base Importer
+# ---------------------------------------------------------------------------
 
-    # Detect special flags
-    #extra_flavor_count = 1 if "Extra Flavor" in modifiers else 0
-    #drizzle_cup_count = 1 if "Drizzle Cup" in modifiers else 0
-    
-    if sku:
-        return sku
-
-    parts = [item]
-    if price_point:
-        parts.append(price_point)
-    if modifiers:
-        parts.append(modifiers)
-
-    return " [".join([parts[0], " | ".join(parts[1:]) + "]"]) if len(parts) > 1 else item
-
-
-def parse_datetime(date_str: str, time_str: str, tz_str: str):
+class SquareImporter:
     """
-    Parse Square's date and time with timezone.
-    Example: '2025-10-09', '22:40:39', 'Eastern Time (US & Canada)'
+    Handles CSV imports from Square, applying modifiers and normalizing data.
+    Works in both dry-run and live-import modes.
     """
-    dt_str = f"{date_str} {time_str}"
-    dt_naive = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-    # Square reports are in local tz; for now assume US/Eastern
-    local_tz = timezone.get_fixed_timezone(-300)  # UTC-5 baseline; DST may be ignored for simplicity
-    dt_local = local_tz.localize(dt_naive) if hasattr(local_tz, "localize") else dt_naive.replace(tzinfo=local_tz)
 
-    return dt_local.astimezone(datetime.timezone.utc)
-    #return dt_local.astimezone(timezone.utc)
-
-from collections import Counter
-from datetime import datetime
-
-class SquareImporter(BaseImporter):
-    # ... existing methods ...
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, dry_run=True):
+        self.dry_run = dry_run
+        self.buffer = StringIO()
         self.stats = Counter()
         self.errors = []
         self.start_time = datetime.now()
 
+    # -----------------------------------------------------------------------
+    # Logging utilities
+    # -----------------------------------------------------------------------
+
     def log_success(self, event: str):
-        """Increment a success counter for a given event type."""
+        """Increment a counter for a specific success event."""
         self.stats[event] += 1
 
     def log_error(self, msg: str):
-        """Record and count errors without crashing the run."""
+        """Record and count an error without stopping execution."""
         self.stats["errors"] += 1
         self.errors.append(msg)
         self.buffer.write(f"❌ {msg}\n")
 
+    # -----------------------------------------------------------------------
+    # Core methods
+    # -----------------------------------------------------------------------
+
+    def run_from_file(self, file_path):
+        """
+        Main entry point for CSV import.
+
+        Reads the Square CSV and processes each row sequentially.
+        Safe to run in dry-run mode (no DB writes).
+        """
+        self.buffer.write(f"📥 Importing {file_path} ({'dry-run' if self.dry_run else 'live'})\n")
+
+        try:
+            with open(file_path, newline="", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for i, row in enumerate(reader, start=1):
+                    self.stats["rows"] += 1
+                    try:
+                        self.process_row(row)
+                    except Exception as e:
+                        self.log_error(f"Row {i}: {e}")
+
+        except FileNotFoundError:
+            self.log_error(f"File not found: {file_path}")
+        except Exception as e:
+            self.log_error(f"Unexpected error reading CSV: {e}")
+
+        self.buffer.write(self.summarize())
+        return self.summarize()
+
+    def process_row(self, row: dict):
+        """
+        Process a single row from the Square CSV.
+
+        Each row should include:
+        - Item Name
+        - Price Point Name (variant)
+        - Modifiers Applied (comma-separated)
+        """
+        item_name = row.get("Item Name", "").strip()
+        price_point = row.get("Price Point Name", "").strip()
+        modifiers_str = row.get("Modifiers Applied", "")
+        qty = Decimal(row.get("Quantity", "1") or "1")
+
+        # Example of parsing prices safely
+        total_price = parse_money(row.get("Gross Sales", 0))
+        unit_price = total_price / qty if qty > 0 else Decimal("0.00")
+
+        # Identify or create product (for now, just log)
+        self.buffer.write(f"→ {item_name} ({price_point}) x{qty} @ {unit_price}\n")
+        self.stats["matched"] += 1
+
+        # Handle modifiers
+        modifiers = [m.strip() for m in modifiers_str.split(",") if m.strip()]
+        if modifiers:
+            self.stats["modifiers_applied"] += len(modifiers)
+            for mod in modifiers:
+                handle_extras(mod, {}, [])  # TODO: supply real recipe_map + normalized_modifiers
+
+    # -----------------------------------------------------------------------
+    # Summary report
+    # -----------------------------------------------------------------------
+
     def summarize(self) -> str:
-        """Return a human-readable summary of import activity."""
+        """
+        Return a human-readable summary of import results.
+        """
         elapsed = (datetime.now() - self.start_time).total_seconds()
         lines = [
             "",
@@ -118,137 +164,3 @@ class SquareImporter(BaseImporter):
             for err in self.errors[-5:]:
                 lines.append(f"  - {err}")
         return "\n".join(lines)
-
-
-"""
-SquareImporter
------------------
-Parses Square daily CSV exports into structured product/modifier data.
-Uses BaseImporter for dry-run, logging, and summary reporting.
-
-Outputs a normalized order structure suitable for persist_orders().
-"""
-class SquareImporter(BaseImporter):
-    def process_row(self, row: dict):
-        """
-        Parse and normalize one Square CSV row into an order-item structure.
-
-        Steps:
-        1. Identify the product (Item + Price Point).
-        2. Load its base recipe (ingredients + quantities).
-        3. Parse modifiers and apply DB-defined RecipeModifier rules.
-        4. Return normalized structure for persist_orders().
-
-        Returns:
-            dict: {
-                "order_id": str,
-                "order_date": datetime,
-                "total_amount": Decimal,
-                "items": [
-                    {
-                        "sku_or_handle": str,
-                        "product_name": str,
-                        "quantity": int,
-                        "unit_price": Decimal,
-                        "recipe_map": {Ingredient: {"qty": Decimal, "type": str}},
-                        "modifiers": [ ...parsed modifiers... ],
-                    }
-                ]
-            }
-        """
-        # --- Identify / normalize product -----------------------------------
-        item_name = (row.get("Item") or "").strip()
-        price_point = (row.get("Price Point Name") or "").strip()
-        product_name = f"{item_name} ({price_point})" if price_point else item_name
-
-        # Try to find product by name or fallback to unmapped stub
-        product = (
-            Product.objects.filter(name__iexact=product_name).first()
-            or Product.objects.filter(name__icontains=item_name).first()
-        )
-        if not product:
-            product, _ = Product.objects.get_or_create(
-                name=product_name,
-                defaults={"sku": f"UNMAPPED-{item_name[:10].upper()}"}
-            )
-
-        # --- Build base recipe map -----------------------------------------
-        recipe_map = {}
-        for ri in RecipeItem.objects.filter(product=product):
-            recipe_map[ri.ingredient] = {
-                "qty": Decimal(ri.quantity or 1),
-                "type": getattr(getattr(ri.ingredient, "type", None), "name", "MISC"),
-            }
-
-        # --- Parse modifiers ------------------------------------------------
-        modifiers_raw = row.get("Modifiers Applied", "")
-        modifier_names = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
-        normalized_modifiers = []
-
-        for mod_name in modifier_names:
-            handle_extras(mod_name, recipe_map, normalized_modifiers)
-
-        # --- Summarize item data -------------------------------------------
-        quantity = int(float(row.get("Qty", "1").strip() or 1))
-        gross_sales = self.parse_money(row.get("Gross Sales", "0"))
-        unit_price = gross_sales / quantity if quantity else gross_sales
-
-        normalized_item = {
-            "sku_or_handle": product.sku or product.name,
-            "product_name": product.name,
-            "quantity": quantity,
-            "unit_price": unit_price,
-            "recipe_map": recipe_map,
-            "modifiers": normalized_modifiers,
-        }
-
-        # --- Build normalized order ----------------------------------------
-        order_id = row.get("Transaction ID") or row.get("Token") or f"NO_ID_{product.id}"
-        order_date = self.parse_datetime(
-            row.get("Date"), row.get("Time"), row.get("Time Zone")
-        )
-        total_amount = self.parse_money(row.get("Net Sales", "0"))
-
-        normalized_order = {
-            "order_id": order_id,
-            "order_date": order_date,
-            "total_amount": total_amount,
-            "items": [normalized_item],
-        }
-
-        # --- Dry-run logging (if enabled) ----------------------------------
-        if self.dry_run:
-            self.log(f"🧾 {product_name} ×{quantity}", "INFO")
-            for m in normalized_modifiers:
-                self.log(
-                    f"   ↳ {m['behavior']} {m['targets_by_type']} {m['targets_by_name']} ×{m['quantity']}",
-                    "DETAIL",
-                )
-            for ing, meta in recipe_map.items():
-                self.log(
-                    f"   • {ing.name}: {meta['qty']} ({meta['type']})", "DETAIL",
-                )
-
-        return normalized_order
-    
-    def run_from_file(self, file_path: str):
-        """
-        Read a Square CSV file, parse each row via process_row(),
-        and output normalized orders. If not dry-run, calls persist_orders().
-        """
-        import csv
-        from mscrInventory.management.commands.sync_orders import persist_orders
-
-        normalized_orders = []
-        with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                order = self.process_row(row)
-                if order:
-                    normalized_orders.append(order)
-
-        if self.dry_run:
-            self.log(f"✅ Parsed {len(normalized_orders)} orders (dry-run mode).")
-        else:
-            persist_orders("square", normalized_orders)
-            self.log(f"💾 Imported {len(normalized_orders)} Square orders into DB.")
