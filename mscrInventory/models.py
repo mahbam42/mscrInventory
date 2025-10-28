@@ -73,6 +73,24 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name} ({self.sku})"
     
+class ProductVariantCache(models.Model):
+    """
+    Cache of product variants derived from order imports (Square, Shopify, etc.).
+    Used to track descriptive modifiers like size, temperature, or packaging.
+    """
+    product = models.ForeignKey("Product", on_delete=models.CASCADE, related_name="variant_cache")
+    platform = models.CharField(max_length=32, default="square")
+    variant_name = models.CharField(max_length=255, help_text="Normalized variant descriptor (e.g., 'iced small')")
+    data = models.JSONField(default=dict, blank=True, help_text="Additional normalized details (e.g. {'temp': 'iced'})")
+    last_seen = models.DateTimeField(auto_now=True)
+    usage_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("product", "platform", "variant_name")
+
+    def __str__(self):
+        return f"{self.product.name} — {self.variant_name}"
+    
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
@@ -361,6 +379,7 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    variant_info = models.JSONField(default=dict, blank=True) # e.g., size, temp
 
     def __str__(self):
         prod = self.product.sku if self.product else "Unmapped"
