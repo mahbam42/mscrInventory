@@ -69,13 +69,13 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
         return None, "empty_name"
 
     # 1️⃣ Exact Item Name
-    product = Product.objects.filter(name__iexact=core_name).first()
+    product = Product.objects.filter(name__iexact=_normalize_name(item_name)).first()
     if product:
         log(f"Exact match for '{core_name}' ({descriptors})")
         return product, "exact"
 
     # 2️⃣ Partial Item Name
-    product = Product.objects.filter(name__icontains=core_name).first()
+    product = Product.objects.filter(name__icontains=_normalize_name(core_name)).first()
     if product:
         log(f"Partial match for '{core_name}' ({descriptors})")
         return product, "partial_item"
@@ -83,7 +83,7 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
     # 3️⃣ Combined Item + Price Point
     combo = f"{core_name} {price_point}".strip()
     if combo and combo != core_name:
-        product = Product.objects.filter(name__iexact=combo).first()
+        product = Product.objects.filter(name__iexact=_normalize_name(combo)).first()
         if product:
             log(f"Exact combo match '{combo}' ({descriptors})")
             return product, "exact_combo"
