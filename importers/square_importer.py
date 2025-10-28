@@ -15,14 +15,17 @@ This class is called either from:
 """
 
 import csv
-from decimal import Decimal, InvalidOperation
+import re
+from io import StringIO
 from collections import Counter
 from datetime import datetime
-from io import StringIO
-
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from django.db import transaction
+from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
 from mscrInventory.models import Ingredient, Product, RecipeModifier
-from importers._handle_extras import handle_extras
-
+from importers._handle_extras import handle_extras, normalize_modifier
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -45,122 +48,135 @@ def parse_money(value) -> Decimal:
     except (InvalidOperation, TypeError, ValueError):
         return Decimal("0.00")
 
-
 # ---------------------------------------------------------------------------
 # Base Importer
 # ---------------------------------------------------------------------------
-
 class SquareImporter:
-    """
-    Handles CSV imports from Square, applying modifiers and normalizing data.
-    Works in both dry-run and live-import modes.
-    """
+    """Handles parsing and importing Square CSV exports."""
 
-    def __init__(self, dry_run=True):
+    def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
-        self.buffer = StringIO()
-        self.stats = Counter()
-        self.errors = []
-        self.start_time = datetime.now()
+        self.buffer = []
+        self.stats = {
+            "rows_processed": 0,
+            "matched": 0,
+            "added": 0,
+            "modifiers_applied": 0,
+            "errors": 0,
+        }
 
-    # -----------------------------------------------------------------------
-    # Logging utilities
-    # -----------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 🔍 Product matching helper
+    # ------------------------------------------------------------------
 
-    def log_success(self, event: str):
-        """Increment a counter for a specific success event."""
-        self.stats[event] += 1
-
-    def log_error(self, msg: str):
-        """Record and count an error without stopping execution."""
-        self.stats["errors"] += 1
-        self.errors.append(msg)
-        self.buffer.write(f"❌ {msg}\n")
-
-    # -----------------------------------------------------------------------
-    # Core methods
-    # -----------------------------------------------------------------------
-
-    def run_from_file(self, file_path):
+    def _find_best_product_match(self, item_name, price_point, modifiers):
         """
-        Main entry point for CSV import.
+        Find the most appropriate Product for a Square row.
 
-        Reads the Square CSV and processes each row sequentially.
-        Safe to run in dry-run mode (no DB writes).
+        Match order:
+        1. Exact Item Name
+        2. Partial Item Name
+        3. Combined Item + Price Point
+        4. Fallback to products in 'base_item' category
+        5. Unmapped (None)
         """
-        self.buffer.write(f"📥 Importing {file_path} ({'dry-run' if self.dry_run else 'live'})\n")
+        item_name = (item_name or "").strip()
+        price_point = (price_point or "").strip()
 
-        try:
-            with open(file_path, newline="", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                for i, row in enumerate(reader, start=1):
-                    self.stats["rows"] += 1
-                    try:
-                        self.process_row(row)
-                    except Exception as e:
-                        self.log_error(f"Row {i}: {e}")
+        # 1️⃣ Exact Item Name
+        product = Product.objects.filter(name__iexact=item_name).first()
+        if product:
+            return product, "exact"
 
-        except FileNotFoundError:
-            self.log_error(f"File not found: {file_path}")
-        except Exception as e:
-            self.log_error(f"Unexpected error reading CSV: {e}")
+        # 2️⃣ Partial Item Name
+        product = Product.objects.filter(name__icontains=item_name).first()
+        if product:
+            return product, "partial_item"
 
-        self.buffer.write(self.summarize())
-        return self.summarize()
+        # 3️⃣ Combined Item + Price Point
+        combo = f"{item_name} {price_point}".strip()
+        if combo and combo != item_name:
+            product = Product.objects.filter(name__iexact=combo).first()
+            if product:
+                return product, "exact_combo"
+            product = Product.objects.filter(name__icontains=combo).first()
+            if product:
+                return product, "partial_combo"
 
-    def process_row(self, row: dict):
-        """
-        Process a single row from the Square CSV.
+        # 4️⃣ Base-item fallback (category = base_item)
+        base_products = Product.objects.filter(categories__name__iexact="base_item")
+        product = base_products.filter(name__icontains=item_name).first()
+        if product:
+            return product, "base_fallback"
 
-        Each row should include:
-        - Item Name
-        - Price Point Name (variant)
-        - Modifiers Applied (comma-separated)
-        """
-        item_name = row.get("Item Name", "").strip()
-        price_point = row.get("Price Point Name", "").strip()
-        modifiers_str = row.get("Modifiers Applied", "")
-        qty = Decimal(row.get("Quantity", "1") or "1")
+        # 5️⃣ Unmapped
+        return None, "unmapped"
 
-        # Example of parsing prices safely
-        total_price = parse_money(row.get("Gross Sales", 0))
-        unit_price = total_price / qty if qty > 0 else Decimal("0.00")
+    # ------------------------------------------------------------------
+    # 🧾 Core Importer Logic
+    # ------------------------------------------------------------------
 
-        # Identify or create product (for now, just log)
-        self.buffer.write(f"→ {item_name} ({price_point}) x{qty} @ {unit_price}\n")
-        self.stats["matched"] += 1
+    @transaction.atomic
+    def run_from_file(self, file_path: Path):
+        """Run import from a given CSV file."""
+        start_time = datetime.now()
+        self.buffer.append(f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})")
 
-        # Handle modifiers
-        modifiers = [m.strip() for m in modifiers_str.split(",") if m.strip()]
-        if modifiers:
-            self.stats["modifiers_applied"] += len(modifiers)
-            for mod in modifiers:
-                handle_extras(mod, {}, [])  # TODO: supply real recipe_map + normalized_modifiers
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
 
-    # -----------------------------------------------------------------------
-    # Summary report
-    # -----------------------------------------------------------------------
+        with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                try:
+                    self.stats["rows_processed"] += 1
+                    item_name = (row.get("Item Name") or "").strip()
+                    price_point = (row.get("Price Point Name") or "").strip()
+                    modifiers_raw = (row.get("Modifiers Applied") or "").strip()
+                    qty = Decimal(row.get("Qty", "1") or "1")
+                    gross_sales = Decimal(str(row.get("Gross Sales", "0")).replace("$", "").strip() or "0")
 
-    def summarize(self) -> str:
-        """
-        Return a human-readable summary of import results.
-        """
-        elapsed = (datetime.now() - self.start_time).total_seconds()
-        lines = [
-            "",
-            "📊 **Square Import Summary**",
-            f"Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"Elapsed: {elapsed:.2f}s",
-            "",
-            f"🧾 Rows processed: {self.stats.get('rows', 0)}",
-            f"✅ Products matched: {self.stats.get('matched', 0)}",
-            f"➕ New products added: {self.stats.get('new', 0)}",
-            f"⚙️ Modifiers applied: {self.stats.get('modifiers_applied', 0)}",
-            f"⚠️ Errors: {self.stats.get('errors', 0)}",
-            "",
-        ]
-        if self.errors:
-            lines.append("Most recent errors:")
-            for err in self.errors[-5:]:
-                lines.append(f"  - {err}")
-        return "\n".join(lines)
+                    modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
+                    normalized = [normalize_modifier(m) for m in modifiers]
+
+                    product, reason = self._find_best_product_match(item_name, price_point, normalized)
+
+                    if product:
+                        self.stats["matched"] += 1
+                        self.buffer.append(f"✅ Matched product: {product.name} ({reason})")
+                    else:
+                        self.buffer.append("⚠️ No product match found (unmapped)")
+
+                    recipe_map = {}
+                    for token in normalized:
+                        result = handle_extras(token, recipe_map, normalized)
+                        if result:
+                            self.stats["modifiers_applied"] += 1
+
+                    if self.dry_run:
+                        self.buffer.append(f"→ {item_name} ({price_point}) x{qty} @ {gross_sales}")
+
+                except Exception as e:
+                    self.stats["errors"] += 1
+                    self.buffer.append(f"❌ Error on row {self.stats['rows_processed']}: {e}")
+                    continue
+
+        self._summarize(start_time)
+        return "\n".join(self.buffer)
+
+    # ------------------------------------------------------------------
+    # 📊 Summary
+    # ------------------------------------------------------------------
+
+    def _summarize(self, start_time):
+        elapsed = (datetime.now() - start_time).total_seconds()
+        self.buffer.append("")
+        self.buffer.append("📊 **Square Import Summary**")
+        self.buffer.append(f"Started: {start_time:%Y-%m-%d %H:%M:%S}")
+        self.buffer.append(f"Elapsed: {elapsed:.2f}s\n")
+        self.buffer.append(f"🧾 Rows processed: {self.stats['rows_processed']}")
+        self.buffer.append(f"✅ Products matched: {self.stats['matched']}")
+        self.buffer.append(f"➕ New products added: {self.stats['added']}")
+        self.buffer.append(f"⚙️ Modifiers applied: {self.stats['modifiers_applied']}")
+        self.buffer.append(f"⚠️ Errors: {self.stats['errors']}")
+        self.buffer.append("✅ Dry-run complete." if self.dry_run else "✅ Import complete.")

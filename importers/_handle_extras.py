@@ -11,7 +11,7 @@ Goals:
 
 from decimal import Decimal
 from typing import Dict, List, Optional, Iterable
-from mscrInventory.models import Ingredient, RecipeModifier, Recipe, ModifierBehavior
+from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,34 @@ def _normalize_token(token: str) -> str:
     """Lowercase and strip punctuation for fuzzy comparisons."""
     return token.strip().lower().replace("’", "'").replace("–", "-")
 
+def normalize_modifier(raw: str) -> str:
+    """
+    Normalize a raw Square modifier string for matching.
+
+    Examples:
+        " Extra Flavor "   → "extra flavor"
+        "1/2 Vanilla"      → "half vanilla"
+        "Oat-Milk"         → "oat milk"
+
+    This version:
+      • Strips whitespace & punctuation
+      • Converts fractions and symbols like ½ → "half"
+      • Lowercases for case-insensitive matching
+      • Normalizes special words (½, 1/2, half) to 'half'
+    """
+    if not raw:
+        return ""
+
+    token = raw.strip().lower()
+    token = token.replace("½", "half").replace("1/2", "half")
+    token = token.replace("-", " ").replace("_", " ")
+    token = token.replace("’", "'").replace("–", "-")
+
+    # collapse multiple spaces
+    while "  " in token:
+        token = token.replace("  ", " ")
+
+    return token
 
 def _select_targets(recipe_map: Dict[str, Dict], current_context: Optional[List[str]] = None,
                     by_type: Optional[Iterable[str]] = None,
@@ -56,7 +84,7 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
     if mod:
         return mod
 
-    recipe = Recipe.objects.filter(name__icontains=name_norm).first()
+    recipe = RecipeItem.objects.filter(ingredient__name__icontains=name_norm).first()
     if recipe:
         return recipe
 
@@ -97,7 +125,7 @@ def handle_extras(modifier_name: str,
     # -----------------------------------------------------------------------
     # Case 1: Modifier is actually a recipe (e.g., Cherry Dipped Vanilla)
     # -----------------------------------------------------------------------
-    if isinstance(target, Recipe):
+    if isinstance(target, RecipeItem):
         if verbose:
             print(f"🧩 '{modifier_name}' recognized as recipe preset → expanding")
         for item in target.recipe_items.all():

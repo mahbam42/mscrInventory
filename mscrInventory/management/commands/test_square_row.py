@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils.termcolors import colorize
 
 from importers._handle_extras import handle_extras, normalize_modifier
-from mscrInventory.models import RecipeItem, Ingredient, RecipeModifier
+from mscrInventory.models import RecipeItem, Ingredient, RecipeModifier, Product
 
 
 class Command(BaseCommand):
@@ -69,13 +69,46 @@ class Command(BaseCommand):
         recipe_map = {i.name: {"qty": Decimal("1.0"), "type": getattr(i.type, "name", "GENERIC")}
                       for i in Ingredient.objects.all()[:5]}  # small dummy map for testing
 
-        expanded = []
+        """ expanded = []
         for token in normalized:
             result = handle_extras(token, recipe_map, normalized)
             if result:
                 expanded.extend(result)
             else:
-                expanded.append(token)
+                expanded.append(token) """
+        
+        # --- Build recipe_map only if a matching Product (recipe) exists
+        expanded = []
+
+        # Try to match by Product name (base item name + price point)
+        base_name = f"{item_name} {price_point}".strip()
+        product = Product.objects.filter(name__icontains=base_name).first()
+
+        if product:
+            print(f"✅ Matched product: {product.name}")
+            # Collect all ingredients for this product (its recipe)
+            recipe_items = RecipeItem.objects.filter(product=product)
+            recipe_map = {
+                ri.ingredient.name: {
+                    "qty": ri.quantity,
+                    "type": getattr(ri.ingredient.type, "name", "GENERIC"),
+                }
+                for ri in recipe_items
+            }
+        else:
+            print(f"⚠️ No product found matching: {base_name}")
+            recipe_map = {}
+
+        # --- Run handle_extras() to simulate modifier expansion (only if recipe exists)
+        if recipe_map:
+            for token in normalized:
+                result = handle_extras(token, recipe_map, normalized)
+                if result:
+                    expanded.extend(result)
+                else:
+                    expanded.append(token)
+        else:
+            expanded = []
 
         # --- Display results
         self.stdout.write("\n📊 Normalized modifiers:")
@@ -101,6 +134,7 @@ class Command(BaseCommand):
         self.stdout.write("\n📦 Summary:")
         self.stdout.write(f"   Base item: {item_name}")
         self.stdout.write(f"   Price point: {price_point or '(none)'}")
+        self.stdout.write(f"🔍 Using recipe_map from: {recipe.name if recipe else 'dummy context'}") #debug line
         self.stdout.write(f"   Modifiers parsed: {len(modifiers)} ({', '.join(modifiers) or 'none'})")
         self.stdout.write(f"   Normalized: {', '.join(normalized) or 'none'}")
         self.stdout.write(f"   Expanded: {len(expanded)} result(s)")
