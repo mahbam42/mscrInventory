@@ -170,6 +170,8 @@ def handle_extras(modifier_name: str,
                 if verbose:
                     print(f"   🔁 Replaced {m} → {mod.ingredient.name}")
 
+            print(f"   🔁 Recorded replacement: {m} → {new_name}") # Debug Line
+
         result[mod.ingredient.name] = {
             "qty": getattr(mod, "base_quantity", Decimal("1.0")),
             "type": mod.type,

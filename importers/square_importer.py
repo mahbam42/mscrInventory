@@ -20,7 +20,7 @@ from mscrInventory.models import (
 )
 from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
 from importers._handle_extras import handle_extras, normalize_modifier
-from importers._aggregate_usage import resolve_modifier_tree, aggregate_ingredient_usage
+from importers._aggregate_usage import resolve_modifier_tree, aggregate_ingredient_usage, infer_temp_and_size
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -149,6 +149,7 @@ class SquareImporter:
                 for ri in product.recipe_items.select_related("ingredient", "ingredient__type").all()
             } if product else {}
 
+            change_logs = []
             for token in all_modifiers:
                 result, change_log = handle_extras(
                 token,
@@ -157,6 +158,10 @@ class SquareImporter:
                 recipe_context=list(recipe_map.keys()),
                 verbose=self.dry_run,
             )
+                
+            # 🧩 Important: collect the log instead of overwriting
+            if change_log:
+                change_logs.append(change_log)
 
             if result:
                 recipe_map.update(result)
@@ -172,21 +177,46 @@ class SquareImporter:
                         resolved_modifiers += resolve_modifier_tree(modifier)
 
                 recipe_items = product.recipe_items.select_related("ingredient").all()
-                usage_summary = aggregate_ingredient_usage(recipe_items, resolved_modifiers)
 
-                # apply any replacements collected from handle_extras
+                temp_type, size = infer_temp_and_size(product.name, descriptors)
+                usage_summary = aggregate_ingredient_usage(
+                    recipe_items, resolved_modifiers, temp_type=temp_type, size=size
+                )
+
+                # ---------------------------------------------
+                # NEW: pull out all (old,new) replacements
+                # ---------------------------------------------
+                replacements = []
+                for log in change_logs:
+                    for entry in log.get("replaced", []):
+                        if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                            replacements.append(tuple(entry))
+
+                # Debug to confirm what we actually captured
+                print("DEBUG replacements extracted:", replacements)
+
+                # ---------------------------------------------
+                # NEW: rename usage_summary keys based on replacements
+                #       (e.g., 'Dark Coldbrew' -> 'Medium Coldbrew')
+                # ---------------------------------------------
+                for old, new in replacements:
+                    if old in usage_summary:
+                        # move the entry to the new key; preserve qty/sources
+                        usage_summary[new] = usage_summary.pop(old)
+                        usage_summary[new]["sources"].append("renamed_from_modifier")
+
+
+                # --- Apply replacements before balancing ----------------------------------
                 print("DEBUG replaced entries:", change_logs)  # 🔍 diagnostic print
-
                 for log in change_logs:
                     for entry in log.get("replaced", []):
                         if not isinstance(entry, (list, tuple)) or len(entry) != 2:
                             print(f"⚠️  Skipping malformed replacement entry: {entry!r}")
                             continue
-
                         old, new = entry
                         if old in usage_summary:
-                            usage_summary[old]["qty"] = Decimal("0.00")
-                            usage_summary[old]["sources"].append(f"{new} (removed)")
+                            usage_summary[new] = usage_summary.pop(old)
+                            usage_summary[new]["sources"].append("renamed_from_modifier")
                         else:
                             print(f"⚠️  Old ingredient '{old}' not found in usage_summary")
 
@@ -206,7 +236,9 @@ class SquareImporter:
 
             # 🧮 Dry-run log
             if self.dry_run:
-                self.buffer.append(f"→ {item_name or '(unnamed)'} ({price_point or '(no price point)'}) x{qty} @ {gross_sales}")
+                # self.buffer.append(f"→ {item_name or '(unnamed)'} ({price_point or '(no price point)'}) x{qty} @ {gross_sales}")
+                display_name = f"{product.name} ({size})"
+                self.buffer.append(f"→ {display_name} x{qty} @ {gross_sales}")
                 if descriptors:
                     variant_name = " ".join(descriptors)
                     self.buffer.append(f"   🧩 Variant detected: {variant_name}")
