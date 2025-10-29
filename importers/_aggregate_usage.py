@@ -61,15 +61,34 @@ def aggregate_ingredient_usage(recipe_items, modifiers):
         # REPLACE behavior
         elif behavior == "replace" and mod.replaces:
             replaces = mod.replaces or {}
-            if isinstance(replaces, dict):
-                targets = replaces.get("to", [])
-                for mapping in targets:
-                    if isinstance(mapping, list) and len(mapping) == 2:
-                        new_name, factor = mapping
-                        usage[new_name]["qty"] += q_factor * Decimal(str(factor))
-                        usage[new_name]["sources"].append(mod.name)
-            if ingredient:
-                usage[ingredient.name]["sources"].append(f"{mod.name} (replace)")
+            targets = replaces.get("to", [])
+            target_rules = (mod.target_selector or {})
+
+            # remove matching ingredients by name or type
+            by_name = set(target_rules.get("by_name", []))
+            by_type = set(target_rules.get("by_type", []))
+
+            for ing_name, data in list(usage.items()):
+                # If this ingredient matches the target by name or type
+                ingredient_type = getattr(mod.ingredient, "type", None)
+                if ing_name in by_name or ingredient_type in by_type:
+                    usage[ing_name]["qty"] = Decimal("0.00")
+                    usage[ing_name]["sources"].append(f"{mod.name} (removed)")
+
+            # add replacements
+            for mapping in targets:
+                if isinstance(mapping, list) and len(mapping) == 2:
+                    new_name, factor = mapping
+                    usage[new_name]["qty"] += q_factor * Decimal(str(factor))
+                    usage[new_name]["sources"].append(mod.name)
+
+    # add replacements
+    for mapping in targets:
+        if isinstance(mapping, list) and len(mapping) == 2:
+            new_name, factor = mapping
+            usage[new_name]["qty"] += q_factor * Decimal(str(factor))
+            usage[new_name]["sources"].append(mod.name)
+
 
         # SCALE behavior
         elif behavior == "scale" and ingredient:
@@ -83,4 +102,10 @@ def aggregate_ingredient_usage(recipe_items, modifiers):
                 usage[child.name]["qty"] += q_factor
                 usage[child.name]["sources"].append(mod.name)
 
-    return dict(usage)
+    # collapse duplicate source tags and dedupe ingredients
+    cleaned = {}
+    for ing, data in usage.items():
+        qty = data["qty"]
+        sources = list(dict.fromkeys(data["sources"]))  # preserve order, remove duplicates
+        cleaned[ing] = {"qty": qty, "sources": sources}
+    return cleaned

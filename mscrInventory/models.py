@@ -270,6 +270,7 @@ class RecipeModifier(models.Model):
         ADD = "add", "Add"
         REPLACE = "replace", "Replace"
         SCALE = "scale", "Scale"
+        EXPAND = "expand", "Expand" # not used yet
 
     MODIFIER_TYPES = [
         ("MILK", "Milk"),

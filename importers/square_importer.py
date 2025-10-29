@@ -60,6 +60,7 @@ class SquareImporter:
     # ------------------------------------------------------------------
     def _process_row(self, row: dict, file_path: Path | None = None):
         """Parse and process a single CSV row."""
+        change_logs = []
         try:
             self.stats["rows_processed"] += 1
 
@@ -69,13 +70,21 @@ class SquareImporter:
             qty = Decimal(row.get("Qty", "1") or "1")
             gross_sales = Decimal(str(row.get("Gross Sales", "0")).replace("$", "").strip() or "0")
 
-            # Split and normalize any modifiers that Square provided
+            # --- Collect modifiers (Square-provided or price-point) ---
             modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
+
+            # Include price_point as a modifier if not already present
+            if price_point and price_point.lower() not in [m.lower() for m in modifiers]:
+                modifiers.append(price_point.strip())
+
+            # Normalize all modifiers *after* adding price_point
             normalized_modifiers = [normalize_modifier(m) for m in modifiers]
 
-            # 🧠 Extract descriptors (size/temp adjectives) from item_name
+            # --- Extract descriptors (size/temp adjectives) ---
             normalized_item = _normalize_name(item_name)
             core_name, descriptors = _extract_descriptors(normalized_item)
+
+            # Combine modifiers + descriptors
             all_modifiers = list(set(normalized_modifiers + descriptors))
 
             # Shows consistent context, even if the match fails or an exception occurs
@@ -141,16 +150,18 @@ class SquareImporter:
             } if product else {}
 
             for token in all_modifiers:
-                result = handle_extras(
-                    token,
-                    recipe_map,
-                    normalized_modifiers,
-                    recipe_context=list(recipe_map.keys()),
-                    verbose=self.dry_run,
-                )
-                if result:
-                    recipe_map.update(result)
-                    self.stats["modifiers_applied"] += 1
+                result, change_log = handle_extras(
+                token,
+                recipe_map,
+                normalized_modifiers,
+                recipe_context=list(recipe_map.keys()),
+                verbose=self.dry_run,
+            )
+
+            if result:
+                recipe_map.update(result)
+                self.stats["modifiers_applied"] += 1
+                change_logs.append(change_log)
 
             # --- Aggregate ingredient usage ---
             if product:
@@ -162,6 +173,29 @@ class SquareImporter:
 
                 recipe_items = product.recipe_items.select_related("ingredient").all()
                 usage_summary = aggregate_ingredient_usage(recipe_items, resolved_modifiers)
+
+                # apply any replacements collected from handle_extras
+                print("DEBUG replaced entries:", change_logs)  # 🔍 diagnostic print
+
+                for log in change_logs:
+                    for entry in log.get("replaced", []):
+                        if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+                            print(f"⚠️  Skipping malformed replacement entry: {entry!r}")
+                            continue
+
+                        old, new = entry
+                        if old in usage_summary:
+                            usage_summary[old]["qty"] = Decimal("0.00")
+                            usage_summary[old]["sources"].append(f"{new} (removed)")
+                        else:
+                            print(f"⚠️  Old ingredient '{old}' not found in usage_summary")
+
+                        # ✅ Ensure 'new' key exists before incrementing
+                        if new not in usage_summary:
+                            usage_summary[new] = {"qty": Decimal("0.00"), "sources": []}
+
+                        usage_summary[new]["qty"] += Decimal("1.0")
+                        usage_summary[new]["sources"].append(new)
 
                 if self.dry_run:
                     self.buffer.append("\n🧾 Final ingredient usage:")
@@ -178,7 +212,7 @@ class SquareImporter:
                     self.buffer.append(f"   🧩 Variant detected: {variant_name}")
                 if normalized_modifiers:
                     self.buffer.append(f"   🔧 Modifiers normalized: {normalized_modifiers}")
-
+                            
         except Exception as e:
             self.stats["errors"] += 1
             self.buffer.append(f"❌ Error on row {self.stats['rows_processed']}: {e}")
@@ -221,3 +255,4 @@ class SquareImporter:
         self.buffer.append(f"⚙️ Modifiers applied: {self.stats['modifiers_applied']}")
         self.buffer.append(f"⚠️ Errors: {self.stats['errors']}")
         self.buffer.append("✅ Dry-run complete." if self.dry_run else "✅ Import complete.")
+#taco

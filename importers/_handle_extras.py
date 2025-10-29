@@ -16,7 +16,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
@@ -25,20 +24,14 @@ def _normalize_token(token: str) -> str:
     """Lowercase and strip punctuation for fuzzy comparisons."""
     return token.strip().lower().replace("’", "'").replace("–", "-")
 
+
 def normalize_modifier(raw: str) -> str:
     """
     Normalize a raw Square modifier string for matching.
-
     Examples:
         " Extra Flavor "   → "extra flavor"
         "1/2 Vanilla"      → "half vanilla"
         "Oat-Milk"         → "oat milk"
-
-    This version:
-      • Strips whitespace & punctuation
-      • Converts fractions and symbols like ½ → "half"
-      • Lowercases for case-insensitive matching
-      • Normalizes special words (½, 1/2, half) to 'half'
     """
     if not raw:
         return ""
@@ -48,18 +41,16 @@ def normalize_modifier(raw: str) -> str:
     token = token.replace("-", " ").replace("_", " ")
     token = token.replace("’", "'").replace("–", "-")
 
-    # collapse multiple spaces
     while "  " in token:
         token = token.replace("  ", " ")
 
     return token
 
+
 def _select_targets(recipe_map: Dict[str, Dict], current_context: Optional[List[str]] = None,
                     by_type: Optional[Iterable[str]] = None,
                     by_name: Optional[Iterable[str]] = None) -> List[str]:
-    """
-    Restrict matches to ingredients within the current recipe context.
-    """
+    """Restrict matches to ingredients within the current recipe context."""
     if current_context:
         recipe_map = {k: v for k, v in recipe_map.items() if k in current_context}
 
@@ -76,17 +67,27 @@ def _select_targets(recipe_map: Dict[str, Dict], current_context: Optional[List[
 
 
 def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
-    """
-    Try to resolve a name to a RecipeModifier or Recipe (preset drink).
-    """
-    name_norm = _normalize_token(name)
-    mod = RecipeModifier.objects.filter(name__icontains=name_norm).first()
-    if mod:
-        return mod
+    """Try to resolve a name to a RecipeModifier or RecipeItem."""
+    if not name:
+        return None
 
-    recipe = RecipeItem.objects.filter(ingredient__name__icontains=name_norm).first()
-    if recipe:
-        return recipe
+    name_norm = _normalize_token(name)
+    candidates = [name, name_norm]
+
+    for token in candidates:
+        mod = RecipeModifier.objects.filter(name__iexact=token).first()
+        if mod:
+            return mod
+
+        mod = RecipeModifier.objects.filter(name__icontains=token).first()
+        if mod:
+            return mod
+
+    recipe_item = RecipeItem.objects.filter(
+        ingredient__name__icontains=name_norm
+    ).select_related("ingredient").first()
+    if recipe_item:
+        return recipe_item
 
     return None
 
@@ -99,19 +100,10 @@ def handle_extras(modifier_name: str,
                   recipe_map: Dict[str, Dict],
                   normalized_modifiers: List[str],
                   recipe_context: Optional[List[str]] = None,
-                  verbose: bool = False) -> Dict[str, Dict]:
+                  verbose: bool = False):
     """
     Expand, scale, or replace ingredients based on modifier rules.
-
-    Args:
-        modifier_name: Raw modifier text from Square.
-        recipe_map: Ingredient name → {qty, type}.
-        normalized_modifiers: All parsed modifiers for this item.
-        recipe_context: Optional list of ingredient names in the base recipe.
-        verbose: If True, print/log each operation (for dry-run mode).
-
-    Returns:
-        Updated recipe_map (copy).
+    Returns (result, changelog)
     """
     result = recipe_map.copy()
     name_norm = _normalize_token(modifier_name)
@@ -120,7 +112,8 @@ def handle_extras(modifier_name: str,
     if not target:
         if verbose:
             print(f"⚠️  No modifier or recipe found for '{modifier_name}'")
-        return result
+        # Return empty changelog for consistency
+        return result, {"added": [], "replaced": [], "behavior": None}
 
     # -----------------------------------------------------------------------
     # Case 1: Modifier is actually a recipe (e.g., Cherry Dipped Vanilla)
@@ -133,7 +126,7 @@ def handle_extras(modifier_name: str,
                 "qty": item.quantity,
                 "type": item.ingredient.type.name if item.ingredient.type else "",
             }
-        return result
+        return result, {"added": [item.ingredient.name], "replaced": [], "behavior": "EXPANDS"}
 
     # -----------------------------------------------------------------------
     # Case 2: Modifier is a RecipeModifier
@@ -146,6 +139,7 @@ def handle_extras(modifier_name: str,
     by_name = sel.get("by_name", [])
 
     matched = _select_targets(result, recipe_context, by_type, by_name)
+    replaced_entries = []
 
     if verbose:
         print(f"🧩 Modifier: {modifier_name} ({behavior})")
@@ -162,10 +156,20 @@ def handle_extras(modifier_name: str,
 
     # --- REPLACE -----------------------------------------------------------
     elif behavior == ModifierBehavior.REPLACE:
-        for m in matched:
-            del result[m]
-            if verbose:
-                print(f"   🔁 Replaced {m} → {mod.ingredient.name}")
+        for m in matched or []:
+            if isinstance(m, (list, tuple)) and len(m) == 2:
+                replaced_entries.append(tuple(m))
+            elif isinstance(m, str):
+                new_name = getattr(getattr(mod, "ingredient", None), "name", mod.name)
+                replaced_entries.append((m, new_name))
+            else:
+                print(f"⚠️  Skipping malformed matched entry: {m!r}")
+
+            if m in result:
+                del result[m]
+                if verbose:
+                    print(f"   🔁 Replaced {m} → {mod.ingredient.name}")
+
         result[mod.ingredient.name] = {
             "qty": getattr(mod, "base_quantity", Decimal("1.0")),
             "type": mod.type,
@@ -188,4 +192,12 @@ def handle_extras(modifier_name: str,
         if verbose:
             print(f"   🌱 Expanded to include {sub.ingredient.name}")
 
-    return result
+    # ✅ Always return consistent shape (result, changelog)
+    safe_replaced = [
+        e for e in replaced_entries if isinstance(e, (list, tuple)) and len(e) == 2
+    ]
+    return result, {
+        "added": [mod.ingredient.name] if behavior == ModifierBehavior.ADD else [],
+        "replaced": safe_replaced,
+        "behavior": behavior,
+    }
