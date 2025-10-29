@@ -90,7 +90,7 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
     size_map = {
         "xl": ["xl", "extra large", "x-large", "32oz", "32 oz"],
         "large": ["large", "20oz", "20 oz"],
-        #"medium": ["medium", "16oz", "16 oz"],
+        "cold small": ["cold small", "16oz", "16 oz"],
         "small": ["small", "short", "12oz", "12 oz"],
     }
 
@@ -104,7 +104,7 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
     # E.g., “Latte” without “iced” → assume hot/small
     # E.g., “Cold Brew” without size → assume cold/small
     if "coldbrew" in name and size_label == "small":
-        size_label = "medium"  # typical default for cold drinks
+        size_label = "small"  # typical default for cold drinks
 
     return temp_type, size_label
 

@@ -118,6 +118,7 @@ def handle_extras(modifier_name: str,
     # -----------------------------------------------------------------------
     # Case 1: Modifier is actually a recipe (e.g., Cherry Dipped Vanilla)
     # -----------------------------------------------------------------------
+    """ Replacing with improved version below
     if isinstance(target, RecipeItem):
         if verbose:
             print(f"🧩 '{modifier_name}' recognized as recipe preset → expanding")
@@ -126,7 +127,24 @@ def handle_extras(modifier_name: str,
                 "qty": item.quantity,
                 "type": item.ingredient.type.name if item.ingredient.type else "",
             }
-        return result, {"added": [item.ingredient.name], "replaced": [], "behavior": "EXPANDS"}
+        return result, {"added": [item.ingredient.name], "replaced": [], "behavior": "EXPANDS"} """
+    
+    if isinstance(target, RecipeItem):
+        if verbose:
+            print(f"🧩 '{modifier_name}' recognized as recipe preset → expanding")
+
+        product = target.product  # get parent Product
+        for item in product.recipe_items.all():
+            result[item.ingredient.name] = {
+                "qty": item.quantity,
+                "type": item.ingredient.type.name if item.ingredient.type else "",
+            }
+
+        return result, {
+            "added": [item.ingredient.name for item in product.recipe_items.all()],
+            "replaced": [],
+            "behavior": "EXPANDS",
+        }
 
     # -----------------------------------------------------------------------
     # Case 2: Modifier is a RecipeModifier
