@@ -42,10 +42,12 @@ def seed_coldbrew_data(db):
     # --- Ingredients ---
     dark = Ingredient.objects.create(name="Dark Coldbrew",   unit_type=fl_oz, type=beverage_type)
     medium = Ingredient.objects.create(name="Medium Coldbrew", unit_type=fl_oz, type=beverage_type)
+    white_chocolate = Ingredient.objects.create(name="White Chocolate Cold Brew", unit_type=fl_oz, type=beverage_type)
     milk = Ingredient.objects.create(name="Whole Milk",      unit_type=fl_oz, type=beverage_type)
     cherry_syrup = Ingredient.objects.create(name="Cherry Syrup", unit_type=fl_oz, type=beverage_type)
     vanilla_bean = Ingredient.objects.create(name="Vanilla Bean", unit_type=fl_oz, type=beverage_type)
     cup32 = Ingredient.objects.create(name="32oz Cold Cup",  unit_type=unit,  type=beverage_type)
+    cup16 = Ingredient.objects.create(name="16oz Cold Cup",  unit_type=unit,  type=beverage_type)
 
     # --- Product & Base Recipe (XL starts from 16 oz dark) ---
     product = Product.objects.create(name="Nitro Coldbrew")
@@ -63,6 +65,19 @@ def seed_coldbrew_data(db):
         quantity_factor=Decimal("1.0"),
         target_selector={"by_name": ["Dark Coldbrew"]},
         replaces={"to": [["Medium Coldbrew", 22.0]]},
+    )
+
+    # Parent size modifier "medium": replaces Dark with Medium 22 fl_oz
+    mod_white_chocolate = RecipeModifier.objects.create(
+        name="White Chocolate Coldbrew",
+        type="COFFEE",  # valid from MODIFIER_TYPES
+        behavior=RecipeModifier.ModifierBehavior.REPLACE,
+        ingredient=white_chocolate,                 # the ingredient this modifier represents
+        base_quantity=Decimal("22.0"),     # quantity applied when chosen
+        unit="fl_oz",
+        quantity_factor=Decimal("1.0"),
+        target_selector={"by_name": ["Dark Coldbrew"]},
+        replaces={"to": [["White Chocolate Coldbrew", 22.0]]},
     )
 
     # Milk: add 8 fl_oz
@@ -136,7 +151,7 @@ def test_coldbrew_xl_medium(monkeypatch, seed_coldbrew_data):
     assert "cherry dipped vanilla" in output.lower()
     assert "whole milk" in output.lower()
     assert "medium" in output.lower()
-    assert "→ Nitro Coldbrew (xl)" in output
+    assert "→ Nitro (xl)" in output
     assert "Final ingredient usage" in output
 
     # Key ingredients should appear
