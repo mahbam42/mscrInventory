@@ -11,7 +11,7 @@ Goals:
 
 from decimal import Decimal
 from typing import Dict, List, Optional, Iterable
-from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior
+from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior, Product
 import logging
 
 logger = logging.getLogger(__name__)
@@ -118,18 +118,7 @@ def handle_extras(modifier_name: str,
     # -----------------------------------------------------------------------
     # Case 1: Modifier is actually a recipe (e.g., Cherry Dipped Vanilla)
     # -----------------------------------------------------------------------
-    """ Replacing with improved version below
-    if isinstance(target, RecipeItem):
-        if verbose:
-            print(f"🧩 '{modifier_name}' recognized as recipe preset → expanding")
-        for item in target.recipe_items.all():
-            result[item.ingredient.name] = {
-                "qty": item.quantity,
-                "type": item.ingredient.type.name if item.ingredient.type else "",
-            }
-        return result, {"added": [item.ingredient.name], "replaced": [], "behavior": "EXPANDS"} """
-    
-    if isinstance(target, RecipeItem):
+    """ if isinstance(target, RecipeItem):
         if verbose:
             print(f"🧩 '{modifier_name}' recognized as recipe preset → expanding")
 
@@ -144,6 +133,49 @@ def handle_extras(modifier_name: str,
             "added": [item.ingredient.name for item in product.recipe_items.all()],
             "replaced": [],
             "behavior": "EXPANDS",
+        } """
+    
+    # -----------------------------------------------------------------------
+    # Case 1: Modifier is actually a recipe (Barista’s Choice drink acting as a flavor modifier)
+    # -----------------------------------------------------------------------
+    from mscrInventory.models import Product
+
+    recipe_product = Product.objects.filter(
+        name__iexact=modifier_name.strip(),
+        categories__name__iexact="Barista's Choice"
+    ).first()
+
+    if recipe_product:
+        if verbose:
+            print(f"🧩 Modifier: {modifier_name} (Barista’s Choice recipe) — expanding from recipe")
+
+        duplicates = []
+        for item in recipe_product.recipe_items.all():
+            ing_name = item.ingredient.name
+            ing_type = item.ingredient.type.name if item.ingredient.type else ""
+            ing_qty = item.quantity
+
+            if ing_name in result:
+                duplicates.append(ing_name)
+                result[ing_name]["qty"] += ing_qty
+            else:
+                result[ing_name] = {"qty": ing_qty, "type": ing_type}
+
+        if duplicates and verbose:
+            print(f"⚠️ Duplicate ingredients merged from {modifier_name}: {duplicates}")
+
+        # These Tokens don't apply here
+        IGNORED_TOKENS = {"iced", "ice", "hot", "small", "medium", "large", "xl"}
+
+        if modifier_name.lower() in IGNORED_TOKENS:
+            if verbose:
+                print(f"🧊 Ignored size/temp token '{modifier_name}'")
+            return result, {"added": [], "replaced": [], "behavior": "ignored_variant"}
+
+        return result, {
+            "added": [ri.ingredient.name for ri in recipe_product.recipe_items.all()],
+            "behavior": "expand_from_recipe",
+            "replaced": [],
         }
 
     # -----------------------------------------------------------------------

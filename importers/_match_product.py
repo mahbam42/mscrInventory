@@ -20,6 +20,7 @@ Returns:
   (Product | None, reason_code)
 """
 
+from difflib import SequenceMatcher
 import re
 from mscrInventory.models import Product
 
@@ -74,20 +75,47 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
         log(f"Exact match for '{core_name}' ({descriptors})")
         return product, "exact"
 
-    # 2️⃣ Partial Item Name
-    product = Product.objects.filter(name__icontains=_normalize_name(core_name)).first()
-    if product:
-        log(f"Partial match for '{core_name}' ({descriptors})")
-        return product, "partial_item"
+    # 2️⃣ Fuzzy match
+    if not product:
+        candidates = list(Product.objects.all())
+        scored = []
+        for c in candidates:
+            ratio = SequenceMatcher(None, normalized, _normalize_name(c.name)).ratio()
+            if ratio > 0.7:
+                scored.append((c, ratio))
+        if scored:
+            scored.sort(key=lambda x: x[1], reverse=True)
+            product, score = scored[0]
+            log(f"Fuzzy matched → '{product.name}' ({descriptors}) [score={score:.2f}]")
 
-    # 3️⃣ Combined Item + Price Point
+            # 🧩 NEW sanity check: prefer base_item fallback if fuzzy match isn't a base product
+            if hasattr(product, "categories"):
+                category_names = [c.name.lower() for c in product.categories.all()]
+                # Check if there exists a base_item with same core_name
+                base_products = Product.objects.filter(
+                    categories__name__iexact="base_item",
+                    name__icontains=core_name
+                )
+                if base_products.exists() and not any("base_item" in c for c in category_names):
+                    base_product = min(base_products, key=lambda p: len(p.name))
+                    log(f"Fuzzy match '{product.name}' overridden → base fallback '{base_product.name}'")
+                    return base_product, "base_fallback"
+
+            # Otherwise, keep fuzzy result
+            return product, "fuzzy_match"
+
+
+    # 3️⃣ Combined Item + Price Point (for baked goods / variant names)
     combo = f"{core_name} {price_point}".strip()
-    if combo and combo != core_name:
-        product = Product.objects.filter(name__iexact=_normalize_name(combo)).first()
+    if price_point and combo and combo != core_name and price_point.lower() not in {"none", "nan", ""}:
+        combo_normalized = _normalize_name(combo)
+        product = Product.objects.filter(name__iexact=combo_normalized).first()
         if product:
             log(f"Exact combo match '{combo}' ({descriptors})")
             return product, "exact_combo"
-        product = Product.objects.filter(name__icontains=combo).first()
+
+        # partial match for items like "Bagel Everything" or "Muffin Blueberry"
+        product = Product.objects.filter(name__icontains=combo_normalized).first()
         if product:
             log(f"Partial combo match '{combo}' ({descriptors})")
             return product, "partial_combo"

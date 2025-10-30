@@ -286,7 +286,7 @@ class RecipeModifier(models.Model):
         ("BAKED_GOOD", "Baked Good"),
         ("COFFEE", "Coffee"),
         ("COOKIE", "Cookie"),
-        ("DRINK", "Drink"),
+        ("COLD Foam", "Cold Foam"),
     ]
 
     name = models.CharField(max_length=100, unique=True)
