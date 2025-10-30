@@ -71,6 +71,15 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
     recipe_item = RecipeItem.objects.filter(
         ingredient__name__icontains=name_norm
     ).select_related("ingredient").first()
+
+    # don't know if this will help
+    # 3) Barista’s Choice product recipes
+    product = Product.objects.filter(
+        name__iexact=name_norm,
+        categories__name__iexact="Barista's Choice"
+    ).prefetch_related("recipe_items__ingredient", "categories").first()
+    if product:
+        return product
     if recipe_item:
         return recipe_item
     return None
