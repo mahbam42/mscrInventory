@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, phase3 ]
   pull_request:
     branches: [ main, develop ]
 
