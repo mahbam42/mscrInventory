@@ -111,6 +111,65 @@ def _product_is_drink(product: Product | None) -> bool:
                 return True
     return False
 
+
+def _build_recipe_map_from_product(product: Product | None):
+    if not product:
+        return {}
+    items = product.recipe_items.select_related("ingredient", "ingredient__type").all()
+    return {
+        ri.ingredient.name: {
+            "qty": ri.quantity,
+            "type": ri.ingredient.type.name if ri.ingredient.type else "",
+        }
+        for ri in items
+    }
+
+
+def _find_barista_base_product(product: Product | None) -> Product | None:
+    if not product:
+        return None
+
+    base_qs = Product.objects.filter(categories__name__iexact="base_item")
+    normalized = _normalize_name(product.name)
+    tokens = [t for t in normalized.split() if t]
+
+    for start in range(len(tokens)):
+        suffix = " ".join(tokens[start:])
+        if not suffix:
+            continue
+        candidate = (
+            base_qs.filter(name__icontains=suffix)
+            .order_by(Length("name"))
+            .first()
+        )
+        if candidate:
+            return candidate
+
+    keywords = [
+        "latte",
+        "mocha",
+        "americano",
+        "macchiato",
+        "cold brew",
+        "coldbrew",
+        "nitro",
+        "chai",
+        "cappuccino",
+        "frappe",
+        "smoothie",
+    ]
+    for keyword in keywords:
+        if keyword in normalized:
+            candidate = (
+                base_qs.filter(name__icontains=keyword)
+                .order_by(Length("name"))
+                .first()
+            )
+            if candidate:
+                return candidate
+
+    return None
+
 # ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
