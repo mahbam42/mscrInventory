@@ -11,7 +11,7 @@ This version:
 
 from decimal import Decimal, ROUND_HALF_UP
 import re
-from mscrInventory.models import Ingredient, RecipeModifier
+from mscrInventory.models import Ingredient, RecipeModifier, ModifierBehavior
 
 def resolve_modifier_tree(modifier, depth=0, seen=None):
     """
@@ -53,10 +53,14 @@ SIZE_SCALE = {
 CUP_MAP = {
     "hot": {
         "small": "12oz Cup",
+        "medium": "16oz Cup",
         "large": "20oz Cup",
+        "xl": "20oz Cup",
     },
     "cold": {
         "small": "16oz Cup",
+        "medium": "24oz Cup",
+        "large": "24oz Cup",
         "xl": "32oz Cup",
         "growler": "64oz Growler"
     },
@@ -77,10 +81,12 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
     desc_str = " ".join(descriptors or []).lower()
 
     # --- Temperature inference --------------------------------------------
-    cold_keywords = ["iced", "cold", "coldbrew", "nitro", "frappe", "smoothie", "refresher"]
+    cold_keywords = ["iced", "ice", "cold", "coldbrew", "nitro", "frappe", "smoothie", "refresher"]
     hot_keywords = ["hot", "steamed", "espresso", "latte", "americano", "tea"]
 
     temp_type = "cold" if any(k in name or k in desc_str for k in cold_keywords) else "hot"
+    if any(token.strip() == "iced" for token in descriptors or []):
+        temp_type = "cold"
     # edge: explicitly mark "hot" if name says "hot" even when other cold words exist
     if any(k in name or k in desc_str for k in hot_keywords):
         if "iced" not in desc_str and "cold" not in desc_str and "coldbrew" not in name:
@@ -90,8 +96,8 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
     size_map = {
         "xl": ["xl", "extra large", "x-large", "32oz", "32 oz"],
         "large": ["large", "20oz", "20 oz"],
-        "cold small": ["cold small", "16oz", "16 oz"],
-        "small": ["small", "short", "12oz", "12 oz"],
+        "medium": ["medium", "med"],
+        "small": ["small", "short", "12oz", "12 oz", "16oz", "16 oz", "10oz"],
     }
 
     size_label = "small"  # default
@@ -126,24 +132,52 @@ def round_qty(value: Decimal, unit_type: str) -> Decimal:
 # ---------------------------------------------------------------------
 # Main aggregator
 # ---------------------------------------------------------------------
-def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
-                               temp_type: str | None = None,
-                               size: str | None = None):
+def aggregate_ingredient_usage(
+    recipe_items,
+    resolved_modifiers=None,
+    temp_type: str | None = None,
+    size: str | None = None,
+    overrides_map: dict[str, dict] | None = None,
+    is_drink: bool = True,
+):
     """
     Aggregate all ingredient usage for a given product, scaled to size.
 
-    - Base recipe quantities are scaled by get_scale().
+    - Base recipe quantities are scaled by get_scale() when is_drink is True.
     - Modifiers are added with estimated or defined quantities.
-    - Total drink volume is normalized to cup size (so the main liquid fills the rest).
+    - Optional overrides_map lets callers provide the resolved recipe map after
+      handle_extras(), ensuring Barista's Choice expansions adjust the base
+      ingredient totals before rebalancing.
+    - Total drink volume is normalized to cup size (so the main liquid fills the rest)
+      when the product represents a drink.
 
     Returns:
         usage_summary: {ingredient_name: {"qty": Decimal, "sources": [str]}}
     """
-    scale_factor = get_scale(temp_type or "cold", size or "small")
+    scale_factor = get_scale(temp_type or "cold", size or "small") if is_drink else Decimal("1.0")
     usage_summary = {}
+    primary_liquid_key: str | None = None
+    overrides_map = overrides_map or {}
+    ingredient_cache: dict[str, Ingredient | None] = {}
+
+    def _get_unit_type(name: str, fallback: str = "fluid_oz") -> str:
+        if name in usage_summary and "unit_type" in usage_summary[name]:
+            return usage_summary[name]["unit_type"]
+        if name in ingredient_cache:
+            ing = ingredient_cache[name]
+        else:
+            ing = (
+                Ingredient.objects.filter(name__iexact=name)
+                .select_related("type")
+                .first()
+            )
+            ingredient_cache[name] = ing
+        if ing and getattr(ing, "type", None) and getattr(ing.type, "unit_type", None):
+            return ing.type.unit_type
+        return fallback
 
     # --- Add cup as inventory item automatically -------------------------
-    cup_name = get_default_cup(temp_type, size)
+    cup_name = get_default_cup(temp_type, size) if is_drink else None
     if cup_name:
         usage_summary[cup_name] = {
             "qty": Decimal("1.0"),  # one per drink
@@ -155,7 +189,10 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
     for ri in recipe_items:
         ing = ri.ingredient
         base_qty = ri.quantity or Decimal("0.0")
-        scaled_qty = base_qty * scale_factor
+        if not is_drink:
+            scaled_qty = base_qty
+        else:
+            scaled_qty = base_qty * scale_factor
 
         unit_type = getattr(ing.type, "unit_type", "fluid_oz")
         scaled_qty = round_qty(scaled_qty, unit_type)
@@ -165,18 +202,63 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
             "sources": ["base_recipe"],
             "unit_type": unit_type,
         }
+        if unit_type != "unit":
+            if primary_liquid_key is None:
+                primary_liquid_key = ing.name
+            else:
+                current_qty = usage_summary[primary_liquid_key]["qty"]
+                if scaled_qty > current_qty:
+                    primary_liquid_key = ing.name
+
+    # Apply any overrides from resolved recipe maps (e.g., Barista's Choice)
+    for name, meta in overrides_map.items():
+        qty = meta.get("qty")
+        if qty is None:
+            continue
+        try:
+            qty_value = Decimal(str(qty))
+        except Exception:
+            continue
+
+        existed_before = name in usage_summary
+        unit_type = usage_summary.get(name, {}).get("unit_type")
+        previous_qty = usage_summary.get(name, {}).get("qty") if existed_before else None
+
+        if not unit_type:
+            fallback_type = meta.get("type")
+            unit_type = _get_unit_type(name, "unit" if fallback_type == "UNIT" else "fluid_oz")
+
+        scaled_qty = round_qty(qty_value * scale_factor, unit_type)
+
+        changed = (not existed_before) or (previous_qty != scaled_qty)
+
+        if name in usage_summary:
+            if changed:
+                usage_summary[name]["qty"] = scaled_qty
+            if changed and "override_from_recipe" not in usage_summary[name]["sources"]:
+                usage_summary[name]["sources"].append("override_from_recipe")
+        else:
+            usage_summary[name] = {
+                "qty": scaled_qty,
+                "sources": ["override_from_recipe"],
+                "unit_type": unit_type,
+            }
 
     # --- Track total liquid capacity (estimated) ----------------------------
     cup_size_map = {
         ("hot", "small"): 12,
+        ("hot", "medium"): 16,
         ("hot", "large"): 20,
+        ("hot", "xl"): 20,
         ("cold", "small"): 16,
+        ("cold", "medium"): 24,
+        ("cold", "large"): 24,
         ("cold", "xl"): 32,
     }
-    cup_capacity = Decimal(str(cup_size_map.get((temp_type, size), 16)))
+    cup_capacity = Decimal(str(cup_size_map.get((temp_type, size), 16))) if is_drink else None
 
     # --- Apply modifiers ----------------------------------------------------
-    total_modifier_volume = Decimal("0.0")
+    # resolved modifiers may continue adjusting liquid totals
     if resolved_modifiers:
         for mod in resolved_modifiers:
             ing = getattr(mod, "ingredient", None)
@@ -190,25 +272,64 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
             base_qty = getattr(mod, "base_quantity", Decimal("1.0"))
             qty = round_qty(base_qty * scale_factor, unit_type)
 
+            behavior = getattr(mod, "behavior", ModifierBehavior.ADD)
+
+            if behavior == ModifierBehavior.REPLACE:
+                existing_sources = usage_summary.get(name, {}).get("sources", [])
+                sources = list(dict.fromkeys(existing_sources + ["modifier_replace"]))
+                usage_summary[name] = {
+                    "qty": qty,
+                    "sources": sources or ["modifier_replace"],
+                    "unit_type": unit_type,
+                }
+                if unit_type != "unit":
+                    if primary_liquid_key is None:
+                        primary_liquid_key = name
+                    else:
+                        current = usage_summary.get(primary_liquid_key, {}).get("qty", Decimal("0.0"))
+                        if qty >= current:
+                            primary_liquid_key = name
+                continue
+
+            if behavior == ModifierBehavior.SCALE:
+                factor = getattr(mod, "quantity_factor", Decimal("1.0"))
+                target = name if name in usage_summary else None
+                if not target:
+                    target = ing.name if ing.name in usage_summary else None
+                if target:
+                    current_qty = usage_summary[target]["qty"]
+                    new_qty = round_qty(current_qty * factor, usage_summary[target]["unit_type"])
+                    usage_summary[target]["qty"] = new_qty
+                    usage_summary[target]["sources"].append("modifier_scale")
+                continue
+
             usage_summary[name] = usage_summary.get(
                 name, {"qty": Decimal("0.0"), "sources": [], "unit_type": unit_type}
             )
             usage_summary[name]["qty"] += qty
             usage_summary[name]["sources"].append("modifier_add")
 
-            if unit_type != "unit":  # only count liquids toward fill volume
-                total_modifier_volume += qty
-
     # --- Rebalance main liquid (if any) -------------------------------------
     # Find main base liquid (typically something like 'Cold Brew', 'Espresso', 'Tea')
     main_liquid_key = None
     for k in usage_summary.keys():
-        if "brew" in k.lower() or "coffee" in k.lower() or "tea" in k.lower():
+        lower = k.lower()
+        if any(token in lower for token in ("brew", "coffee", "tea", "milk", "cream")):
             main_liquid_key = k
             break
+    if not main_liquid_key:
+        main_liquid_key = primary_liquid_key
 
-    if main_liquid_key:
-        remaining_volume = cup_capacity - total_modifier_volume
+    if is_drink and cup_capacity and main_liquid_key and main_liquid_key in usage_summary:
+        other_volume = Decimal("0.0")
+        for key, meta in usage_summary.items():
+            if key == main_liquid_key:
+                continue
+            if meta.get("unit_type") == "unit":
+                continue
+            other_volume += meta.get("qty", Decimal("0.0"))
+
+        remaining_volume = cup_capacity - other_volume
         remaining_volume = max(remaining_volume, Decimal("0.0"))
 
         usage_summary[main_liquid_key]["qty"] = round_qty(
