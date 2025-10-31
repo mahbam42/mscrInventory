@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import IntegrityError
 
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.template.response import TemplateResponse
 
 from collections import defaultdict
