@@ -10,7 +10,7 @@ Goals:
 """
 
 from decimal import Decimal
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, List, Optional, Iterable, Tuple
 from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior, Product
 import logging
 
@@ -35,7 +35,7 @@ def normalize_modifier(raw: str) -> str:
     token = token.replace("’", "'").replace("–", "-")
     while "  " in token:
         token = token.replace("  ", " ")
-    return token
+    return token.strip()
 
 
 def _select_targets(recipe_map: Dict[str, Dict],
@@ -56,7 +56,7 @@ def _select_targets(recipe_map: Dict[str, Dict],
 
 
 def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
-    """Try to resolve a name to a RecipeModifier or RecipeItem."""
+    """Try to resolve a name to a RecipeModifier or Product/RecipeItem."""
     if not name:
         return None
     name_norm = _normalize_token(name)
@@ -68,18 +68,28 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
         mod = RecipeModifier.objects.filter(name__icontains=token).first()
         if mod:
             return mod
-    recipe_item = RecipeItem.objects.filter(
-        ingredient__name__icontains=name_norm
-    ).select_related("ingredient").first()
+    # 1) Barista's Choice product recipes (named drinks)
+    barista_category_filter = {"categories__name__icontains": "barista"}
+    product_qs = Product.objects.filter(**barista_category_filter).prefetch_related(
+        "recipe_items__ingredient",
+        "recipe_items__ingredient__type",
+        "categories",
+    )
 
-    # don't know if this will help
-    # 3) Barista’s Choice product recipes
-    product = Product.objects.filter(
-        name__iexact=name_norm,
-        categories__name__iexact="Barista's Choice"
-    ).prefetch_related("recipe_items__ingredient", "categories").first()
+    # Prefer exact-ish matches, then fall back to partials.
+    product = product_qs.filter(name__iexact=name).first()
+    if not product and name != name_norm:
+        product = product_qs.filter(name__iexact=name_norm).first()
+    if not product:
+        product = product_qs.filter(name__icontains=name).order_by("name").first()
+    if not product and name != name_norm:
+        product = product_qs.filter(name__icontains=name_norm).order_by("name").first()
     if product:
         return product
+
+    recipe_item = RecipeItem.objects.filter(
+        ingredient__name__icontains=name_norm
+    ).select_related("ingredient", "product").first()
     if recipe_item:
         return recipe_item
     return None
@@ -97,25 +107,26 @@ def _expand_baristas_choice(product: Product,
     - Overrides duplicate ingredient quantities instead of adding.
     - Does not replace the base recipe.
     """
-    added = []
-    overridden = []
+    added: List[str] = []
+    overridden: List[Tuple[str, str]] = []
     for item in product.recipe_items.all():
         ing = item.ingredient
         ing_name = ing.name
         ing_type = ing.type.name if getattr(ing, "type", None) else ""
         qty = Decimal(item.quantity or 1)
-        if ing_name in recipe_map:
-            overridden.append(ing_name)
+        existed = ing_name in recipe_map
         recipe_map[ing_name] = {"qty": qty, "type": ing_type}
         if verbose:
-            status = "🔁 override" if ing_name in overridden else "➕ add"
+            status = "🔁 override" if existed else "➕ add"
             print(f"   {status}: {ing_name} ×{qty} (from {product.name})")
+        if existed:
+            overridden.append((ing_name, ing_name))
         added.append(ing_name)
     if verbose:
         print(f"🧩 Expanded from Barista's Choice recipe: {product.name}")
     return recipe_map, {
         "added": added,
-        "replaced": [(n, n) for n in overridden],
+        "replaced": overridden,
         "behavior": "expand_baristas_choice",
         "source_recipe": product.name,
     }
@@ -137,15 +148,13 @@ def handle_extras(modifier_name: str,
     result = recipe_map.copy()
     name_norm = _normalize_token(modifier_name)
 
-    # --- Ignore known size/temp tokens ------------------------------------
-    IGNORED_TOKENS = {"iced", "ice", "hot", "small", "medium", "large", "xl"}
-    if name_norm in IGNORED_TOKENS:
-        if verbose:
-            print(f"🧊 Ignored size/temp token '{modifier_name}'")
-        return result, {"added": [], "replaced": [], "behavior": "ignored_variant"}
-
     target = _lookup_modifier_or_recipe(modifier_name)
     if not target:
+        IGNORED_TOKENS = {"iced", "ice", "hot", "small", "medium", "large", "xl"}
+        if name_norm in IGNORED_TOKENS:
+            if verbose:
+                print(f"🧊 Ignored size/temp token '{modifier_name}'")
+            return result, {"added": [], "replaced": [], "behavior": "ignored_variant"}
         if verbose:
             print(f"⚠️  No modifier or recipe found for '{modifier_name}'")
         return result, {"added": [], "replaced": [], "behavior": None}
@@ -190,6 +199,8 @@ def handle_extras(modifier_name: str,
     behavior = getattr(mod, "behavior", ModifierBehavior.ADD)
     quantity_factor = getattr(mod, "quantity_factor", Decimal("1.0"))
     sel = getattr(mod, "target_selector", {}) or {}
+    if not isinstance(sel, dict):
+        sel = {}
     by_type = sel.get("by_type", [])
     by_name = sel.get("by_name", [])
 
@@ -215,8 +226,8 @@ def handle_extras(modifier_name: str,
 
     # --- REPLACE -----------------------------------------------------------
     elif behavior == ModifierBehavior.REPLACE:
+        new_name = ingredient_name
         for m in matched or []:
-            new_name = ingredient_name
             if m in result:
                 del result[m]
                 if verbose:
