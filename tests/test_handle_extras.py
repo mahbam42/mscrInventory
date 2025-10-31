@@ -115,6 +115,70 @@ def test_split_coldbrew_handles_two_way_blend(ingredient_types):
     #assert any("Dark Cold Brew" in pair for pair in log["replaced"])
     assert any("Cold Brew" in k for k in result.keys())
 
+@pytest.mark.django_db
+def test_size_modifier_not_ignored_when_rule_exists(ingredient_types):
+    dark = Ingredient.objects.create(name="Dark Coldbrew", type=ingredient_types["COFFEE"])
+    medium = Ingredient.objects.create(name="Medium Coldbrew", type=ingredient_types["COFFEE"])
+    RecipeModifier.objects.create(
+        name="medium",
+        type="COFFEE",
+        behavior=ModifierBehavior.REPLACE,
+        ingredient=medium,
+        base_quantity=Decimal("22.0"),
+        unit="fl_oz",
+        target_selector={"by_name": ["Dark Coldbrew"]},
+    )
+
+    recipe_map = {"Dark Coldbrew": {"qty": Decimal("16.0"), "type": "COFFEE"}}
+    result, log = handle_extras("medium", recipe_map, [], recipe_context=list(recipe_map.keys()))
+
+    assert "Medium Coldbrew" in result
+    assert log["behavior"] == ModifierBehavior.REPLACE
+    assert ("Dark Coldbrew", "Medium Coldbrew") in log["replaced"]
+
+@pytest.mark.django_db
+def test_size_modifier_not_ignored_when_rule_exists(ingredient_types):
+    dark = Ingredient.objects.create(name="Dark Coldbrew", type=ingredient_types["COFFEE"])
+    medium = Ingredient.objects.create(name="Medium Coldbrew", type=ingredient_types["COFFEE"])
+    RecipeModifier.objects.create(
+        name="medium",
+        type="COFFEE",
+        behavior=ModifierBehavior.REPLACE,
+        ingredient=medium,
+        base_quantity=Decimal("22.0"),
+        unit="fl_oz",
+        target_selector={"by_name": ["Dark Coldbrew"]},
+    )
+
+    recipe_map = {"Dark Coldbrew": {"qty": Decimal("16.0"), "type": "COFFEE"}}
+    result, log = handle_extras("medium", recipe_map, [], recipe_context=list(recipe_map.keys()))
+
+    assert "Medium Coldbrew" in result
+    assert log["behavior"] == ModifierBehavior.REPLACE
+    assert ("Dark Coldbrew", "Medium Coldbrew") in log["replaced"]
+
+
+@pytest.mark.django_db
+def test_size_modifier_not_ignored_when_rule_exists(ingredient_types):
+    dark = Ingredient.objects.create(name="Dark Coldbrew", type=ingredient_types["COFFEE"])
+    medium = Ingredient.objects.create(name="Medium Coldbrew", type=ingredient_types["COFFEE"])
+    RecipeModifier.objects.create(
+        name="medium",
+        type="COFFEE",
+        behavior=ModifierBehavior.REPLACE,
+        ingredient=medium,
+        base_quantity=Decimal("22.0"),
+        unit="fl_oz",
+        target_selector={"by_name": ["Dark Coldbrew"]},
+    )
+
+    recipe_map = {"Dark Coldbrew": {"qty": Decimal("16.0"), "type": "COFFEE"}}
+    result, log = handle_extras("medium", recipe_map, [], recipe_context=list(recipe_map.keys()))
+
+    assert "Medium Coldbrew" in result
+    assert log["behavior"] == ModifierBehavior.REPLACE
+    assert ("Dark Coldbrew", "Medium Coldbrew") in log["replaced"]
+
 
 @pytest.mark.django_db
 def test_size_modifier_not_ignored_when_rule_exists(ingredient_types):

@@ -143,10 +143,6 @@ class SquareImporter:
             # --- Extract descriptors (size/temp adjectives) ---
             normalized_item = _normalize_name(item_name)
             core_name, descriptors = _extract_descriptors(normalized_item)
-            descriptor_tokens = list(descriptors)
-            for token in normalized_modifiers:
-                if token and token not in descriptor_tokens:
-                    descriptor_tokens.append(token)
 
             # Combine modifiers + descriptors (preserve order while de-duping)
             seen = set()
@@ -197,7 +193,7 @@ class SquareImporter:
 
             # --- Log or persist order items ---
             reference_name = product.name if product else item_name
-            temp_type, size = infer_temp_and_size(reference_name, descriptor_tokens)
+            temp_type, size = infer_temp_and_size(reference_name, descriptors)
 
             if product:
                 unit = (gross_sales / max(qty, 1)) if qty else Decimal("0.00")
