@@ -141,6 +141,7 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
     """
     scale_factor = get_scale(temp_type or "cold", size or "small")
     usage_summary = {}
+    primary_liquid_key: str | None = None
 
     # --- Add cup as inventory item automatically -------------------------
     cup_name = get_default_cup(temp_type, size)
@@ -165,6 +166,13 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
             "sources": ["base_recipe"],
             "unit_type": unit_type,
         }
+        if unit_type != "unit":
+            if primary_liquid_key is None:
+                primary_liquid_key = ing.name
+            else:
+                current_qty = usage_summary[primary_liquid_key]["qty"]
+                if scaled_qty > current_qty:
+                    primary_liquid_key = ing.name
 
     # --- Track total liquid capacity (estimated) ----------------------------
     cup_size_map = {
@@ -203,9 +211,12 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
     # Find main base liquid (typically something like 'Cold Brew', 'Espresso', 'Tea')
     main_liquid_key = None
     for k in usage_summary.keys():
-        if "brew" in k.lower() or "coffee" in k.lower() or "tea" in k.lower():
+        lower = k.lower()
+        if any(token in lower for token in ("brew", "coffee", "tea", "milk", "cream")):
             main_liquid_key = k
             break
+    if not main_liquid_key:
+        main_liquid_key = primary_liquid_key
 
     if main_liquid_key:
         remaining_volume = cup_capacity - total_modifier_volume

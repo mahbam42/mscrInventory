@@ -35,7 +35,7 @@ def normalize_modifier(raw: str) -> str:
     token = token.replace("’", "'").replace("–", "-")
     while "  " in token:
         token = token.replace("  ", " ")
-    return token
+    return token.strip()
 
 
 def _select_targets(recipe_map: Dict[str, Dict],
