@@ -84,8 +84,13 @@ class SquareImporter:
             normalized_item = _normalize_name(item_name)
             core_name, descriptors = _extract_descriptors(normalized_item)
 
-            # Combine modifiers + descriptors
-            all_modifiers = list(set(normalized_modifiers + descriptors))
+            # Combine modifiers + descriptors (preserve order while de-duping)
+            seen = set()
+            all_modifiers = []
+            for token in normalized_modifiers + descriptors:
+                if token not in seen:
+                    seen.add(token)
+                    all_modifiers.append(token)
 
             # Shows consistent context, even if the match fails or an exception occurs
             self.buffer.append(f"\nRow {self.stats['rows_processed']}:")
@@ -127,6 +132,9 @@ class SquareImporter:
                 self.buffer.append(f"🧩 Cached variant: {variant_name} ({'new' if created else 'updated'})")
 
             # --- Log or persist order items ---
+            reference_name = product.name if product else item_name
+            temp_type, size = infer_temp_and_size(reference_name, descriptors)
+
             if product:
                 unit = (gross_sales / max(qty, 1)) if qty else Decimal("0.00")
                 OrderItem.objects.create(
@@ -149,24 +157,28 @@ class SquareImporter:
                 for ri in product.recipe_items.select_related("ingredient", "ingredient__type").all()
             } if product else {}
 
-            change_logs = []
+            current_recipe_map = recipe_map
+            change_logs: list[dict] = []
             for token in all_modifiers:
+                context_keys = list(current_recipe_map.keys())
                 result, change_log = handle_extras(
-                token,
-                recipe_map,
-                normalized_modifiers,
-                recipe_context=list(recipe_map.keys()),
-                verbose=self.dry_run,
-            )
-                
-            # 🧩 Important: collect the log instead of overwriting
-            if change_log:
-                change_logs.append(change_log)
+                    token,
+                    current_recipe_map,
+                    normalized_modifiers,
+                    recipe_context=context_keys,
+                    verbose=self.dry_run,
+                )
 
-            if result:
-                recipe_map.update(result)
-                self.stats["modifiers_applied"] += 1
-                change_logs.append(change_log)
+                if change_log:
+                    change_logs.append(change_log)
+
+                if isinstance(result, dict):
+                    current_recipe_map = result
+                    behavior = change_log.get("behavior") if change_log else None
+                    if behavior not in (None, "ignored_variant"):
+                        self.stats["modifiers_applied"] += 1
+
+            final_recipe_map = current_recipe_map
 
             # --- Aggregate ingredient usage ---
             if product:
@@ -178,54 +190,50 @@ class SquareImporter:
 
                 recipe_items = product.recipe_items.select_related("ingredient").all()
 
-                temp_type, size = infer_temp_and_size(product.name, descriptors)
                 usage_summary = aggregate_ingredient_usage(
                     recipe_items, resolved_modifiers, temp_type=temp_type, size=size
                 )
 
-                # ---------------------------------------------
-                # NEW: pull out all (old,new) replacements
-                # ---------------------------------------------
-                replacements = []
+                replacements: list[tuple[str, str]] = []
+                additions: dict[str, set[str]] = {}
                 for log in change_logs:
-                    for entry in log.get("replaced", []):
-                        if isinstance(entry, (list, tuple)) and len(entry) == 2:
-                            replacements.append(tuple(entry))
+                    replaced_entries = [
+                        tuple(entry)
+                        for entry in log.get("replaced", [])
+                        if isinstance(entry, (list, tuple)) and len(entry) == 2
+                    ]
+                    replacements.extend(replaced_entries)
 
-                # Debug to confirm what we actually captured
-                print("DEBUG replacements extracted:", replacements)
+                    behavior_label = log.get("behavior")
+                    if behavior_label is None:
+                        behavior_str = "modifier_add"
+                    elif hasattr(behavior_label, "value"):
+                        behavior_str = behavior_label.value
+                    else:
+                        behavior_str = str(behavior_label)
 
-                # ---------------------------------------------
-                # NEW: rename usage_summary keys based on replacements
-                #       (e.g., 'Dark Coldbrew' -> 'Medium Coldbrew')
-                # ---------------------------------------------
+                    for name in log.get("added", []):
+                        additions.setdefault(name, set()).add(behavior_str)
+
                 for old, new in replacements:
                     if old in usage_summary:
-                        # move the entry to the new key; preserve qty/sources
-                        usage_summary[new] = usage_summary.pop(old)
-                        usage_summary[new]["sources"].append("renamed_from_modifier")
+                        moved = usage_summary.pop(old)
+                        moved["sources"].append("renamed_from_modifier")
+                        usage_summary[new] = moved
 
-
-                # --- Apply replacements before balancing ----------------------------------
-                print("DEBUG replaced entries:", change_logs)  # 🔍 diagnostic print
-                for log in change_logs:
-                    for entry in log.get("replaced", []):
-                        if not isinstance(entry, (list, tuple)) or len(entry) != 2:
-                            print(f"⚠️  Skipping malformed replacement entry: {entry!r}")
-                            continue
-                        old, new = entry
-                        if old in usage_summary:
-                            usage_summary[new] = usage_summary.pop(old)
-                            usage_summary[new]["sources"].append("renamed_from_modifier")
-                        else:
-                            print(f"⚠️  Old ingredient '{old}' not found in usage_summary")
-
-                        # ✅ Ensure 'new' key exists before incrementing
-                        if new not in usage_summary:
-                            usage_summary[new] = {"qty": Decimal("0.00"), "sources": []}
-
-                        usage_summary[new]["qty"] += Decimal("1.0")
-                        usage_summary[new]["sources"].append(new)
+                for name, behaviors in additions.items():
+                    if name in usage_summary:
+                        existing_sources = set(usage_summary[name].get("sources", []))
+                        for source in behaviors:
+                            if source not in existing_sources:
+                                usage_summary[name]["sources"].append(source)
+                    elif name in final_recipe_map:
+                        meta = final_recipe_map.get(name, {})
+                        qty = meta.get("qty", Decimal("0.00"))
+                        usage_summary[name] = {
+                            "qty": qty,
+                            "sources": sorted(behaviors),
+                        }
 
                 if self.dry_run:
                     self.buffer.append("\n🧾 Final ingredient usage:")
@@ -236,8 +244,8 @@ class SquareImporter:
 
             # 🧮 Dry-run log
             if self.dry_run:
-                # self.buffer.append(f"→ {item_name or '(unnamed)'} ({price_point or '(no price point)'}) x{qty} @ {gross_sales}")
-                display_name = f"{product.name} ({size})"
+                base_name = (product.name if product else item_name) or "(unnamed)"
+                display_name = f"{base_name} ({size})" if size else base_name
                 self.buffer.append(f"→ {display_name} x{qty} @ {gross_sales}")
                 if descriptors:
                     variant_name = " ".join(descriptors)
