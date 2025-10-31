@@ -70,6 +70,12 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
         return None, "empty_name"
 
     # 1️⃣ Exact Item Name
+    # Try exact match against the raw name first (preserves casing/punctuation)
+    product = Product.objects.filter(name__iexact=raw_name).first()
+    if product:
+        log(f"Exact match for '{raw_name}'")
+        return product, "exact"
+
     product = Product.objects.filter(name__iexact=_normalize_name(item_name)).first()
     if product:
         log(f"Exact match for '{core_name}' ({descriptors})")
@@ -125,9 +131,17 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
     base_matches = list(base_products.filter(name__icontains=core_name))
 
     if base_matches:
-        product = min(base_matches, key=lambda p: len(p.name))
+        product = min(base_matches, key=lambda p: len(_normalize_name(p.name)))
         log(f"Base fallback → '{product.name}' ({descriptors})")
         return product, "base_fallback"
+
+    # 5️⃣ General partial fallback – pick the shortest name containing the core token
+    if core_name:
+        general_matches = list(Product.objects.filter(name__icontains=core_name))
+        if general_matches:
+            product = min(general_matches, key=lambda p: len(_normalize_name(p.name)))
+            log(f"Partial core fallback → '{product.name}' ({descriptors})")
+            return product, "partial_core"
 
     # 5️⃣ Unmapped
     log(f"No match for '{core_name}' ({descriptors})")

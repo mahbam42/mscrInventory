@@ -159,6 +159,28 @@ def test_size_modifier_not_ignored_when_rule_exists(ingredient_types):
 
 
 @pytest.mark.django_db
+def test_size_modifier_not_ignored_when_rule_exists(ingredient_types):
+    dark = Ingredient.objects.create(name="Dark Coldbrew", type=ingredient_types["COFFEE"])
+    medium = Ingredient.objects.create(name="Medium Coldbrew", type=ingredient_types["COFFEE"])
+    RecipeModifier.objects.create(
+        name="medium",
+        type="COFFEE",
+        behavior=ModifierBehavior.REPLACE,
+        ingredient=medium,
+        base_quantity=Decimal("22.0"),
+        unit="fl_oz",
+        target_selector={"by_name": ["Dark Coldbrew"]},
+    )
+
+    recipe_map = {"Dark Coldbrew": {"qty": Decimal("16.0"), "type": "COFFEE"}}
+    result, log = handle_extras("medium", recipe_map, [], recipe_context=list(recipe_map.keys()))
+
+    assert "Medium Coldbrew" in result
+    assert log["behavior"] == ModifierBehavior.REPLACE
+    assert ("Dark Coldbrew", "Medium Coldbrew") in log["replaced"]
+
+
+@pytest.mark.django_db
 def test_dirty_chai_replaces_and_adds(ingredient_types):
     milk = Ingredient.objects.create(name="Whole Milk", type=ingredient_types["MILK"])
     chai = Ingredient.objects.create(name="Chai Milk Blend", type=ingredient_types["MILK"])
@@ -273,10 +295,11 @@ def test_handle_extras_with_invalid_json(ingredient_types):
 
     recipe_map = {"Whole Milk": {"qty": Decimal("8.0"), "type": "MILK"}}
     try:
-        result = handle_extras("Bad Modifier", recipe_map, [])
+        result, log = handle_extras("Bad Modifier", recipe_map, [])
     except Exception as e:
         print("⚠️ handle_extras raised an exception:", e)
-        result = {}
+        result, log = {}, {}
 
-    # Should not crash and should always return a dict
+    # Should not crash and should always return a dict + changelog
     assert isinstance(result, dict)
+    assert isinstance(log, dict)

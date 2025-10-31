@@ -84,8 +84,13 @@ class SquareImporter:
             normalized_item = _normalize_name(item_name)
             core_name, descriptors = _extract_descriptors(normalized_item)
 
-            # Combine modifiers + descriptors
-            all_modifiers = list(set(normalized_modifiers + descriptors))
+            # Combine modifiers + descriptors (preserve order while de-duping)
+            seen = set()
+            all_modifiers = []
+            for token in normalized_modifiers + descriptors:
+                if token not in seen:
+                    seen.add(token)
+                    all_modifiers.append(token)
 
             # Shows consistent context, even if the match fails or an exception occurs
             self.buffer.append(f"\nRow {self.stats['rows_processed']}:")
@@ -127,6 +132,9 @@ class SquareImporter:
                 self.buffer.append(f"🧩 Cached variant: {variant_name} ({'new' if created else 'updated'})")
 
             # --- Log or persist order items ---
+            reference_name = product.name if product else item_name
+            temp_type, size = infer_temp_and_size(reference_name, descriptors)
+
             if product:
                 unit = (gross_sales / max(qty, 1)) if qty else Decimal("0.00")
                 OrderItem.objects.create(
@@ -182,7 +190,6 @@ class SquareImporter:
 
                 recipe_items = product.recipe_items.select_related("ingredient").all()
 
-                temp_type, size = infer_temp_and_size(product.name, descriptors)
                 usage_summary = aggregate_ingredient_usage(
                     recipe_items, resolved_modifiers, temp_type=temp_type, size=size
                 )
@@ -237,8 +244,8 @@ class SquareImporter:
 
             # 🧮 Dry-run log
             if self.dry_run:
-                # self.buffer.append(f"→ {item_name or '(unnamed)'} ({price_point or '(no price point)'}) x{qty} @ {gross_sales}")
-                display_name = f"{product.name} ({size})"
+                base_name = (product.name if product else item_name) or "(unnamed)"
+                display_name = f"{base_name} ({size})" if size else base_name
                 self.buffer.append(f"→ {display_name} x{qty} @ {gross_sales}")
                 if descriptors:
                     variant_name = " ".join(descriptors)
