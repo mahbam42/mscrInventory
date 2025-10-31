@@ -1,12 +1,15 @@
 import json
 from decimal import Decimal, InvalidOperation
 
+from django.db import IntegrityError
+
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
+from django.template.response import TemplateResponse
 
 from collections import defaultdict
 
-from mscrInventory.models import Ingredient, IngredientType, RecipeModifier
+from mscrInventory.models import Ingredient, IngredientType, RecipeModifier, UnitType
 
 
 def _serialize_modifier(modifier):
@@ -88,7 +91,7 @@ def _group_ingredients_by_type(ingredients):
     return ordered
 
 
-def modifier_rules_modal(request):
+def _load_modifier_modal_data():
     modifiers = RecipeModifier.objects.prefetch_related("expands_to").order_by("type", "name")
     ingredients = (
         Ingredient.objects.select_related("type")
@@ -96,12 +99,44 @@ def modifier_rules_modal(request):
         .order_by("type__name", "name")
     )
     ingredient_types = IngredientType.objects.all().order_by("name")
+    unit_types = UnitType.objects.all().order_by("name")
 
     modifier_groups = _group_modifiers_by_type(modifiers)
     ingredient_groups = _group_ingredients_by_type(ingredients)
+    serialized = _modifier_payload(modifiers)
 
-    behavior_choices = RecipeModifier.ModifierBehavior.choices
+    return {
+        "modifiers": modifiers,
+        "ingredients": ingredients,
+        "ingredient_groups": ingredient_groups,
+        "ingredient_types": ingredient_types,
+        "modifier_data": serialized,
+        "modifier_json": json.dumps(serialized),
+        "behavior_choices": RecipeModifier.ModifierBehavior.choices,
+        "modifier_groups": modifier_groups,
+        "unit_types": unit_types,
+        "modifier_type_choices": RecipeModifier.MODIFIER_TYPES,
+    }
 
+
+def _render_modifier_modal(request, context_overrides=None, trigger=None):
+    context = _load_modifier_modal_data()
+    if context_overrides:
+        context.update(context_overrides)
+    context.setdefault("new_modifier_data", {})
+    context.setdefault("new_modifier_errors", {})
+    context.setdefault("new_modifier_open", False)
+    meta = {
+        "selected_id": context.get("selected_modifier_id"),
+    }
+    context["modifier_meta"] = json.dumps(meta)
+    response = TemplateResponse(request, "modifiers/rules_modal.html", context)
+    if trigger:
+        response["HX-Trigger"] = json.dumps(trigger)
+    return response
+
+
+def modifier_rules_modal(request):
     if request.method == "POST":
         modifier_id = request.POST.get("modifier_id")
         modifier = get_object_or_404(RecipeModifier, pk=modifier_id)
@@ -143,40 +178,130 @@ def modifier_rules_modal(request):
         modifier.save()
         modifier.expands_to.set(expands_to_ids)
 
-        modifiers = RecipeModifier.objects.prefetch_related("expands_to").order_by("type", "name")
-
-        trigger = {"showMessage": {"text": f"Updated rules for {modifier.name}.", "level": "success"}}
-
-        serialized = _modifier_payload(modifiers)
-        response = render(
+        trigger = {
+            "showMessage": {"text": f"Updated rules for {modifier.name}.", "level": "success"}
+        }
+        return _render_modifier_modal(
             request,
-            "modifiers/rules_modal.html",
-            {
-                "modifiers": modifiers,
-                "ingredients": ingredients,
-                "ingredient_groups": ingredient_groups,
-                "ingredient_types": ingredient_types,
-                "modifier_data": serialized,
-                "modifier_json": json.dumps(serialized),
-                "behavior_choices": behavior_choices,
-                "modifier_groups": modifier_groups,
+            context_overrides={"selected_modifier_id": modifier.id},
+            trigger=trigger,
+        )
+
+    return _render_modifier_modal(request)
+
+
+def create_modifier(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    name = (request.POST.get("create_name") or "").strip()
+    modifier_type = request.POST.get("create_type")
+    ingredient_id = request.POST.get("create_ingredient")
+    base_quantity_raw = request.POST.get("create_base_quantity")
+    unit_type_id = request.POST.get("create_unit")
+    cost_raw = request.POST.get("create_cost_per_unit")
+    price_raw = request.POST.get("create_price_per_unit")
+
+    errors = {}
+
+    if not name:
+        errors["name"] = "Name is required."
+
+    if not modifier_type:
+        errors["type"] = "Type is required."
+
+    ingredient = None
+    if not ingredient_id:
+        errors["ingredient"] = "Ingredient is required."
+    else:
+        try:
+            ingredient = Ingredient.objects.get(pk=ingredient_id)
+        except Ingredient.DoesNotExist:
+            errors["ingredient"] = "Selected ingredient could not be found."
+
+    base_quantity = None
+    if not base_quantity_raw:
+        errors["base_quantity"] = "Base quantity is required."
+    else:
+        try:
+            base_quantity = Decimal(base_quantity_raw)
+        except (InvalidOperation, TypeError):
+            errors["base_quantity"] = "Enter a valid quantity."
+
+    unit_type = None
+    if not unit_type_id:
+        errors["unit"] = "Unit is required."
+    else:
+        try:
+            unit_type = UnitType.objects.get(pk=unit_type_id)
+        except UnitType.DoesNotExist:
+            errors["unit"] = "Selected unit is not available."
+
+    cost_per_unit = Decimal("0.00")
+    if cost_raw:
+        try:
+            cost_per_unit = Decimal(cost_raw)
+        except (InvalidOperation, TypeError):
+            errors["cost_per_unit"] = "Enter a valid cost."
+
+    price_per_unit = Decimal("0.00")
+    if price_raw:
+        try:
+            price_per_unit = Decimal(price_raw)
+        except (InvalidOperation, TypeError):
+            errors["price_per_unit"] = "Enter a valid price."
+
+    initial_data = {
+        "name": name,
+        "type": modifier_type,
+        "ingredient": ingredient_id,
+        "base_quantity": base_quantity_raw,
+        "unit": unit_type_id,
+        "cost_per_unit": cost_raw,
+        "price_per_unit": price_raw,
+    }
+
+    if errors:
+        return _render_modifier_modal(
+            request,
+            context_overrides={
+                "new_modifier_errors": errors,
+                "new_modifier_data": initial_data,
+                "new_modifier_open": True,
             },
         )
-        response["HX-Trigger"] = json.dumps(trigger)
-        return response
 
-    serialized = _modifier_payload(modifiers)
-    context = {
-        "modifiers": modifiers,
-        "ingredients": ingredients,
-        "ingredient_groups": ingredient_groups,
-        "ingredient_types": ingredient_types,
-        "modifier_data": serialized,
-        "modifier_json": json.dumps(serialized),
-        "behavior_choices": behavior_choices,
-        "modifier_groups": modifier_groups,
+    try:
+        modifier = RecipeModifier.objects.create(
+            name=name,
+            type=modifier_type,
+            ingredient=ingredient,
+            base_quantity=base_quantity,
+            unit=unit_type.abbreviation or unit_type.name,
+            behavior=RecipeModifier.ModifierBehavior.ADD,
+            quantity_factor=Decimal("1.0"),
+            cost_per_unit=cost_per_unit,
+            price_per_unit=price_per_unit,
+        )
+    except IntegrityError:
+        errors["name"] = "A modifier with this name already exists."
+        return _render_modifier_modal(
+            request,
+            context_overrides={
+                "new_modifier_errors": errors,
+                "new_modifier_data": initial_data,
+                "new_modifier_open": True,
+            },
+        )
+
+    trigger = {
+        "showMessage": {"text": f"Created modifier {modifier.name}.", "level": "success"}
     }
-    return render(request, "modifiers/rules_modal.html", context)
+    return _render_modifier_modal(
+        request,
+        context_overrides={"selected_modifier_id": modifier.id},
+        trigger=trigger,
+    )
 
 def edit_modifier_extra_view(request, modifier_id):
     modifier = get_object_or_404(RecipeModifier, pk=modifier_id)

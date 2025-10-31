@@ -8,6 +8,7 @@ from tests.factories import (
     IngredientFactory,
     IngredientTypeFactory,
     RecipeModifierFactory,
+    UnitTypeFactory,
 )
 
 
@@ -51,3 +52,35 @@ def test_modifier_rules_modal_updates_modifier(client):
     }
     assert modifier.replaces == {"to": [["Oat Milk", 1.0]]}
     assert list(modifier.expands_to.values_list("id", flat=True)) == [other_modifier.id]
+
+
+@pytest.mark.django_db
+def test_create_modifier_from_modal(client):
+    unit = UnitTypeFactory(name="Ounce", abbreviation="oz")
+    ingredient = IngredientFactory()
+
+    url = reverse("create_modifier")
+    payload = {
+        "create_name": "House Special",
+        "create_type": "EXTRA",
+        "create_ingredient": str(ingredient.id),
+        "create_base_quantity": "1.25",
+        "create_unit": str(unit.id),
+        "create_cost_per_unit": "0.55",
+        "create_price_per_unit": "1.25",
+    }
+
+    response = client.post(url, data=payload, HTTP_HX_REQUEST="true")
+
+    assert response.status_code == 200
+    trigger_header = response.headers.get("HX-Trigger", "")
+    assert "Created modifier House Special" in trigger_header
+
+    modifier = RecipeModifier.objects.get(name="House Special")
+    assert modifier.type == "EXTRA"
+    assert modifier.ingredient == ingredient
+    assert modifier.base_quantity == Decimal("1.25")
+    assert modifier.unit == "oz"
+    assert modifier.cost_per_unit == Decimal("0.55")
+    assert modifier.price_per_unit == Decimal("1.25")
+    assert response.context_data["selected_modifier_id"] == modifier.id

@@ -3,56 +3,212 @@
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 
-<form id="modifier-rules-form"
-      hx-post="{% url 'modifier_rules_modal' %}"
-      hx-target="#globalModal .modal-content"
-      hx-swap="outerHTML">
-  {% csrf_token %}
-  <div class="modal-body">
-    <div class="row g-3 align-items-start">
-      <div class="col-lg-4">
-        <label for="modifier-select" class="form-label">Modifier</label>
-        <div class="bubble-select" data-bubble-root>
-          <div class="input-group input-group-sm mb-2">
-            <span class="input-group-text">🔍</span>
-            <input type="text" class="form-control" data-bubble-search-input placeholder="Search modifiers…">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear modifier search">✕</button>
+<div class="modal-body">
+  <style>
+    #globalModal .tall-select {
+      min-height: 7em;
+    }
+
+    #globalModal .placeholder-option,
+    #globalModal .form-select optgroup {
+      font-size: smaller;
+    }
+  </style>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div class="fw-semibold text-muted small">Manage modifier behaviors, targets, replacements, and expansions.</div>
+    <button class="btn btn-outline-primary btn-sm"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#create-modifier-section"
+            aria-expanded="{{ new_modifier_open|yesno:'true,false' }}"
+            aria-controls="create-modifier-section">
+      ➕ Create New Modifier
+    </button>
+  </div>
+
+  <div class="collapse {% if new_modifier_open %}show{% endif %}" id="create-modifier-section">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <form id="create-modifier-form"
+              class="row g-3"
+              hx-post="{% url 'create_modifier' %}"
+              hx-target="#globalModal .modal-content"
+              hx-swap="outerHTML">
+          {% csrf_token %}
+          <div class="col-md-4">
+            <label for="create-modifier-name" class="form-label">Name<span class="text-danger">*</span></label>
+            <input type="text"
+                   class="form-control{% if new_modifier_errors.name %} is-invalid{% endif %}"
+                   id="create-modifier-name"
+                   name="create_name"
+                   value="{{ new_modifier_data.name|default:'' }}"
+                   placeholder="e.g. Oat Milk">
+            {% if new_modifier_errors.name %}
+            <div class="invalid-feedback">{{ new_modifier_errors.name }}</div>
+            {% endif %}
           </div>
-          <select class="form-select" id="modifier-select" required size="10">
-            <option value="" disabled selected>-- Select Modifier --</option>
-            {% for group in modifier_groups %}
-            <optgroup label="{{ group.label }}">
-              {% for modifier in group.modifiers %}
-              <option value="{{ modifier.id }}" data-type="{{ group.code }}">{{ modifier.name }}</option>
-              {% endfor %}
-            </optgroup>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-text">Pick a modifier to edit its behavior, targets, and expansions.</div>
-      </div>
-      <div class="col-lg-8">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label for="behavior-select" class="form-label">Behavior</label>
-            <select class="form-select" id="behavior-select" name="behavior">
-              {% for value, label in behavior_choices %}
-              <option value="{{ value }}">{{ label }}</option>
+          <div class="col-md-4">
+            <label for="create-modifier-type" class="form-label">Type<span class="text-danger">*</span></label>
+            <select class="form-select tall-select{% if new_modifier_errors.type %} is-invalid{% endif %}"
+                    id="create-modifier-type"
+                    name="create_type">
+              <option value="" class="placeholder-option" {% if not new_modifier_data.type %}selected{% endif %} disabled>-- Select Type --</option>
+              {% for value, label in modifier_type_choices %}
+              <option value="{{ value }}" {% if new_modifier_data.type == value %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
+            {% if new_modifier_errors.type %}
+            <div class="invalid-feedback">{{ new_modifier_errors.type }}</div>
+            {% endif %}
           </div>
-          <div class="col-md-6">
-            <label for="quantity-factor" class="form-label">Quantity Factor</label>
-            <input type="number" step="0.01" min="0" class="form-control" id="quantity-factor" name="quantity_factor" placeholder="1.00">
-            <div class="form-text">Multiplier used for SCALE/ADD behaviors.</div>
+          <div class="col-md-4">
+            <label for="create-modifier-ingredient" class="form-label">Ingredient<span class="text-danger">*</span></label>
+            <select class="form-select tall-select{% if new_modifier_errors.ingredient %} is-invalid{% endif %}"
+                    id="create-modifier-ingredient"
+                    name="create_ingredient">
+              <option value="" class="placeholder-option" {% if not new_modifier_data.ingredient %}selected{% endif %} disabled>-- Select Ingredient --</option>
+              {% for ingredient in ingredients %}
+              <option value="{{ ingredient.id }}" {% if new_modifier_data.ingredient == ingredient.id|stringformat:'s' %}selected{% endif %}>
+                {{ ingredient.name }}{% if ingredient.type %} ({{ ingredient.type.name }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            {% if new_modifier_errors.ingredient %}
+            <div class="invalid-feedback">{{ new_modifier_errors.ingredient }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-3">
+            <label for="create-modifier-base-quantity" class="form-label">Base Quantity<span class="text-danger">*</span></label>
+            <input type="number"
+                   step="0.01"
+                   min="0"
+                   class="form-control{% if new_modifier_errors.base_quantity %} is-invalid{% endif %}"
+                   id="create-modifier-base-quantity"
+                   name="create_base_quantity"
+                   value="{{ new_modifier_data.base_quantity|default:'' }}">
+            {% if new_modifier_errors.base_quantity %}
+            <div class="invalid-feedback">{{ new_modifier_errors.base_quantity }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-3">
+            <label for="create-modifier-unit" class="form-label">Unit<span class="text-danger">*</span></label>
+            <select class="form-select tall-select{% if new_modifier_errors.unit %} is-invalid{% endif %}"
+                    id="create-modifier-unit"
+                    name="create_unit">
+              <option value="" class="placeholder-option" {% if not new_modifier_data.unit %}selected{% endif %} disabled>-- Select Unit --</option>
+              {% for unit_type in unit_types %}
+              <option value="{{ unit_type.id }}" {% if new_modifier_data.unit == unit_type.id|stringformat:'s' %}selected{% endif %}>
+                {{ unit_type.name }}{% if unit_type.abbreviation %} ({{ unit_type.abbreviation }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            {% if new_modifier_errors.unit %}
+            <div class="invalid-feedback">{{ new_modifier_errors.unit }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-3">
+            <label for="create-modifier-cost" class="form-label">Cost per Unit</label>
+            <input type="number"
+                   step="0.01"
+                   min="0"
+                   class="form-control{% if new_modifier_errors.cost_per_unit %} is-invalid{% endif %}"
+                   id="create-modifier-cost"
+                   name="create_cost_per_unit"
+                   value="{{ new_modifier_data.cost_per_unit|default:'' }}">
+            {% if new_modifier_errors.cost_per_unit %}
+            <div class="invalid-feedback">{{ new_modifier_errors.cost_per_unit }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-3">
+            <label for="create-modifier-price" class="form-label">Price per Unit</label>
+            <input type="number"
+                   step="0.01"
+                   min="0"
+                   class="form-control{% if new_modifier_errors.price_per_unit %} is-invalid{% endif %}"
+                   id="create-modifier-price"
+                   name="create_price_per_unit"
+                   value="{{ new_modifier_data.price_per_unit|default:'' }}">
+            {% if new_modifier_errors.price_per_unit %}
+            <div class="invalid-feedback">{{ new_modifier_errors.price_per_unit }}</div>
+            {% endif %}
+          </div>
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#create-modifier-section"
+                    aria-controls="create-modifier-section">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Create Modifier</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <form id="modifier-rules-form"
+        hx-post="{% url 'modifier_rules_modal' %}"
+        hx-target="#globalModal .modal-content"
+        hx-swap="outerHTML">
+    {% csrf_token %}
+
+    <div class="accordion" id="modifier-rules-accordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="modifier-basics-heading">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#modifier-basics" aria-expanded="true" aria-controls="modifier-basics">
+            Modifier, Behavior &amp; Scale
+          </button>
+        </h2>
+        <div id="modifier-basics" class="accordion-collapse collapse show" aria-labelledby="modifier-basics-heading">
+          <div class="accordion-body">
+            <div class="row g-3 align-items-start">
+              <div class="col-lg-4">
+                <label for="modifier-select" class="form-label">Modifier</label>
+                <div class="bubble-select" data-bubble-root>
+                  <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text">🔍</span>
+                    <input type="text" class="form-control" data-bubble-search-input placeholder="Search modifiers…">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear modifier search">✕</button>
+                  </div>
+                  <select class="form-select tall-select" id="modifier-select" required size="10">
+                    <option value="" class="placeholder-option" disabled selected>-- Select Modifier --</option>
+                    {% for group in modifier_groups %}
+                    <optgroup label="{{ group.label }}">
+                      {% for modifier in group.modifiers %}
+                      <option value="{{ modifier.id }}" data-type="{{ group.code }}">{{ modifier.name }}</option>
+                      {% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="form-text">Pick a modifier to edit its behavior, targets, and expansions.</div>
+              </div>
+              <div class="col-lg-8">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="behavior-select" class="form-label">Behavior</label>
+                    <select class="form-select" id="behavior-select" name="behavior">
+                      {% for value, label in behavior_choices %}
+                      <option value="{{ value }}">{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="quantity-factor" class="form-label">Quantity Factor</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="quantity-factor" name="quantity_factor" placeholder="1.00">
+                    <div class="form-text">Multiplier used for SCALE/ADD behaviors.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="accordion mt-4" id="modifier-rules-accordion">
       <div class="accordion-item">
-      <h2 class="accordion-header" id="target-rules-heading">
+        <h2 class="accordion-header" id="target-rules-heading">
           <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#target-rules" aria-expanded="false" aria-controls="target-rules">
             Target Rules
           </button>
@@ -68,7 +224,7 @@
                     <input type="text" class="form-control" data-bubble-search-input placeholder="Search types…">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear type search">✕</button>
                   </div>
-                  <select class="form-select" id="target-by-type" name="target_by_type" multiple size="6">
+                  <select class="form-select tall-select" id="target-by-type" name="target_by_type" multiple size="6">
                     {% for ing_type in ingredient_types %}
                     <option value="{{ ing_type.name }}">{{ ing_type.name }}</option>
                     {% endfor %}
@@ -84,7 +240,7 @@
                     <input type="text" class="form-control" data-bubble-search-input placeholder="Search ingredients…">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear ingredient search">✕</button>
                   </div>
-                  <select class="form-select" id="target-by-name" name="target_by_name" multiple size="6">
+                  <select class="form-select tall-select" id="target-by-name" name="target_by_name" multiple size="6">
                     {% for group in ingredient_groups %}
                     <optgroup label="{{ group.label }}">
                       {% for ingredient in group.ingredients %}
@@ -115,26 +271,34 @@
           </div>
         </div>
       </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="expands-to-heading">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#expands-to" aria-expanded="false" aria-controls="expands-to">
+            Expands To
+          </button>
+        </h2>
+        <div id="expands-to" class="accordion-collapse collapse" aria-labelledby="expands-to-heading">
+          <div class="accordion-body">
+            <select class="form-select tall-select" id="expands-to-select" name="expands_to" multiple size="8">
+              {% for modifier in modifiers %}
+              <option value="{{ modifier.id }}">{{ modifier.name }} ({{ modifier.get_type_display }})</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Choose additional modifiers that this rule expands into.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <hr class="my-4">
-
-    <h6 class="mb-2">Expands To</h6>
-    <select class="form-select" id="expands-to-select" name="expands_to" multiple size="8">
-      {% for modifier in modifiers %}
-      <option value="{{ modifier.id }}">{{ modifier.name }} ({{ modifier.get_type_display }})</option>
-      {% endfor %}
-    </select>
-    <div class="form-text">Choose additional modifiers that this rule expands into.</div>
-
-  </div>
-
-  <div class="modal-footer">
     <input type="hidden" name="modifier_id" id="modifier-id-field">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="submit" class="btn btn-primary" id="save-modifier-rules" disabled>Save Rules</button>
-  </div>
-</form>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+  <button type="submit" class="btn btn-primary" id="save-modifier-rules" form="modifier-rules-form" disabled>Save Rules</button>
+</div>
 
 <template id="replacement-row-template">
   <div class="row g-2 align-items-start replacement-row mb-3">
@@ -145,8 +309,8 @@
           <input type="text" class="form-control" data-bubble-search-input placeholder="Search replacements…">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear replacement search">✕</button>
         </div>
-        <select class="form-select form-select-sm replacement-select" name="replacement_name" size="6">
-          <option value="">-- Select Ingredient --</option>
+        <select class="form-select form-select-sm tall-select replacement-select" name="replacement_name" size="6">
+          <option value="" class="placeholder-option">-- Select Ingredient --</option>
           {% for group in ingredient_groups %}
           <optgroup label="{{ group.label }}">
             {% for ingredient in group.ingredients %}
@@ -168,6 +332,7 @@
 </template>
 
 <script id="modifier-rules-data" type="application/json">{{ modifier_json|safe }}</script>
+<script id="modifier-rules-meta" type="application/json">{{ modifier_meta|default:'{}'|safe }}</script>
 
 <script>
   (function () {
@@ -304,11 +469,16 @@
     if (!rawData) return;
     const modifierData = JSON.parse(rawData.textContent);
 
+    const metaTag = document.getElementById('modifier-rules-meta');
+    const meta = metaTag ? JSON.parse(metaTag.textContent || '{}') : {};
+    const preselectedId = meta.selected_id ? String(meta.selected_id) : null;
+
     function findModifier(id) {
       return modifierData.find((item) => String(item.id) === String(id));
     }
 
     function populateTarget(selectEl, values) {
+      if (!selectEl) return;
       const set = new Set(values || []);
       Array.from(selectEl.options).forEach(opt => {
         opt.selected = set.has(opt.value);
@@ -358,6 +528,7 @@
     }
 
     function populateExpandsTo(values, currentId) {
+      if (!expandSelect) return;
       const selected = new Set((values || []).map(String));
       Array.from(expandSelect.options).forEach(opt => {
         opt.selected = selected.has(opt.value);
@@ -367,7 +538,11 @@
 
     function populateForm(id) {
       const modifier = findModifier(id);
-      if (!modifier) return;
+      if (!modifier) {
+        modifierIdField.value = '';
+        saveButton.disabled = true;
+        return;
+      }
       modifierIdField.value = modifier.id;
       behaviorSelect.value = modifier.behavior;
       quantityFactorInput.value = modifier.quantity_factor || '';
@@ -390,7 +565,14 @@
     }
 
     modifierSelect?.addEventListener('change', (event) => {
-      populateForm(event.target.value);
+      const value = event.target.value;
+      if (value) {
+        populateForm(value);
+      } else {
+        modifierIdField.value = '';
+        saveButton.disabled = true;
+        clearReplacementRows();
+      }
     });
 
     addReplacementBtn?.addEventListener('click', () => {
@@ -406,12 +588,17 @@
 
     targetByType?.addEventListener('change', applyReplacementTypeFilter);
 
-    // Auto-load first modifier if present
-    if (modifierSelect && modifierSelect.options.length > 1) {
-      const firstValue = modifierSelect.options[1].value;
-      modifierSelect.value = firstValue;
-      populateForm(firstValue);
+    if (modifierSelect) {
+      if (preselectedId && findModifier(preselectedId)) {
+        modifierSelect.value = preselectedId;
+        populateForm(preselectedId);
+      } else if (modifierSelect.options.length > 1) {
+        const firstValue = modifierSelect.options[1].value;
+        modifierSelect.value = firstValue;
+        populateForm(firstValue);
+      } else {
+        saveButton.disabled = true;
+      }
     }
   })();
 </script>
-

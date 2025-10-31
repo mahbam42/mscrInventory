@@ -5,12 +5,20 @@ from mscrInventory.models import (
     Product,
     RecipeItem,
     RecipeModifier,
+    UnitType,
 )
 
 class IngredientTypeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = IngredientType
     name = factory.Sequence(lambda n: f"Type {n}")
+
+class UnitTypeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = UnitType
+
+    name = factory.Sequence(lambda n: f"Unit {n}")
+    abbreviation = factory.Sequence(lambda n: f"U{n}")
 
 class IngredientFactory(factory.django.DjangoModelFactory):
     class Meta:
