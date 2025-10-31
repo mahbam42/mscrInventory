@@ -9,15 +9,26 @@
       hx-swap="outerHTML">
   {% csrf_token %}
   <div class="modal-body">
-    <div class="row g-3">
+    <div class="row g-3 align-items-start">
       <div class="col-lg-4">
         <label for="modifier-select" class="form-label">Modifier</label>
-        <select class="form-select" id="modifier-select" required>
-          <option value="" disabled selected>-- Select Modifier --</option>
-          {% for modifier in modifiers %}
-          <option value="{{ modifier.id }}">{{ modifier.name }} ({{ modifier.get_type_display }})</option>
-          {% endfor %}
-        </select>
+        <div class="bubble-select" data-bubble-root>
+          <div class="input-group input-group-sm mb-2">
+            <span class="input-group-text">🔍</span>
+            <input type="text" class="form-control" data-bubble-search-input placeholder="Search modifiers…">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear modifier search">✕</button>
+          </div>
+          <select class="form-select" id="modifier-select" required size="10">
+            <option value="" disabled selected>-- Select Modifier --</option>
+            {% for group in modifier_groups %}
+            <optgroup label="{{ group.label }}">
+              {% for modifier in group.modifiers %}
+              <option value="{{ modifier.id }}" data-type="{{ group.code }}">{{ modifier.name }}</option>
+              {% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+        </div>
         <div class="form-text">Pick a modifier to edit its behavior, targets, and expansions.</div>
       </div>
       <div class="col-lg-8">
@@ -39,42 +50,72 @@
       </div>
     </div>
 
-    <hr class="my-4">
-
-    <h6 class="mb-2">Target Rules</h6>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label for="target-by-type" class="form-label">By Ingredient Type</label>
-        <select class="form-select" id="target-by-type" name="target_by_type" multiple size="6">
-          {% for ing_type in ingredient_types %}
-          <option value="{{ ing_type.name }}">{{ ing_type.name }}</option>
-          {% endfor %}
-        </select>
-        <div class="form-text">Modifiers will apply to ingredients that match these types.</div>
+    <div class="accordion mt-4" id="modifier-rules-accordion">
+      <div class="accordion-item">
+      <h2 class="accordion-header" id="target-rules-heading">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#target-rules" aria-expanded="false" aria-controls="target-rules">
+            Target Rules
+          </button>
+        </h2>
+        <div id="target-rules" class="accordion-collapse collapse" aria-labelledby="target-rules-heading">
+          <div class="accordion-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="target-by-type" class="form-label">By Ingredient Type</label>
+                <div class="bubble-select" data-bubble-root>
+                  <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text">🔍</span>
+                    <input type="text" class="form-control" data-bubble-search-input placeholder="Search types…">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear type search">✕</button>
+                  </div>
+                  <select class="form-select" id="target-by-type" name="target_by_type" multiple size="6">
+                    {% for ing_type in ingredient_types %}
+                    <option value="{{ ing_type.name }}">{{ ing_type.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="form-text">Modifiers apply to ingredients that match these types.</div>
+              </div>
+              <div class="col-md-6">
+                <label for="target-by-name" class="form-label">By Ingredient Name</label>
+                <div class="bubble-select" data-bubble-root>
+                  <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text">🔍</span>
+                    <input type="text" class="form-control" data-bubble-search-input placeholder="Search ingredients…">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear ingredient search">✕</button>
+                  </div>
+                  <select class="form-select" id="target-by-name" name="target_by_name" multiple size="6">
+                    {% for group in ingredient_groups %}
+                    <optgroup label="{{ group.label }}">
+                      {% for ingredient in group.ingredients %}
+                      <option value="{{ ingredient.name }}" data-type="{{ group.code }}">{{ ingredient.name }}</option>
+                      {% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="form-text">Use when only specific ingredients should be affected.</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="col-md-6">
-        <label for="target-by-name" class="form-label">By Ingredient Name</label>
-        <select class="form-select" id="target-by-name" name="target_by_name" multiple size="6">
-          {% for ingredient in ingredients %}
-          <option value="{{ ingredient.name }}">{{ ingredient.name }}</option>
-          {% endfor %}
-        </select>
-        <div class="form-text">Use when only specific ingredients should be affected.</div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="replacement-mapping-heading">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#replacement-mapping" aria-expanded="false" aria-controls="replacement-mapping">
+            Replacement Mapping
+          </button>
+        </h2>
+        <div id="replacement-mapping" class="accordion-collapse collapse" aria-labelledby="replacement-mapping-heading">
+          <div class="accordion-body">
+            <div id="replacement-container"></div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="add-replacement-row">Add Replacement</button>
+            <div class="form-text mt-2">Only used for REPLACE behavior. Define the ingredient and quantity that should replace the original.</div>
+          </div>
+        </div>
       </div>
     </div>
-
-    <hr class="my-4">
-
-    <h6 class="mb-2">Replacement Mapping</h6>
-    <div id="replacement-container"></div>
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="add-replacement-row">Add Replacement</button>
-    <div class="form-text mt-2">Only used for REPLACE behavior. Define the ingredient name and quantity that should replace the original.</div>
-
-    <datalist id="ingredient-name-options">
-      {% for ingredient in ingredients %}
-      <option value="{{ ingredient.name }}"></option>
-      {% endfor %}
-    </datalist>
 
     <hr class="my-4">
 
@@ -95,10 +136,45 @@
   </div>
 </form>
 
+<template id="replacement-row-template">
+  <div class="row g-2 align-items-start replacement-row mb-3">
+    <div class="col">
+      <div class="bubble-select" data-bubble-root>
+        <div class="input-group input-group-sm mb-2">
+          <span class="input-group-text">🔍</span>
+          <input type="text" class="form-control" data-bubble-search-input placeholder="Search replacements…">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear replacement search">✕</button>
+        </div>
+        <select class="form-select form-select-sm replacement-select" name="replacement_name" size="6">
+          <option value="">-- Select Ingredient --</option>
+          {% for group in ingredient_groups %}
+          <optgroup label="{{ group.label }}">
+            {% for ingredient in group.ingredients %}
+            <option value="{{ ingredient.name }}" data-type="{{ group.code }}">{{ ingredient.name }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="col-3">
+      <label class="visually-hidden">Quantity</label>
+      <input type="number" step="0.01" class="form-control form-control-sm replacement-qty" name="replacement_qty" placeholder="Qty">
+    </div>
+    <div class="col-auto align-self-center">
+      <button type="button" class="btn btn-outline-danger btn-sm remove-replacement" aria-label="Remove replacement">✕</button>
+    </div>
+  </div>
+</template>
+
 <script id="modifier-rules-data" type="application/json">{{ modifier_json|safe }}</script>
 
 <script>
   (function () {
+    const globalModal = document.getElementById('globalModal');
+    const dialog = globalModal?.querySelector('.modal-dialog');
+    dialog?.classList.add('modal-xl', 'modal-dialog-scrollable');
+
     const modifierSelect = document.getElementById('modifier-select');
     const modifierIdField = document.getElementById('modifier-id-field');
     const behaviorSelect = document.getElementById('behavior-select');
@@ -109,6 +185,120 @@
     const addReplacementBtn = document.getElementById('add-replacement-row');
     const expandSelect = document.getElementById('expands-to-select');
     const saveButton = document.getElementById('save-modifier-rules');
+    const replacementTemplate = document.getElementById('replacement-row-template');
+
+    const bubbleHandlers = [];
+
+    function setupBubbleSearch(root) {
+      if (!root || root.dataset.bubbleReady === 'true') return;
+      const select = root.querySelector('select');
+      const searchInput = root.querySelector('[data-bubble-search-input]');
+      const clearBtn = root.querySelector('[data-bubble-search-clear]');
+      if (!select || !searchInput) return;
+
+      root.dataset.bubbleReady = 'true';
+
+      function getOptions() {
+        return Array.from(select.querySelectorAll('option'));
+      }
+
+      function getGroups() {
+        return Array.from(select.querySelectorAll('optgroup'));
+      }
+
+      function ensureMeta() {
+        getOptions().forEach((opt, idx) => {
+          if (!opt.dataset.originalIndex) opt.dataset.originalIndex = idx;
+          if (!opt.dataset.hiddenByType) opt.dataset.hiddenByType = 'false';
+          if (!opt.dataset.hiddenBySearch) opt.dataset.hiddenBySearch = 'false';
+        });
+      }
+
+      function updateVisibility(opt) {
+        const hidden = opt.dataset.hiddenByType === 'true' || opt.dataset.hiddenBySearch === 'true';
+        opt.hidden = hidden;
+      }
+
+      function updateGroupVisibility() {
+        getGroups().forEach(group => {
+          const hasVisible = Array.from(group.querySelectorAll('option')).some(opt => !opt.hidden);
+          group.hidden = !hasVisible;
+        });
+      }
+
+      function restoreOrder() {
+        const groups = getGroups();
+        if (groups.length) {
+          groups.forEach(group => {
+            const options = Array.from(group.querySelectorAll('option'));
+            options
+              .sort((a, b) => Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex))
+              .forEach(opt => group.appendChild(opt));
+          });
+        } else {
+          Array.from(select.options)
+            .sort((a, b) => Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex))
+            .forEach(opt => select.appendChild(opt));
+        }
+      }
+
+      function applySearch() {
+        ensureMeta();
+        const term = searchInput.value.trim().toLowerCase();
+        if (!term) {
+          getOptions().forEach(opt => {
+            opt.dataset.hiddenBySearch = 'false';
+            updateVisibility(opt);
+          });
+          restoreOrder();
+          updateGroupVisibility();
+          return;
+        }
+
+        const groups = getGroups();
+        const processOptions = options => {
+          const matches = [];
+          options.forEach(opt => {
+            const text = opt.textContent.toLowerCase();
+            const idx = text.indexOf(term);
+            if (idx === -1) {
+              opt.dataset.hiddenBySearch = 'true';
+            } else {
+              opt.dataset.hiddenBySearch = 'false';
+              if (opt.dataset.hiddenByType !== 'true') {
+                matches.push({ opt, score: idx });
+              }
+            }
+            updateVisibility(opt);
+          });
+          matches.sort((a, b) => a.score - b.score);
+          matches.forEach(item => item.opt.parentElement.appendChild(item.opt));
+        };
+
+        if (groups.length) {
+          groups.forEach(group => processOptions(Array.from(group.querySelectorAll('option'))));
+        } else {
+          processOptions(Array.from(select.options));
+        }
+        updateGroupVisibility();
+      }
+
+      searchInput.addEventListener('input', applySearch);
+      clearBtn?.addEventListener('click', () => {
+        searchInput.value = '';
+        applySearch();
+      });
+
+      root.addEventListener('bubble:refresh', applySearch);
+      bubbleHandlers.push(applySearch);
+      applySearch();
+    }
+
+    function refreshBubbleSearch() {
+      bubbleHandlers.forEach(handler => handler());
+    }
+
+    document.querySelectorAll('[data-bubble-root]').forEach(setupBubbleSearch);
 
     const rawData = document.getElementById('modifier-rules-data');
     if (!rawData) return;
@@ -118,10 +308,6 @@
       return modifierData.find((item) => String(item.id) === String(id));
     }
 
-    function clearSelections(selectEl) {
-      Array.from(selectEl.options).forEach(opt => opt.selected = false);
-    }
-
     function populateTarget(selectEl, values) {
       const set = new Set(values || []);
       Array.from(selectEl.options).forEach(opt => {
@@ -129,26 +315,46 @@
       });
     }
 
-    function createReplacementRow(entry) {
-      const row = document.createElement('div');
-      row.className = 'row g-2 align-items-center replacement-row mb-2';
-      const nameValue = entry ? entry[0] : '';
-      const qtyValue = entry ? entry[1] : '';
-      row.innerHTML = `
-        <div class="col">
-          <input type="text" class="form-control form-control-sm" name="replacement_name" placeholder="Ingredient name" list="ingredient-name-options" value="${nameValue ?? ''}">
-        </div>
-        <div class="col-3">
-          <input type="number" step="0.01" class="form-control form-control-sm" name="replacement_qty" placeholder="Qty" value="${qtyValue ?? ''}">
-        </div>
-        <div class="col-auto">
-          <button type="button" class="btn btn-outline-danger btn-sm remove-replacement">✕</button>
-        </div>`;
-      replacementContainer.appendChild(row);
-    }
-
     function clearReplacementRows() {
       replacementContainer.innerHTML = '';
+    }
+
+    function applyReplacementTypeFilter() {
+      if (!targetByType) return;
+      const selectedTypes = new Set(Array.from(targetByType.selectedOptions).map(opt => opt.value));
+      const selects = replacementContainer.querySelectorAll('.replacement-select');
+      selects.forEach(select => {
+        Array.from(select.options).forEach(opt => {
+          if (opt.value === '') return;
+          const type = opt.dataset.type || '';
+          const allow = selectedTypes.size === 0 || selectedTypes.has(type);
+          opt.dataset.hiddenByType = allow ? 'false' : 'true';
+        });
+
+        const selected = select.selectedOptions[0];
+        if (selected && selected.dataset.hiddenByType === 'true') {
+          select.value = '';
+        }
+      });
+      refreshBubbleSearch();
+    }
+
+    function createReplacementRow(entry) {
+      if (!replacementTemplate) return;
+      const fragment = replacementTemplate.content.cloneNode(true);
+      replacementContainer.appendChild(fragment);
+      const createdRow = replacementContainer.lastElementChild;
+      const select = createdRow.querySelector('.replacement-select');
+      const qtyInput = createdRow.querySelector('.replacement-qty');
+      if (select && entry) {
+        select.value = entry[0] ?? '';
+      }
+      if (qtyInput && entry) {
+        qtyInput.value = entry[1] ?? '';
+      }
+      setupBubbleSearch(createdRow.querySelector('[data-bubble-root]'));
+      applyReplacementTypeFilter();
+      return createdRow;
     }
 
     function populateExpandsTo(values, currentId) {
@@ -179,6 +385,8 @@
 
       populateExpandsTo(modifier.expands_to, modifier.id);
       saveButton.disabled = false;
+      applyReplacementTypeFilter();
+      refreshBubbleSearch();
     }
 
     modifierSelect?.addEventListener('change', (event) => {
@@ -195,6 +403,8 @@
         row?.remove();
       }
     });
+
+    targetByType?.addEventListener('change', applyReplacementTypeFilter);
 
     // Auto-load first modifier if present
     if (modifierSelect && modifierSelect.options.length > 1) {
