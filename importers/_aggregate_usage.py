@@ -11,7 +11,7 @@ This version:
 
 from decimal import Decimal, ROUND_HALF_UP
 import re
-from mscrInventory.models import Ingredient, RecipeModifier
+from mscrInventory.models import Ingredient, RecipeModifier, ModifierBehavior
 
 def resolve_modifier_tree(modifier, depth=0, seen=None):
     """
@@ -126,14 +126,21 @@ def round_qty(value: Decimal, unit_type: str) -> Decimal:
 # ---------------------------------------------------------------------
 # Main aggregator
 # ---------------------------------------------------------------------
-def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
-                               temp_type: str | None = None,
-                               size: str | None = None):
+def aggregate_ingredient_usage(
+    recipe_items,
+    resolved_modifiers=None,
+    temp_type: str | None = None,
+    size: str | None = None,
+    overrides_map: dict[str, dict] | None = None,
+):
     """
     Aggregate all ingredient usage for a given product, scaled to size.
 
     - Base recipe quantities are scaled by get_scale().
     - Modifiers are added with estimated or defined quantities.
+    - Optional overrides_map lets callers provide the resolved recipe map after
+      handle_extras(), ensuring Barista's Choice expansions adjust the base
+      ingredient totals before rebalancing.
     - Total drink volume is normalized to cup size (so the main liquid fills the rest).
 
     Returns:
@@ -141,6 +148,25 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
     """
     scale_factor = get_scale(temp_type or "cold", size or "small")
     usage_summary = {}
+    primary_liquid_key: str | None = None
+    overrides_map = overrides_map or {}
+    ingredient_cache: dict[str, Ingredient | None] = {}
+
+    def _get_unit_type(name: str, fallback: str = "fluid_oz") -> str:
+        if name in usage_summary and "unit_type" in usage_summary[name]:
+            return usage_summary[name]["unit_type"]
+        if name in ingredient_cache:
+            ing = ingredient_cache[name]
+        else:
+            ing = (
+                Ingredient.objects.filter(name__iexact=name)
+                .select_related("type")
+                .first()
+            )
+            ingredient_cache[name] = ing
+        if ing and getattr(ing, "type", None) and getattr(ing.type, "unit_type", None):
+            return ing.type.unit_type
+        return fallback
 
     # --- Add cup as inventory item automatically -------------------------
     cup_name = get_default_cup(temp_type, size)
@@ -165,6 +191,53 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
             "sources": ["base_recipe"],
             "unit_type": unit_type,
         }
+        if unit_type != "unit":
+            if primary_liquid_key is None:
+                primary_liquid_key = ing.name
+            else:
+                current_qty = usage_summary[primary_liquid_key]["qty"]
+                if scaled_qty > current_qty:
+                    primary_liquid_key = ing.name
+
+    total_modifier_volume = Decimal("0.0")
+
+    # Apply any overrides from resolved recipe maps (e.g., Barista's Choice)
+    for name, meta in overrides_map.items():
+        qty = meta.get("qty")
+        if qty is None:
+            continue
+        try:
+            qty_value = Decimal(str(qty))
+        except Exception:
+            continue
+
+        existed_before = name in usage_summary
+        unit_type = usage_summary.get(name, {}).get("unit_type")
+        previous_qty = usage_summary.get(name, {}).get("qty") if existed_before else None
+
+        if not unit_type:
+            fallback_type = meta.get("type")
+            unit_type = _get_unit_type(name, "unit" if fallback_type == "UNIT" else "fluid_oz")
+
+        scaled_qty = round_qty(qty_value * scale_factor, unit_type)
+
+        changed = (not existed_before) or (previous_qty != scaled_qty)
+
+        if name in usage_summary:
+            if changed:
+                usage_summary[name]["qty"] = scaled_qty
+            if changed and "override_from_recipe" not in usage_summary[name]["sources"]:
+                usage_summary[name]["sources"].append("override_from_recipe")
+        else:
+            usage_summary[name] = {
+                "qty": scaled_qty,
+                "sources": ["override_from_recipe"],
+                "unit_type": unit_type,
+            }
+
+        if not existed_before and unit_type != "unit":
+            # New liquids from overrides contribute to total modifier volume.
+            total_modifier_volume += scaled_qty
 
     # --- Track total liquid capacity (estimated) ----------------------------
     cup_size_map = {
@@ -176,7 +249,7 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
     cup_capacity = Decimal(str(cup_size_map.get((temp_type, size), 16)))
 
     # --- Apply modifiers ----------------------------------------------------
-    total_modifier_volume = Decimal("0.0")
+    # resolved modifiers may continue adjusting liquid totals
     if resolved_modifiers:
         for mod in resolved_modifiers:
             ing = getattr(mod, "ingredient", None)
@@ -189,6 +262,37 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
             # Use base_quantity if defined, else default to 1 fl oz
             base_qty = getattr(mod, "base_quantity", Decimal("1.0"))
             qty = round_qty(base_qty * scale_factor, unit_type)
+
+            behavior = getattr(mod, "behavior", ModifierBehavior.ADD)
+
+            if behavior == ModifierBehavior.REPLACE:
+                existing_sources = usage_summary.get(name, {}).get("sources", [])
+                sources = list(dict.fromkeys(existing_sources + ["modifier_replace"]))
+                usage_summary[name] = {
+                    "qty": qty,
+                    "sources": sources or ["modifier_replace"],
+                    "unit_type": unit_type,
+                }
+                if unit_type != "unit":
+                    if primary_liquid_key is None:
+                        primary_liquid_key = name
+                    else:
+                        current = usage_summary.get(primary_liquid_key, {}).get("qty", Decimal("0.0"))
+                        if qty >= current:
+                            primary_liquid_key = name
+                continue
+
+            if behavior == ModifierBehavior.SCALE:
+                factor = getattr(mod, "quantity_factor", Decimal("1.0"))
+                target = name if name in usage_summary else None
+                if not target:
+                    target = ing.name if ing.name in usage_summary else None
+                if target:
+                    current_qty = usage_summary[target]["qty"]
+                    new_qty = round_qty(current_qty * factor, usage_summary[target]["unit_type"])
+                    usage_summary[target]["qty"] = new_qty
+                    usage_summary[target]["sources"].append("modifier_scale")
+                continue
 
             usage_summary[name] = usage_summary.get(
                 name, {"qty": Decimal("0.0"), "sources": [], "unit_type": unit_type}
@@ -203,9 +307,12 @@ def aggregate_ingredient_usage(recipe_items, resolved_modifiers=None,
     # Find main base liquid (typically something like 'Cold Brew', 'Espresso', 'Tea')
     main_liquid_key = None
     for k in usage_summary.keys():
-        if "brew" in k.lower() or "coffee" in k.lower() or "tea" in k.lower():
+        lower = k.lower()
+        if any(token in lower for token in ("brew", "coffee", "tea", "milk", "cream")):
             main_liquid_key = k
             break
+    if not main_liquid_key:
+        main_liquid_key = primary_liquid_key
 
     if main_liquid_key:
         remaining_volume = cup_capacity - total_modifier_volume

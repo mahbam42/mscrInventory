@@ -14,6 +14,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from django.db import transaction
+from django.db.models.functions import Length
 from mscrInventory.models import (
     Ingredient, Product, RecipeModifier,
     ProductVariantCache, Order, OrderItem
@@ -21,6 +22,65 @@ from mscrInventory.models import (
 from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
 from importers._handle_extras import handle_extras, normalize_modifier
 from importers._aggregate_usage import resolve_modifier_tree, aggregate_ingredient_usage, infer_temp_and_size
+
+
+def _build_recipe_map_from_product(product: Product | None):
+    if not product:
+        return {}
+    items = product.recipe_items.select_related("ingredient", "ingredient__type").all()
+    return {
+        ri.ingredient.name: {
+            "qty": ri.quantity,
+            "type": ri.ingredient.type.name if ri.ingredient.type else "",
+        }
+        for ri in items
+    }
+
+
+def _find_barista_base_product(product: Product | None) -> Product | None:
+    if not product:
+        return None
+
+    base_qs = Product.objects.filter(categories__name__iexact="base_item")
+    normalized = _normalize_name(product.name)
+    tokens = [t for t in normalized.split() if t]
+
+    for start in range(len(tokens)):
+        suffix = " ".join(tokens[start:])
+        if not suffix:
+            continue
+        candidate = (
+            base_qs.filter(name__icontains=suffix)
+            .order_by(Length("name"))
+            .first()
+        )
+        if candidate:
+            return candidate
+
+    keywords = [
+        "latte",
+        "mocha",
+        "americano",
+        "macchiato",
+        "cold brew",
+        "coldbrew",
+        "nitro",
+        "chai",
+        "cappuccino",
+        "frappe",
+        "smoothie",
+    ]
+    for keyword in keywords:
+        if keyword in normalized:
+            candidate = (
+                base_qs.filter(name__icontains=keyword)
+                .order_by(Length("name"))
+                .first()
+            )
+            if candidate:
+                return candidate
+
+    return None
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -149,16 +209,37 @@ class SquareImporter:
                 self.stats["added"] += 1
 
             # 🧩 Apply extras and modifiers (includes descriptors now)
-            recipe_map = {
-                ri.ingredient.name: {
-                    "qty": ri.quantity,
-                    "type": ri.ingredient.type.name if ri.ingredient.type else "",
-                }
-                for ri in product.recipe_items.select_related("ingredient", "ingredient__type").all()
-            } if product else {}
+            change_logs: list[dict] = []
+            recipe_map = {}
+            base_recipe_product = product
+
+            if product:
+                is_barista_choice = product.categories.filter(name__icontains="barista").exists()
+                if is_barista_choice:
+                    base_product = _find_barista_base_product(product)
+                    if base_product:
+                        base_recipe_product = base_product
+                        base_map = _build_recipe_map_from_product(base_product)
+                        recipe_map, barista_log = handle_extras(
+                            product.name,
+                            base_map,
+                            normalized_modifiers,
+                            recipe_context=list(base_map.keys()),
+                            verbose=self.dry_run,
+                        )
+                        if not recipe_map:
+                            recipe_map = base_map
+                        if barista_log:
+                            change_logs.append(barista_log)
+                            behavior = barista_log.get("behavior")
+                            if behavior not in (None, "ignored_variant"):
+                                self.stats["modifiers_applied"] += 1
+                    else:
+                        recipe_map = _build_recipe_map_from_product(product)
+                else:
+                    recipe_map = _build_recipe_map_from_product(product)
 
             current_recipe_map = recipe_map
-            change_logs: list[dict] = []
             for token in all_modifiers:
                 context_keys = list(current_recipe_map.keys())
                 result, change_log = handle_extras(
@@ -188,10 +269,15 @@ class SquareImporter:
                     if modifier:
                         resolved_modifiers += resolve_modifier_tree(modifier)
 
-                recipe_items = product.recipe_items.select_related("ingredient").all()
+                recipe_source = base_recipe_product if base_recipe_product else product
+                recipe_items = recipe_source.recipe_items.select_related("ingredient").all()
 
                 usage_summary = aggregate_ingredient_usage(
-                    recipe_items, resolved_modifiers, temp_type=temp_type, size=size
+                    recipe_items,
+                    resolved_modifiers,
+                    temp_type=temp_type,
+                    size=size,
+                    overrides_map=final_recipe_map,
                 )
 
                 replacements: list[tuple[str, str]] = []
