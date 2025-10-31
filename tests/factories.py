@@ -1,10 +1,24 @@
 import factory
-from mscrInventory.models import Product, Ingredient, RecipeItem, IngredientType
+from mscrInventory.models import (
+    Ingredient,
+    IngredientType,
+    Product,
+    RecipeItem,
+    RecipeModifier,
+    UnitType,
+)
 
 class IngredientTypeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = IngredientType
     name = factory.Sequence(lambda n: f"Type {n}")
+
+class UnitTypeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = UnitType
+
+    name = factory.Sequence(lambda n: f"Unit {n}")
+    abbreviation = factory.Sequence(lambda n: f"U{n}")
 
 class IngredientFactory(factory.django.DjangoModelFactory):
     class Meta:
@@ -25,3 +39,17 @@ class RecipeItemFactory(factory.django.DjangoModelFactory):
     product = factory.SubFactory(ProductFactory)
     ingredient = factory.SubFactory(IngredientFactory)
     quantity = 2.5
+
+
+class RecipeModifierFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = RecipeModifier
+
+    name = factory.Sequence(lambda n: f"Modifier {n}")
+    type = "MILK"
+    behavior = RecipeModifier.ModifierBehavior.ADD
+    ingredient = factory.SubFactory(IngredientFactory)
+    base_quantity = 1
+    unit = "oz"
+    cost_per_unit = 0
+    price_per_unit = 0
