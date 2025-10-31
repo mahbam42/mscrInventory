@@ -143,10 +143,6 @@ class SquareImporter:
             # --- Extract descriptors (size/temp adjectives) ---
             normalized_item = _normalize_name(item_name)
             core_name, descriptors = _extract_descriptors(normalized_item)
-            descriptor_tokens = list(descriptors)
-            for token in normalized_modifiers:
-                if token and token not in descriptor_tokens:
-                    descriptor_tokens.append(token)
 
             # Combine modifiers + descriptors (preserve order while de-duping)
             seen = set()
@@ -197,7 +193,7 @@ class SquareImporter:
 
             # --- Log or persist order items ---
             reference_name = product.name if product else item_name
-            temp_type, size = infer_temp_and_size(reference_name, descriptor_tokens)
+            temp_type, size = infer_temp_and_size(reference_name, descriptors)
 
             if product:
                 unit = (gross_sales / max(qty, 1)) if qty else Decimal("0.00")
@@ -213,37 +209,16 @@ class SquareImporter:
                 self.stats["added"] += 1
 
             # 🧩 Apply extras and modifiers (includes descriptors now)
-            change_logs: list[dict] = []
-            recipe_map = {}
-            base_recipe_product = product
-
-            if product:
-                is_barista_choice = product.categories.filter(name__icontains="barista").exists()
-                if is_barista_choice:
-                    base_product = _find_barista_base_product(product)
-                    if base_product:
-                        base_recipe_product = base_product
-                        base_map = _build_recipe_map_from_product(base_product)
-                        recipe_map, barista_log = handle_extras(
-                            product.name,
-                            base_map,
-                            normalized_modifiers,
-                            recipe_context=list(base_map.keys()),
-                            verbose=self.dry_run,
-                        )
-                        if not recipe_map:
-                            recipe_map = base_map
-                        if barista_log:
-                            change_logs.append(barista_log)
-                            behavior = barista_log.get("behavior")
-                            if behavior not in (None, "ignored_variant"):
-                                self.stats["modifiers_applied"] += 1
-                    else:
-                        recipe_map = _build_recipe_map_from_product(product)
-                else:
-                    recipe_map = _build_recipe_map_from_product(product)
+            recipe_map = {
+                ri.ingredient.name: {
+                    "qty": ri.quantity,
+                    "type": ri.ingredient.type.name if ri.ingredient.type else "",
+                }
+                for ri in product.recipe_items.select_related("ingredient", "ingredient__type").all()
+            } if product else {}
 
             current_recipe_map = recipe_map
+            change_logs: list[dict] = []
             for token in all_modifiers:
                 context_keys = list(current_recipe_map.keys())
                 result, change_log = handle_extras(

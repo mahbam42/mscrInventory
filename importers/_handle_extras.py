@@ -68,6 +68,12 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
         mod = RecipeModifier.objects.filter(name__icontains=token).first()
         if mod:
             return mod
+    # might not need 
+    recipe_item = RecipeItem.objects.filter(
+        ingredient__name__icontains=name_norm
+    ).select_related("ingredient").first()
+    # end block to cut
+
     # 1) Barista's Choice product recipes (named drinks)
     barista_category_filter = {"categories__name__icontains": "barista"}
     product_qs = Product.objects.filter(**barista_category_filter).prefetch_related(
@@ -86,10 +92,7 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
         product = product_qs.filter(name__icontains=name_norm).order_by("name").first()
     if product:
         return product
-
-    recipe_item = RecipeItem.objects.filter(
-        ingredient__name__icontains=name_norm
-    ).select_related("ingredient", "product").first()
+    # might not need below
     if recipe_item:
         return recipe_item
     return None
@@ -150,6 +153,7 @@ def handle_extras(modifier_name: str,
 
     target = _lookup_modifier_or_recipe(modifier_name)
     if not target:
+        # --- Ignore known size/temp tokens ------------------------------------
         IGNORED_TOKENS = {"iced", "ice", "hot", "small", "medium", "large", "xl"}
         if name_norm in IGNORED_TOKENS:
             if verbose:
