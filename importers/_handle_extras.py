@@ -10,7 +10,7 @@ Goals:
 """
 
 from decimal import Decimal
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, List, Optional, Iterable, Tuple
 from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior, Product
 import logging
 
@@ -110,25 +110,26 @@ def _expand_baristas_choice(product: Product,
     - Overrides duplicate ingredient quantities instead of adding.
     - Does not replace the base recipe.
     """
-    added = []
-    overridden = []
+    added: List[str] = []
+    overridden: List[Tuple[str, str]] = []
     for item in product.recipe_items.all():
         ing = item.ingredient
         ing_name = ing.name
         ing_type = ing.type.name if getattr(ing, "type", None) else ""
         qty = Decimal(item.quantity or 1)
-        if ing_name in recipe_map:
-            overridden.append(ing_name)
+        existed = ing_name in recipe_map
         recipe_map[ing_name] = {"qty": qty, "type": ing_type}
         if verbose:
-            status = "🔁 override" if ing_name in overridden else "➕ add"
+            status = "🔁 override" if existed else "➕ add"
             print(f"   {status}: {ing_name} ×{qty} (from {product.name})")
+        if existed:
+            overridden.append((ing_name, ing_name))
         added.append(ing_name)
     if verbose:
         print(f"🧩 Expanded from Barista's Choice recipe: {product.name}")
     return recipe_map, {
         "added": added,
-        "replaced": [(n, n) for n in overridden],
+        "replaced": overridden,
         "behavior": "expand_baristas_choice",
         "source_recipe": product.name,
     }
@@ -202,6 +203,8 @@ def handle_extras(modifier_name: str,
     behavior = getattr(mod, "behavior", ModifierBehavior.ADD)
     quantity_factor = getattr(mod, "quantity_factor", Decimal("1.0"))
     sel = getattr(mod, "target_selector", {}) or {}
+    if not isinstance(sel, dict):
+        sel = {}
     by_type = sel.get("by_type", [])
     by_name = sel.get("by_name", [])
 
@@ -227,8 +230,8 @@ def handle_extras(modifier_name: str,
 
     # --- REPLACE -----------------------------------------------------------
     elif behavior == ModifierBehavior.REPLACE:
+        new_name = ingredient_name
         for m in matched or []:
-            new_name = ingredient_name
             if m in result:
                 del result[m]
                 if verbose:
