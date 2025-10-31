@@ -7,6 +7,12 @@
   <hr />
   <!-- Edit Widgets -->
   <div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-sm btn-outline-success me-2"
+      hx-get="{% url 'modifier_rules_modal' %}"
+      hx-target="#globalModal .modal-content"
+      hx-swap="innerHTML">
+      🛠️ Edit Modifier Rules
+    </button>
     <a href="{% url 'export_recipes_csv' %}" class="btn btn-sm btn-outline-secondary me-2">
       📤 Export CSV
     </a>
