@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.db import connection, models, transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -75,54 +75,6 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name} ({self.sku})"
 
-class Coffee(Product):
-    """
-    Subclass of Product for Coffee Roasts to hold specific properties
-    """
-    BAG_SIZES = [
-        ('3oz', '3 oz sample'),
-        ('11oz', '11 oz bag'),
-        ('20oz', '20 oz bag'),
-        ('80oz', '5 lb bulk'),
-    ]
-
-    GRINDS = [
-        ('whole', 'Whole Bean'),
-        ('drip', 'Drip Grind (flat bottom filter)'),
-        ('espresso', 'Espresso Grind'),
-        ('coarse', 'Coarse Grind (French Press)'),
-        ('fine', 'Fine Grind (cone filter)'),
-    ]
-
-    bag_size = models.CharField(max_length=10, choices=BAG_SIZES)
-    grind = models.CharField(max_length=10, choices=GRINDS)
-
-@receiver(post_save, sender=Product)
-def create_coffee_record(sender, instance, created, **kwargs):
-    """
-    Automatically create a Coffee record for new Products categorized as 'Coffee'.
-    Avoids duplicate Product rows by inserting directly into mscrInventory_coffee.
-    """
-    if not created:
-        return
-
-    category_names = [c.name.lower() for c in instance.categories.all()]
-    if "coffee" not in category_names:
-        return
-
-    from mscrInventory.models import Coffee
-    if hasattr(instance, "coffee"):
-        return
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO mscrInventory_coffee (product_ptr_id, bag_size, grind)
-            VALUES (%s, %s, %s)
-            """,
-            [instance.id, "11oz", "whole"],
-        )
-    
 class ProductVariantCache(models.Model):
     """
     Cache of product variants derived from order imports (Square, Shopify, etc.).
@@ -215,6 +167,32 @@ class Ingredient(models.Model):
         # Allow negatives (so we can see overuse), but you might want to block it.
         self.current_stock = new_stock.quantize(Decimal("0.000"))
         self.save(update_fields=["current_stock", "last_updated"])
+
+
+class RoastProfile(Ingredient):
+    """Retail coffee bag metadata tied to a roast ingredient."""
+
+    BAG_SIZES = [
+        ("3oz", "3 oz sample"),
+        ("11oz", "11 oz bag"),
+        ("20oz", "20 oz bag"),
+        ("5lb", "5 lb bulk"),
+    ]
+
+    GRINDS = [
+        ("whole", "Whole Bean"),
+        ("drip", "Drip Grind (flat bottom filter)"),
+        ("espresso", "Espresso Grind"),
+        ("coarse", "Coarse Grind (French Press)"),
+        ("fine", "Fine Grind (cone filter)"),
+    ]
+
+    bag_size = models.CharField(max_length=10, choices=BAG_SIZES, default="11oz")
+    grind = models.CharField(max_length=10, choices=GRINDS, default="whole")
+
+    class Meta:
+        verbose_name = "Roast Profile"
+        verbose_name_plural = "Roast Profiles"
 
 
 class StockEntry(models.Model):
@@ -489,3 +467,20 @@ class ImportLog(models.Model):
 
     def __str__(self):
         return f"{self.get_source_display()} import @ {self.last_run:%Y-%m-%d %H:%M}"
+
+
+@receiver(post_save, sender=Ingredient)
+def ensure_roast_profile(sender, instance, created, **kwargs):
+    """Ensure roast ingredients always have an attached RoastProfile."""
+
+    roast_type = IngredientType.objects.filter(name__iexact="roasts").first()
+    has_roast_type = bool(roast_type and instance.type_id == roast_type.id)
+    try:
+        profile = instance.roastprofile
+    except RoastProfile.DoesNotExist:
+        profile = None
+
+    if has_roast_type and profile is None:
+        RoastProfile.objects.create(ingredient_ptr=instance)
+    elif not has_roast_type and profile is not None:
+        profile.delete()
