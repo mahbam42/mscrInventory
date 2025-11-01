@@ -26,6 +26,10 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
     assert Order.objects.count() == 0
     assert OrderItem.objects.count() == 0
     assert ProductVariantCache.objects.count() == 0
+    assert importer.stats["unmatched"] == 1
+    assert importer.stats["order_items_logged"] == 0
+    summary = importer.get_summary()
+    assert "Unmatched items: 1" in summary
 
 
 @pytest.mark.django_db
@@ -52,6 +56,8 @@ def test_square_importer_live_creates_orders(tmp_path, monkeypatch):
     assert Order.objects.count() == 1
     assert OrderItem.objects.count() == 1
     assert ProductVariantCache.objects.count() == 0
+    assert importer.stats["matched"] == 1
+    assert importer.stats["order_items_logged"] == 1
 
 
 @pytest.mark.django_db

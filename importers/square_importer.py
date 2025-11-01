@@ -294,11 +294,13 @@ class SquareImporter:
         self.stats = {
             "rows_processed": 0,
             "matched": 0,
-            "added": 0,
+            "unmatched": 0,
+            "order_items_logged": 0,
             "modifiers_applied": 0,
             "errors": 0,
         }
         self._summary_added = False
+        self._summary_cache: list[str] | None = None
         self._last_run_started: datetime | None = None
 
     # ------------------------------------------------------------------
@@ -356,6 +358,9 @@ class SquareImporter:
             if product:
                 self.stats["matched"] += 1
                 self.buffer.append(f"✅ Matched → {product.name} ({reason})")
+            else:
+                self.stats["unmatched"] += 1
+                self.buffer.append("⚠️ No product match found; left unmapped.")
 
             # --- Create or update the order (daily batch file as order reference) ---
             order_obj = None
@@ -414,7 +419,7 @@ class SquareImporter:
                     )
                     order_obj.total_amount += gross_sales
                     order_obj.save(update_fields=["total_amount"])
-                self.stats["added"] += 1
+                self.stats["order_items_logged"] += 1
 
             # 🧩 Apply extras and modifiers (includes descriptors now)
             change_logs: list[dict] = []
@@ -633,9 +638,11 @@ class SquareImporter:
     # ------------------------------------------------------------------
     def run_from_file(self, file_path: Path):
         """Run import from a given CSV file."""
+        self.buffer = []
         start_time = datetime.now()
         self._last_run_started = start_time
         self._summary_added = False
+        self._summary_cache = None
         self.buffer.append(f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})")
 
         if not file_path.exists():
@@ -658,26 +665,36 @@ class SquareImporter:
     # 📊 Summary
     # ------------------------------------------------------------------
     def summarize(self):
-        if self._summary_added:
-            return "\n".join(self.buffer[-7:])
+        if self._summary_added and self._summary_cache is not None:
+            return "\n".join(self._summary_cache)
 
         start_time = self._last_run_started or datetime.now()
         elapsed = (datetime.now() - start_time).total_seconds()
-        self.buffer.append("")
-        self.buffer.append("📊 **Square Import Summary**")
-        self.buffer.append(f"Started: {start_time:%Y-%m-%d %H:%M:%S}")
-        self.buffer.append(f"Elapsed: {elapsed:.2f}s\n")
-        self.buffer.append(f"🧾 Rows processed: {self.stats['rows_processed']}")
-        self.buffer.append(f"✅ Products matched: {self.stats['matched']}")
-        self.buffer.append(f"➕ New products added: {self.stats['added']}")
-        self.buffer.append(f"⚙️ Modifiers applied: {self.stats['modifiers_applied']}")
-        self.buffer.append(f"⚠️ Errors: {self.stats['errors']}")
-        self.buffer.append("✅ Dry-run complete." if self.dry_run else "✅ Import complete.")
 
+        summary_lines = [
+            "",
+            "📊 Square Import Summary",
+            f"Started: {start_time:%Y-%m-%d %H:%M:%S}",
+            f"Elapsed: {elapsed:.2f}s",
+            "",
+            f"🧾 Rows processed: {self.stats['rows_processed']}",
+            f"✅ Products matched: {self.stats['matched']}",
+            f"⚠️ Unmatched items: {self.stats['unmatched']}",
+            f"🧺 Order items logged: {self.stats['order_items_logged']}",
+            f"🧩 Modifiers applied: {self.stats['modifiers_applied']}",
+            f"❌ Errors: {self.stats['errors']}",
+            "✅ Dry-run complete." if self.dry_run else "✅ Import complete.",
+        ]
+
+        self.buffer.extend(summary_lines)
         self._summary_added = True
-        return "\n".join(self.buffer[-7:])
+        self._summary_cache = summary_lines
+        return "\n".join(summary_lines)
 
     def get_output(self) -> str:
         """Return the collected log as a single string."""
         return "\n".join(self.buffer)
-#taco
+
+    def get_summary(self) -> str:
+        """Return the formatted summary for display (without mutating twice)."""
+        return self.summarize()

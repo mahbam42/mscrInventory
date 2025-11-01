@@ -13,6 +13,7 @@ from django.contrib import messages
 from django.core.management import call_command
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
 from importers.square_importer import SquareImporter
@@ -48,6 +49,7 @@ def upload_square_view(request):
         importer = SquareImporter(dry_run=dry_run)
         importer.run_from_file(tmp_path)
         output = importer.get_output()
+        summary = importer.get_summary()
 
         ImportLog.objects.update_or_create(
             source="square",
@@ -61,7 +63,13 @@ def upload_square_view(request):
             request,
             f"{'🧪 Dry-run complete' if dry_run else '✅ Import complete'} — {uploaded_file.name}",
         )
-        messages.info(request, f"<pre>{output}</pre>")
+        messages.info(
+            request,
+            format_html(
+                "<pre class='import-log bg-light p-3 border rounded small mb-0'>{}</pre>",
+                summary,
+            ),
+        )
 
     except Exception as e:
         messages.error(request, f"❌ Error importing Square CSV: {e}")
