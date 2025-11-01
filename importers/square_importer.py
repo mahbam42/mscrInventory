@@ -13,11 +13,18 @@ import csv
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+
 from django.db import transaction
 from django.db.models.functions import Length
+
 from mscrInventory.models import (
-    Ingredient, Product, RecipeModifier,
-    ProductVariantCache, Order, OrderItem, RoastProfile,
+    Ingredient,
+    Product,
+    RecipeModifier,
+    ProductVariantCache,
+    Order,
+    OrderItem,
+    RoastProfile,
     get_or_create_roast_profile,
 )
 from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
@@ -283,14 +290,18 @@ class SquareImporter:
 
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
-        self.buffer = []
+        self.buffer: list[str] = []
         self.stats = {
             "rows_processed": 0,
             "matched": 0,
-            "added": 0,
+            "unmatched": 0,
+            "order_items_logged": 0,
             "modifiers_applied": 0,
             "errors": 0,
         }
+        self._summary_added = False
+        self._summary_cache: list[str] | None = None
+        self._last_run_started: datetime | None = None
 
     # ------------------------------------------------------------------
     # 🧩 Single-row processing
@@ -347,30 +358,47 @@ class SquareImporter:
             if product:
                 self.stats["matched"] += 1
                 self.buffer.append(f"✅ Matched → {product.name} ({reason})")
+            else:
+                self.stats["unmatched"] += 1
+                self.buffer.append("⚠️ No product match found; left unmapped.")
 
             # --- Create or update the order (daily batch file as order reference) ---
-            order_obj, _ = Order.objects.get_or_create(
-                platform="square",
-                order_id=file_path.stem if file_path else "test_row",
-                defaults={
-                    "order_date": datetime.now(),
-                    "total_amount": Decimal("0.00"),
-                },
-            )
+            order_obj = None
+            if not self.dry_run:
+                order_obj, _ = Order.objects.get_or_create(
+                    platform="square",
+                    order_id=file_path.stem if file_path else "test_row",
+                    defaults={
+                        "order_date": datetime.now(),
+                        "total_amount": Decimal("0.00"),
+                    },
+                )
+            else:
+                display_id = file_path.stem if file_path else "test_row"
+                self.buffer.append(
+                    f"🧪 Would ensure order square#{display_id} exists"
+                )
 
             # --- Cache descriptors ---
             if product and descriptors:
                 variant_name = " ".join(descriptors).strip().lower()
-                cache_entry, created = ProductVariantCache.objects.get_or_create(
-                    product=product,
-                    platform="square",
-                    variant_name=variant_name,
-                    defaults={"data": {"adjectives": descriptors}}
-                )
-                if not created:
-                    cache_entry.usage_count += 1
-                    cache_entry.save(update_fields=["usage_count", "last_seen"])
-                self.buffer.append(f"🧩 Cached variant: {variant_name} ({'new' if created else 'updated'})")
+                if self.dry_run:
+                    self.buffer.append(
+                        f"🧩 Would cache variant: {variant_name}"
+                    )
+                else:
+                    cache_entry, created = ProductVariantCache.objects.get_or_create(
+                        product=product,
+                        platform="square",
+                        variant_name=variant_name,
+                        defaults={"data": {"adjectives": descriptors}},
+                    )
+                    if not created:
+                        cache_entry.usage_count += 1
+                        cache_entry.save(update_fields=["usage_count", "last_seen"])
+                    self.buffer.append(
+                        f"🧩 Cached variant: {variant_name} ({'new' if created else 'updated'})"
+                    )
 
             # --- Log or persist order items ---
             reference_name = product.name if product else item_name
@@ -378,16 +406,20 @@ class SquareImporter:
 
             if product:
                 unit = (gross_sales / max(qty, 1)) if qty else Decimal("0.00")
-                OrderItem.objects.create(
-                    order=order_obj,
-                    product=product,
-                    quantity=int(qty),
-                    unit_price=unit,
-                    variant_info={"adjectives": descriptors, "modifiers": normalized_modifiers},
-                )
-                order_obj.total_amount += gross_sales
-                order_obj.save(update_fields=["total_amount"])
-                self.stats["added"] += 1
+                if not self.dry_run and order_obj is not None:
+                    OrderItem.objects.create(
+                        order=order_obj,
+                        product=product,
+                        quantity=int(qty),
+                        unit_price=unit,
+                        variant_info={
+                            "adjectives": descriptors,
+                            "modifiers": normalized_modifiers,
+                        },
+                    )
+                    order_obj.total_amount += gross_sales
+                    order_obj.save(update_fields=["total_amount"])
+                self.stats["order_items_logged"] += 1
 
             # 🧩 Apply extras and modifiers (includes descriptors now)
             change_logs: list[dict] = []
@@ -477,18 +509,42 @@ class SquareImporter:
                     roast_ingredient = _locate_roast_ingredient(roast_name)
 
                     if roast_ingredient:
-                        profile = get_or_create_roast_profile(roast_ingredient)
+                        profile = None
+                        profile_updates: list[str] = []
 
-                        profile_updates = []
+                        if self.dry_run:
+                            try:
+                                profile = roast_ingredient.roastprofile
+                            except RoastProfile.DoesNotExist:
+                                profile = None
+                                self.buffer.append(
+                                    f"🧪 Would create roast profile for {roast_ingredient.name}"
+                                )
+                        else:
+                            profile = get_or_create_roast_profile(roast_ingredient)
+
                         if profile:
-                            if bag_size and profile.bag_size != bag_size:
-                                profile.bag_size = bag_size
-                                profile_updates.append("bag_size")
-                            if grind_label and profile.grind != grind_label:
-                                profile.grind = grind_label
-                                profile_updates.append("grind")
+                            if bag_size and getattr(profile, "bag_size", None) != bag_size:
+                                if self.dry_run:
+                                    profile_updates.append("bag_size")
+                                else:
+                                    profile.bag_size = bag_size
+                                    profile_updates.append("bag_size")
+                            if grind_label and getattr(profile, "grind", None) != grind_label:
+                                if self.dry_run:
+                                    profile_updates.append("grind")
+                                else:
+                                    profile.grind = grind_label
+                                    profile_updates.append("grind")
+
                             if profile_updates:
-                                profile.save(update_fields=profile_updates)
+                                if self.dry_run:
+                                    updates = ", ".join(profile_updates)
+                                    self.buffer.append(
+                                        f"🧪 Would update roast profile {roast_ingredient.name}: {updates}"
+                                    )
+                                else:
+                                    profile.save(update_fields=profile_updates)
 
                         usage_summary = {
                             roast_ingredient.name: {
@@ -580,36 +636,65 @@ class SquareImporter:
     # ------------------------------------------------------------------
     # 🧾 Batch importer wrapper
     # ------------------------------------------------------------------
-    @transaction.atomic
     def run_from_file(self, file_path: Path):
         """Run import from a given CSV file."""
+        self.buffer = []
         start_time = datetime.now()
+        self._last_run_started = start_time
+        self._summary_added = False
+        self._summary_cache = None
         self.buffer.append(f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})")
 
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                self._process_row(row, file_path=file_path)
+        with transaction.atomic():
+            with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    self._process_row(row, file_path=file_path)
 
-        self._summarize(start_time)
-        return "\n".join(self.buffer)
+            self.summarize()
+
+            if self.dry_run:
+                transaction.set_rollback(True)
+
+        return self.get_output()
 
     # ------------------------------------------------------------------
     # 📊 Summary
     # ------------------------------------------------------------------
-    def _summarize(self, start_time):
+    def summarize(self):
+        if self._summary_added and self._summary_cache is not None:
+            return "\n".join(self._summary_cache)
+
+        start_time = self._last_run_started or datetime.now()
         elapsed = (datetime.now() - start_time).total_seconds()
-        self.buffer.append("")
-        self.buffer.append("📊 **Square Import Summary**")
-        self.buffer.append(f"Started: {start_time:%Y-%m-%d %H:%M:%S}")
-        self.buffer.append(f"Elapsed: {elapsed:.2f}s\n")
-        self.buffer.append(f"🧾 Rows processed: {self.stats['rows_processed']}")
-        self.buffer.append(f"✅ Products matched: {self.stats['matched']}")
-        self.buffer.append(f"➕ New products added: {self.stats['added']}")
-        self.buffer.append(f"⚙️ Modifiers applied: {self.stats['modifiers_applied']}")
-        self.buffer.append(f"⚠️ Errors: {self.stats['errors']}")
-        self.buffer.append("✅ Dry-run complete." if self.dry_run else "✅ Import complete.")
-#taco
+
+        summary_lines = [
+            "",
+            "📊 Square Import Summary",
+            f"Started: {start_time:%Y-%m-%d %H:%M:%S}",
+            f"Elapsed: {elapsed:.2f}s",
+            "",
+            f"🧾 Rows processed: {self.stats['rows_processed']}",
+            f"✅ Products matched: {self.stats['matched']}",
+            f"⚠️ Unmatched items: {self.stats['unmatched']}",
+            f"🧺 Order items logged: {self.stats['order_items_logged']}",
+            f"🧩 Modifiers applied: {self.stats['modifiers_applied']}",
+            f"❌ Errors: {self.stats['errors']}",
+            "✅ Dry-run complete." if self.dry_run else "✅ Import complete.",
+        ]
+
+        self.buffer.extend(summary_lines)
+        self._summary_added = True
+        self._summary_cache = summary_lines
+        return "\n".join(summary_lines)
+
+    def get_output(self) -> str:
+        """Return the collected log as a single string."""
+        return "\n".join(self.buffer)
+
+    def get_summary(self) -> str:
+        """Return the formatted summary for display (without mutating twice)."""
+        return self.summarize()
