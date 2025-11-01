@@ -12,57 +12,69 @@ from collections import defaultdict
 from mscrInventory.models import Ingredient, IngredientType, RecipeModifier, UnitType
 
 
-def _serialize_modifier(modifier):
+def _serialize_modifier(modifier, ingredient_type_lookup):
     target_selector = modifier.target_selector or {}
     replaces = modifier.replaces or {}
+    raw_by_type = target_selector.get("by_type", []) or []
+
+    normalized_by_type: list[str] = []
+    for value in raw_by_type:
+        if isinstance(value, int):
+            normalized_by_type.append(str(value))
+            continue
+        if isinstance(value, str):
+            if value.isdigit():
+                normalized_by_type.append(value)
+                continue
+            match = ingredient_type_lookup.get(value.strip().lower())
+            if match:
+                normalized_by_type.append(str(match))
+                continue
+        # preserve unknown values for debugging; UI will ignore them
+        normalized_by_type.append(str(value))
+
     return {
         "id": modifier.id,
         "name": modifier.name,
         "behavior": modifier.behavior,
         "quantity_factor": str(modifier.quantity_factor or "1"),
         "target_selector": {
-            "by_type": target_selector.get("by_type", []),
+            "by_type": normalized_by_type,
             "by_name": target_selector.get("by_name", []),
         },
         "replaces": {
             "to": replaces.get("to", []),
         },
         "expands_to": list(modifier.expands_to.values_list("id", flat=True)),
+        "ingredient_type_id": modifier.ingredient_type_id,
     }
 
 
-def _modifier_payload(modifiers):
-    return [_serialize_modifier(modifier) for modifier in modifiers]
+def _modifier_payload(modifiers, ingredient_type_lookup):
+    return [
+        _serialize_modifier(modifier, ingredient_type_lookup)
+        for modifier in modifiers
+    ]
 
 
 def _group_modifiers_by_type(modifiers):
     grouped = defaultdict(list)
-    type_field = RecipeModifier._meta.get_field("type")
-    type_display_map = dict(type_field.choices)
-
     for modifier in modifiers:
-        grouped[modifier.type].append(modifier)
+        type_obj = modifier.ingredient_type
+        key = modifier.ingredient_type_id
+        label = type_obj.name if type_obj else "Uncategorized"
+        grouped[(key, label)].append(modifier)
 
     groups = []
-    extras_key = "EXTRA"
-    if extras_key in grouped:
+
+    for (type_id, label), mods in sorted(
+        grouped.items(),
+        key=lambda item: (item[0][1] or "").lower(),
+    ):
         groups.append(
             {
-                "code": extras_key,
-                "label": type_display_map.get(extras_key, extras_key.title()),
-                "modifiers": sorted(grouped.pop(extras_key), key=lambda m: m.name.lower()),
-            }
-        )
-
-    def _label_for(code):
-        label = type_display_map.get(code)
-        return label or (str(code).title() if code else "Other")
-
-    for code, mods in sorted(grouped.items(), key=lambda item: _label_for(item[0]).lower()):
-        groups.append(
-            {
-                "code": code,
-                "label": _label_for(code),
+                "code": type_id,
+                "label": label or "Uncategorized",
                 "modifiers": sorted(mods, key=lambda m: m.name.lower()),
             }
         )
@@ -74,16 +86,19 @@ def _group_ingredients_by_type(ingredients):
     grouped = defaultdict(list)
     for ingredient in ingredients:
         type_obj = ingredient.type
-        key = type_obj.name if type_obj else ""
-        label = type_obj.name.title() if type_obj else "Uncategorized"
+        key = type_obj.id if type_obj else None
+        label = type_obj.name if type_obj else "Uncategorized"
         grouped[(key, label)].append(ingredient)
 
     ordered = []
-    for (key, label), items in sorted(grouped.items(), key=lambda item: item[0][1].lower()):
+    for (key, label), items in sorted(
+        grouped.items(),
+        key=lambda item: (item[0][1] or "").lower(),
+    ):
         ordered.append(
             {
                 "code": key,
-                "label": label,
+                "label": label or "Uncategorized",
                 "ingredients": sorted(items, key=lambda ing: ing.name.lower()),
             }
         )
@@ -92,7 +107,12 @@ def _group_ingredients_by_type(ingredients):
 
 
 def _load_modifier_modal_data():
-    modifiers = RecipeModifier.objects.prefetch_related("expands_to").order_by("type", "name")
+    modifiers = (
+        RecipeModifier.objects
+        .select_related("ingredient_type")
+        .prefetch_related("expands_to")
+        .order_by("ingredient_type__name", "name")
+    )
     ingredients = (
         Ingredient.objects.select_related("type")
         .all()
@@ -103,7 +123,11 @@ def _load_modifier_modal_data():
 
     modifier_groups = _group_modifiers_by_type(modifiers)
     ingredient_groups = _group_ingredients_by_type(ingredients)
-    serialized = _modifier_payload(modifiers)
+    ingredient_type_lookup = {
+        (it.name or "").strip().lower(): it.id
+        for it in ingredient_types
+    }
+    serialized = _modifier_payload(modifiers, ingredient_type_lookup)
 
     return {
         "modifiers": modifiers,
@@ -115,7 +139,6 @@ def _load_modifier_modal_data():
         "behavior_choices": RecipeModifier.ModifierBehavior.choices,
         "modifier_groups": modifier_groups,
         "unit_types": unit_types,
-        "modifier_type_choices": RecipeModifier.MODIFIER_TYPES,
     }
 
 
@@ -143,7 +166,15 @@ def modifier_rules_modal(request):
 
         behavior = request.POST.get("behavior") or modifier.behavior
         quantity_factor_raw = request.POST.get("quantity_factor")
-        by_type = [value for value in request.POST.getlist("target_by_type") if value]
+        by_type_raw = [value for value in request.POST.getlist("target_by_type") if value]
+        by_type: list[int] = []
+        for raw in by_type_raw:
+            try:
+                by_type.append(int(raw))
+            except (TypeError, ValueError):
+                lookup = IngredientType.objects.filter(name__iexact=raw).values_list("id", flat=True).first()
+                if lookup:
+                    by_type.append(int(lookup))
         by_name = [value for value in request.POST.getlist("target_by_name") if value]
         replacement_names = request.POST.getlist("replacement_name")
         replacement_qtys = request.POST.getlist("replacement_qty")
@@ -195,7 +226,7 @@ def create_modifier(request):
         return JsonResponse({"error": "Method not allowed"}, status=405)
 
     name = (request.POST.get("create_name") or "").strip()
-    modifier_type = request.POST.get("create_type")
+    modifier_type_id = request.POST.get("create_ingredient_type")
     ingredient_id = request.POST.get("create_ingredient")
     base_quantity_raw = request.POST.get("create_base_quantity")
     unit_type_id = request.POST.get("create_unit")
@@ -207,8 +238,15 @@ def create_modifier(request):
     if not name:
         errors["name"] = "Name is required."
 
-    if not modifier_type:
-        errors["type"] = "Type is required."
+    if not modifier_type_id:
+        errors["ingredient_type"] = "Type is required."
+
+    ingredient_type = None
+    if modifier_type_id:
+        try:
+            ingredient_type = IngredientType.objects.get(pk=modifier_type_id)
+        except (ValueError, IngredientType.DoesNotExist):
+            errors["ingredient_type"] = "Selected type could not be found."
 
     ingredient = None
     if not ingredient_id:
@@ -253,7 +291,7 @@ def create_modifier(request):
 
     initial_data = {
         "name": name,
-        "type": modifier_type,
+        "ingredient_type": modifier_type_id,
         "ingredient": ingredient_id,
         "base_quantity": base_quantity_raw,
         "unit": unit_type_id,
@@ -274,7 +312,7 @@ def create_modifier(request):
     try:
         modifier = RecipeModifier.objects.create(
             name=name,
-            type=modifier_type,
+            ingredient_type=ingredient_type,
             ingredient=ingredient,
             base_quantity=base_quantity,
             unit=unit_type.abbreviation or unit_type.name,

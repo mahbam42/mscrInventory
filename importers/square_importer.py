@@ -36,6 +36,8 @@ def _build_recipe_map_from_product(product: Product | None):
     return {
         ri.ingredient.name: {
             "qty": ri.quantity,
+            "type_id": getattr(ri.ingredient.type, "id", None),
+            "type_name": ri.ingredient.type.name if ri.ingredient.type else "",
             "type": ri.ingredient.type.name if ri.ingredient.type else "",
         }
         for ri in items
@@ -204,6 +206,8 @@ def _build_recipe_map_from_product(product: Product | None):
     return {
         ri.ingredient.name: {
             "qty": ri.quantity,
+            "type_id": getattr(ri.ingredient.type, "id", None),
+            "type_name": ri.ingredient.type.name if ri.ingredient.type else "",
             "type": ri.ingredient.type.name if ri.ingredient.type else "",
         }
         for ri in items

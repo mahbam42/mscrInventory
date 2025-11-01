@@ -50,16 +50,16 @@
           </div>
           <div class="col-md-4">
             <label for="create-modifier-type" class="form-label">Type<span class="text-danger">*</span></label>
-            <select class="form-select tall-select{% if new_modifier_errors.type %} is-invalid{% endif %}"
+            <select class="form-select tall-select{% if new_modifier_errors.ingredient_type %} is-invalid{% endif %}"
                     id="create-modifier-type"
-                    name="create_type">
-              <option value="" class="placeholder-option" {% if not new_modifier_data.type %}selected{% endif %} disabled>-- Select Type --</option>
-              {% for value, label in modifier_type_choices %}
-              <option value="{{ value }}" {% if new_modifier_data.type == value %}selected{% endif %}>{{ label }}</option>
+                    name="create_ingredient_type">
+              <option value="" class="placeholder-option" {% if not new_modifier_data.ingredient_type %}selected{% endif %} disabled>-- Select Type --</option>
+              {% for ing_type in ingredient_types %}
+              <option value="{{ ing_type.id }}" {% if new_modifier_data.ingredient_type == ing_type.id|stringformat:'s' %}selected{% endif %}>{{ ing_type.name }}</option>
               {% endfor %}
             </select>
-            {% if new_modifier_errors.type %}
-            <div class="invalid-feedback">{{ new_modifier_errors.type }}</div>
+            {% if new_modifier_errors.ingredient_type %}
+            <div class="invalid-feedback">{{ new_modifier_errors.ingredient_type }}</div>
             {% endif %}
           </div>
           <div class="col-md-4">
@@ -177,7 +177,9 @@
                     {% for group in modifier_groups %}
                     <optgroup label="{{ group.label }}">
                       {% for modifier in group.modifiers %}
-                      <option value="{{ modifier.id }}" data-type="{{ group.code }}">{{ modifier.name }}</option>
+                      <option value="{{ modifier.id }}"
+                              data-type-id="{{ group.code }}"
+                              data-type-name="{{ group.label }}">{{ modifier.name }}</option>
                       {% endfor %}
                     </optgroup>
                     {% endfor %}
@@ -226,7 +228,8 @@
                   </div>
                   <select class="form-select tall-select" id="target-by-type" name="target_by_type" multiple size="6">
                     {% for ing_type in ingredient_types %}
-                    <option value="{{ ing_type.name }}">{{ ing_type.name }}</option>
+                    <option value="{{ ing_type.id }}"
+                            data-type-name="{{ ing_type.name }}">{{ ing_type.name }}</option>
                     {% endfor %}
                   </select>
                 </div>
@@ -244,7 +247,9 @@
                     {% for group in ingredient_groups %}
                     <optgroup label="{{ group.label }}">
                       {% for ingredient in group.ingredients %}
-                      <option value="{{ ingredient.name }}" data-type="{{ group.code }}">{{ ingredient.name }}</option>
+                      <option value="{{ ingredient.name }}"
+                              data-type-id="{{ group.code }}"
+                              data-type-name="{{ group.label }}">{{ ingredient.name }}</option>
                       {% endfor %}
                     </optgroup>
                     {% endfor %}
@@ -282,7 +287,7 @@
           <div class="accordion-body">
             <select class="form-select tall-select" id="expands-to-select" name="expands_to" multiple size="8">
               {% for modifier in modifiers %}
-              <option value="{{ modifier.id }}">{{ modifier.name }} ({{ modifier.get_type_display }})</option>
+              <option value="{{ modifier.id }}">{{ modifier.name }}{% if modifier.ingredient_type %} ({{ modifier.ingredient_type.name }}){% endif %}</option>
               {% endfor %}
             </select>
             <div class="form-text">Choose additional modifiers that this rule expands into.</div>
@@ -314,7 +319,9 @@
           {% for group in ingredient_groups %}
           <optgroup label="{{ group.label }}">
             {% for ingredient in group.ingredients %}
-            <option value="{{ ingredient.name }}" data-type="{{ group.code }}">{{ ingredient.name }}</option>
+            <option value="{{ ingredient.name }}"
+                    data-type-id="{{ group.code }}"
+                    data-type-name="{{ group.label }}">{{ ingredient.name }}</option>
             {% endfor %}
           </optgroup>
           {% endfor %}
@@ -491,13 +498,13 @@
 
     function applyReplacementTypeFilter() {
       if (!targetByType) return;
-      const selectedTypes = new Set(Array.from(targetByType.selectedOptions).map(opt => opt.value));
+      const selectedTypes = new Set(Array.from(targetByType.selectedOptions).map(opt => String(opt.value)));
       const selects = replacementContainer.querySelectorAll('.replacement-select');
       selects.forEach(select => {
         Array.from(select.options).forEach(opt => {
           if (opt.value === '') return;
-          const type = opt.dataset.type || '';
-          const allow = selectedTypes.size === 0 || selectedTypes.has(type);
+          const typeId = opt.dataset.typeId || opt.dataset.type || '';
+          const allow = selectedTypes.size === 0 || selectedTypes.has(String(typeId));
           opt.dataset.hiddenByType = allow ? 'false' : 'true';
         });
 

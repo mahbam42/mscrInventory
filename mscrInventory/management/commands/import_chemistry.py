@@ -135,7 +135,6 @@ class Command(BaseCommand):
                     #price = safe_decimal(row.get("price_per_unit"))
                     category_name = (row.get("modifier_type") or "Miscellaneous").strip().title()
                     unit_name = (row.get("unit_type") or "Unit").strip().title()
-                    mod_type = (row.get("modifier_type") or "").strip().upper() or "BASE"
 
                     def parse_bool(value, default=True):
                         if value is None or value == "":
@@ -210,7 +209,7 @@ class Command(BaseCommand):
                                 "size_multiplier": size_mult,
                                 "cost_per_unit": avg_cost,
                                 #"price_per_unit": price,
-                                "type": mod_type,
+                                "ingredient_type": category,
                             },
                         )
                         if mod_created:
@@ -236,9 +235,9 @@ class Command(BaseCommand):
                             #if mod.price_per_unit != price:
                             #    mod.price_per_unit = price
                             #    mod_changed.append("price_per_unit")
-                            if mod.type != mod_type:
-                                mod.type = mod_type
-                                mod_changed.append("type")
+                            if mod.ingredient_type_id != category.id:
+                                mod.ingredient_type = category
+                                mod_changed.append("ingredient_type")
 
                             if mod_changed:
                                 mod.save(update_fields=mod_changed)

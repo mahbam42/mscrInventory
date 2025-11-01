@@ -188,15 +188,15 @@ class RecipeModifierAdmin(admin.ModelAdmin):
     Includes JSON editing for target_selector and replaces fields.
     """
 
-    list_display = ("name", "type", "behavior", "quantity_factor", "updated_at")
-    list_filter = ("type", "behavior")
+    list_display = ("name", "ingredient_type", "behavior", "quantity_factor", "updated_at")
+    list_filter = ("ingredient_type", "behavior")
     search_fields = ("name", "ingredient__name")
 
     readonly_fields = ("updated_at", "created_at")
 
     fieldsets = (
         ("Basic Info", {
-            "fields": ("name", "type", "ingredient", "behavior", "quantity_factor")
+            "fields": ("name", "ingredient_type", "ingredient", "behavior", "quantity_factor")
         }),
         ("Advanced Logic", {
             "fields": (

@@ -300,25 +300,12 @@ class RecipeModifier(models.Model):
         SCALE = "scale", "Scale"
         EXPAND = "expand", "Expand" # not used yet
 
-    MODIFIER_TYPES = [
-        ("MILK", "Milk"),
-        ("FLAVOR", "Flavor Shot"),
-        ("SYRUP", "Syrup"),
-        ("SUGAR", "Sugar"),
-        ("EXTRA", "Extra"),
-        ("BAGEL", "Bagel"),
-        ("SPREAD", "Spread"),
-        ("TOPPING", "Topping"),
-        ("TOAST", "Toast"),
-        ("MUFFIN", "Muffin"),
-        ("BAKED_GOOD", "Baked Good"),
-        ("COFFEE", "Coffee"),
-        ("COOKIE", "Cookie"),
-        ("COLD Foam", "Cold Foam"),
-    ]
-
     name = models.CharField(max_length=100, unique=True)
-    type = models.CharField(max_length=20, choices=MODIFIER_TYPES)
+    ingredient_type = models.ForeignKey(
+        IngredientType,
+        on_delete=models.PROTECT,
+        related_name="recipe_modifiers",
+    )
 
     # ⚙️ The new unified behavior system
     behavior = models.CharField(
@@ -339,7 +326,7 @@ class RecipeModifier(models.Model):
         null=True,
         help_text=(
             "Filter for which ingredients this modifier affects, e.g. "
-            '{"by_type":["MILK"],"by_name":["Bacon"]}'
+            '{"by_type":[1,2],"by_name":["Bacon"]}'
         ),
     )
 
@@ -382,10 +369,11 @@ class RecipeModifier(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["type", "name"]
+        ordering = ["ingredient_type__name", "name"]
 
     def __str__(self):
-        return f"{self.name} ({self.get_type_display()})"
+        ingredient_type = getattr(self.ingredient_type, "name", "Uncategorized")
+        return f"{self.name} ({ingredient_type})"
 
 
 class Order(models.Model):
