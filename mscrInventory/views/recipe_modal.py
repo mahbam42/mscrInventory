@@ -110,8 +110,8 @@ def edit_recipe_modal(request, pk):
         "product": product,
         "recipe_items": product.recipe_items.select_related("ingredient").all(),
         #"all_ingredients": Ingredient.objects.all().order_by("name"),
-        "all_ingredients": Ingredient.objects.order_by("type", "name"),
-        "all_modifiers": RecipeModifier.objects.all().order_by("type", "name"),
+        "all_ingredients": Ingredient.objects.select_related("type").order_by("type__name", "name"),
+        "all_modifiers": RecipeModifier.objects.select_related("ingredient_type").order_by("ingredient_type__name", "name"),
         "current_modifiers": list(product.modifiers.values_list("id", flat=True)) if hasattr(product, "modifiers") else [],
     }
     return render(request, "recipes/_edit_modal.html", context)
@@ -129,7 +129,7 @@ def edit_recipe_view(request, pk):
     )
 
     # all ingredients for selector, grouped by unit_type then name
-    all_ingredients = Ingredient.objects.all().order_by("type", "name")
+    all_ingredients = Ingredient.objects.select_related("type").order_by("type__name", "name")
 
     # distinct unit “types” (since your model has unit_type, not type/unit)
     units = (
