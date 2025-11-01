@@ -1,0 +1,97 @@
+from django.db import migrations, models
+
+def seed_initial_data(apps, schema_editor):
+    UnitType = apps.get_model("mscrInventory", "UnitType")
+    IngredientType = apps.get_model("mscrInventory", "IngredientType")
+
+    # ✅ Pre-seed units
+    units = [
+        ("Fluid Ounce", "fl_oz", 1),
+        ("Ounce", "oz", 1),
+        ("Pound", "lb", 16),
+        ("Gram", "g", 0.03527),
+        ("Kilogram", "kg", 35.274),
+        ("Liter", "L", 33.814),
+        ("Milliliter", "ml", 0.033814),
+        ("Unit", "unit", 1),
+    ]
+    for n, a, c in units:
+        UnitType.objects.get_or_create(name=n, abbreviation=a, conversion_to_base=c)
+
+    # ✅ Pre-seed ingredient categories
+    types = [
+        "MILK", "FLAVOR", "SYRUP", "SUGAR", "EXTRA", "COFFEE",
+        "PACKAGING", "MISC", "BAGEL", "SPREAD", "TOPPING",
+        "TOAST", "BAKED_GOOD", "MUFFIN", "COOKIE",
+    ]
+    for t in types:
+        IngredientType.objects.get_or_create(name=t)
+
+    # ✅ Backfill existing Ingredients
+    Ingredient = apps.get_model("mscrInventory", "Ingredient")
+
+    # Get references to seeded tables
+    unit_map = {u.abbreviation: u for u in UnitType.objects.all()}
+    type_map = {t.name.upper(): t for t in IngredientType.objects.all()}
+
+    for ing in Ingredient.objects.all():
+        # map textual unit_type → FK if possible
+        if isinstance(ing.unit_type, str):
+            unit_obj = unit_map.get(ing.unit_type.lower()) or unit_map.get("unit")
+            ing.unit_type = unit_obj
+        # map textual type → FK if possible
+        if isinstance(ing.type, str):
+            type_obj = type_map.get(ing.type.upper()) or type_map.get("MISC")
+            ing.type = type_obj
+        ing.save()
+
+def unseed_initial_data(apps, schema_editor):
+    apps.get_model("mscrInventory", "UnitType").objects.all().delete()
+    apps.get_model("mscrInventory", "IngredientType").objects.all().delete()
+
+class Migration(migrations.Migration):
+    atomic = False
+
+    dependencies = [
+        ("mscrInventory", "0008_alter_recipeitem_unique_together_and_more"),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="UnitType",
+            fields=[
+                ("id", models.AutoField(primary_key=True, serialize=False)),
+                ("name", models.CharField(max_length=50, unique=True)),
+                ("abbreviation", models.CharField(max_length=10, unique=True)),
+                ("conversion_to_base", models.FloatField(default=1.0)),
+            ],
+        ),
+        migrations.CreateModel(
+            name="IngredientType",
+            fields=[
+                ("id", models.AutoField(primary_key=True, serialize=False)),
+                ("name", models.CharField(max_length=50, unique=True)),
+            ],
+        ),
+        migrations.RunPython(seed_initial_data, unseed_initial_data),
+        migrations.AlterField(
+            model_name="ingredient",
+            name="unit_type",
+            field=models.ForeignKey(
+                to="mscrInventory.UnitType",
+                null=True,
+                blank=True,
+                on_delete=models.SET_NULL,
+            ),
+        ),
+        migrations.AlterField(
+            model_name="ingredient",
+            name="type",
+            field=models.ForeignKey(
+                to="mscrInventory.IngredientType",
+                null=True,
+                blank=True,
+                on_delete=models.SET_NULL,
+            ),
+        ),
+    ]
