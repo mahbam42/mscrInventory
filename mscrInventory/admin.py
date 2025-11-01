@@ -21,6 +21,7 @@ from .models import (
     IngredientType,
     UnitType,
     RoastProfile,
+    get_or_create_roast_profile,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -149,8 +150,8 @@ class IngredientAdmin(admin.ModelAdmin):
         except RoastProfile.DoesNotExist:
             profile = None
 
-        if is_roast and profile is None:
-            profile = RoastProfile.objects.create(ingredient_ptr=obj)
+        if is_roast:
+            profile = profile or get_or_create_roast_profile(obj)
 
         if profile is not None:
             inline_instances.insert(0, RoastProfileInline(self.model, self.admin_site))

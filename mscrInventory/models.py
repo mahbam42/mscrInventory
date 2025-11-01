@@ -469,6 +469,19 @@ class ImportLog(models.Model):
         return f"{self.get_source_display()} import @ {self.last_run:%Y-%m-%d %H:%M}"
 
 
+def get_or_create_roast_profile(ingredient: "Ingredient") -> RoastProfile | None:
+    """Return the roast profile for an ingredient, creating it if needed."""
+
+    if ingredient is None:
+        return None
+
+    profile, _ = RoastProfile.objects.get_or_create(
+        pk=ingredient.pk,
+        defaults={"ingredient_ptr": ingredient},
+    )
+    return profile
+
+
 @receiver(post_save, sender=Ingredient)
 def ensure_roast_profile(sender, instance, created, **kwargs):
     """Ensure roast ingredients always have an attached RoastProfile."""
@@ -481,6 +494,6 @@ def ensure_roast_profile(sender, instance, created, **kwargs):
         profile = None
 
     if has_roast_type and profile is None:
-        RoastProfile.objects.create(ingredient_ptr=instance)
+        get_or_create_roast_profile(instance)
     elif not has_roast_type and profile is not None:
         profile.delete()
