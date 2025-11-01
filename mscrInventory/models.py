@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.utils import timezone
 
 

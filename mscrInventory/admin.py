@@ -93,6 +93,7 @@ class CoffeeInline(admin.StackedInline):
     extra = 0
     can_delete = False
     verbose_name_plural = "Coffee Details"
+    fields = ["bag_size", "grind"]
     
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
@@ -101,16 +102,24 @@ class ProductAdmin(admin.ModelAdmin):
 
     def get_inline_instances(self, request, obj=None):
         """
-        Dynamically include Coffee inline when editing Coffee products.
+        Show Coffee inline *instead of* Recipe editor for Coffee products.
         """
-        CoffeeInlines = []
-        if obj and hasattr(obj, "coffee"):
-            CoffeeInlines.append(CoffeeInline(self.model, self.admin_site))
-        return CoffeeInlines
+        # Default: no inlines yet
+        inlines = []
+
+        if obj:
+            if hasattr(obj, "coffee"):
+                # Only show Coffee inline
+                inlines.append(CoffeeInline(self.model, self.admin_site))
+            else:
+                # Only show normal inlines (e.g., Recipe editor)
+                inlines.extend(super().get_inline_instances(request, obj))
+
+        return inlines
 
     search_fields = ('name', 'sku')
     filter_horizontal = ("modifiers",)  # 👈 adds nice M2M selector widget
-    inlines = [RecipeItemInline, ]   # 👈 use the inline class defined above
+    inlines = [RecipeItemInline]   # 👈 use the inline class defined above
     ordering = ['name']
 
     def category_list(self, obj):
