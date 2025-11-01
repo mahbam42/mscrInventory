@@ -33,6 +33,8 @@ def test_roast_profile_signal_and_helper_reuse_existing_parent():
     helper_profile = get_or_create_roast_profile(ingredient)
     assert helper_profile.pk == ingredient.pk
     assert helper_profile.ingredient_ptr_id == ingredient.pk
+    assert helper_profile.bag_size == RoastProfile._meta.get_field("bag_size").get_default()
+    assert helper_profile.grind == RoastProfile._meta.get_field("grind").get_default()
 
     # Confirm no duplicate ingredient rows were created during profile attachment
     assert Ingredient.objects.filter(pk=ingredient.pk).count() == 1

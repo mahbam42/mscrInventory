@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.db import models, transaction
+from django.db import connection, models, transaction, IntegrityError
 from django.utils import timezone
 
 
@@ -475,11 +475,42 @@ def get_or_create_roast_profile(ingredient: "Ingredient") -> RoastProfile | None
     if ingredient is None:
         return None
 
-    profile, _ = RoastProfile.objects.get_or_create(
-        pk=ingredient.pk,
-        defaults={"ingredient_ptr": ingredient},
+    if ingredient.pk is None:
+        return None
+
+    try:
+        return ingredient.roastprofile
+    except RoastProfile.DoesNotExist:
+        pass
+
+    defaults = {
+        "bag_size": RoastProfile._meta.get_field("bag_size").get_default(),
+        "grind": RoastProfile._meta.get_field("grind").get_default(),
+    }
+
+    table_name = connection.ops.quote_name(RoastProfile._meta.db_table)
+    parent_column = connection.ops.quote_name(
+        RoastProfile._meta.get_field("ingredient_ptr").column
     )
-    return profile
+    bag_column = connection.ops.quote_name(RoastProfile._meta.get_field("bag_size").column)
+    grind_column = connection.ops.quote_name(RoastProfile._meta.get_field("grind").column)
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            try:
+                cursor.execute(
+                    f"INSERT INTO {table_name} ({parent_column}, {bag_column}, {grind_column}) "
+                    "VALUES (%s, %s, %s)",
+                    [ingredient.pk, defaults["bag_size"], defaults["grind"]],
+                )
+            except IntegrityError:
+                # Another transaction created the profile first; fetch below.
+                pass
+
+    try:
+        return RoastProfile.objects.get(pk=ingredient.pk)
+    except RoastProfile.DoesNotExist:
+        return None
 
 
 @receiver(post_save, sender=Ingredient)
