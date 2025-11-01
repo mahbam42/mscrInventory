@@ -4,33 +4,71 @@
 {% block content %}
 <h1>Data Imports</h1>
 
-<form action="{% url 'upload_square' %}" method="post" enctype="multipart/form-data">
-  {% csrf_token %}
-  <label for="square_csv">Square CSV:</label>
-  <input type="file" name="square_csv" required>
-  <label>
-    <input type="checkbox" name="dry_run" checked>
-    Dry Run
-  </label>
-  <button type="submit" class="btn btn-primary">Upload</button>
-</form>
-
-  <div class="col-md-6">
-    <h3>🛍 Fetch Shopify Orders</h3>
-    <form method="post" action="{% url 'fetch_shopify' %}">
-      {% csrf_token %}
-      <div class="row g-2">
-        <div class="col-md-6">
-          <label for="start_date" class="form-label">Start Date</label>
-          <input type="date" id="start_date" name="start_date" class="form-control" required>
-        </div>
-        <div class="col-md-6">
-          <label for="end_date" class="form-label">End Date (optional)</label>
-          <input type="date" id="end_date" name="end_date" class="form-control">
-        </div>
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h3 class="card-title">⬆️ Upload Square CSV</h3>
+        <p class="text-muted">Runs the importer in dry-run mode by default so you can verify matches before committing.</p>
+        <form action="{% url 'upload_square' %}" method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="square_csv" class="form-label">Square CSV</label>
+            <input type="file" id="square_csv" name="square_csv" class="form-control" required>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input type="checkbox" class="form-check-input" id="dry_run" name="dry_run" checked>
+            <label class="form-check-label" for="dry_run">Dry Run (no database writes)</label>
+          </div>
+          <button type="submit" class="btn btn-primary">Run Import</button>
+        </form>
       </div>
-      <button type="submit" class="btn btn-success mt-3">Fetch Shopify</button>
-    </form>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h3 class="card-title">🛍 Fetch Shopify Orders</h3>
+        <p class="text-muted">Pull Shopify order data for a single day or a date range.</p>
+        <form method="post" action="{% url 'fetch_shopify' %}">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label for="start_date" class="form-label">Start Date</label>
+              <input type="date" id="start_date" name="start_date" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label for="end_date" class="form-label">End Date (optional)</label>
+              <input type="date" id="end_date" name="end_date" class="form-control">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success mt-3">Fetch Shopify</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+    <div>
+      <h3 class="card-title mb-1">🗂 Review Unmapped Items</h3>
+      <p class="text-muted mb-0">Resolve unmapped Square rows before committing the import.</p>
+    </div>
+    <div class="mt-3 mt-lg-0 d-flex gap-2">
+      <button
+        class="btn btn-outline-primary"
+        hx-get="{% url 'imports_unmapped_items' %}"
+        hx-target="#modal-body"
+        hx-trigger="click"
+      >
+        Open Modal
+      </button>
+      <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+        Open Full Page
+      </a>
+    </div>
   </div>
 </div>
 {% endblock %}

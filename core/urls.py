@@ -21,7 +21,12 @@ from mscrInventory.views.dashboard import dashboard_view
 # top level views.py
 from mscrInventory import app_views
 # from mscrInventory.views import dashboard_view
-from mscrInventory.views.imports import imports_dashboard_view, upload_square_view, fetch_shopify_view
+from mscrInventory.views.imports import (
+    imports_dashboard_view,
+    upload_square_view,
+    fetch_shopify_view,
+    unmapped_items_view,
+)
 #from mscrInventory.views import recipes_modal
 from mscrInventory.views.recipe_modal import download_recipes_template, import_recipes_modal, confirm_recipes_import, export_recipes_csv, import_recipes_csv, recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
 from mscrInventory.views.modifiers import (
@@ -50,6 +55,7 @@ urlpatterns = [
     #imports
     path("imports/", imports_dashboard_view, name="imports_dashboard"),
     path("imports/upload-square/", upload_square_view, name="upload_square"),
+    path("imports/unmapped-items/", unmapped_items_view, name="imports_unmapped_items"),
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
 
     #products
