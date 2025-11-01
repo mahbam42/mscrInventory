@@ -17,7 +17,8 @@ from django.db import transaction
 from django.db.models.functions import Length
 from mscrInventory.models import (
     Ingredient, Product, RecipeModifier,
-    ProductVariantCache, Order, OrderItem, RoastProfile
+    ProductVariantCache, Order, OrderItem, RoastProfile,
+    get_or_create_roast_profile,
 )
 from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
 from importers._handle_extras import handle_extras, normalize_modifier
@@ -472,11 +473,7 @@ class SquareImporter:
                     roast_ingredient = _locate_roast_ingredient(roast_name)
 
                     if roast_ingredient:
-                        profile = None
-                        try:
-                            profile = roast_ingredient.roastprofile
-                        except RoastProfile.DoesNotExist:
-                            profile = RoastProfile.objects.create(ingredient_ptr=roast_ingredient)
+                        profile = get_or_create_roast_profile(roast_ingredient)
 
                         profile_updates = []
                         if profile:
