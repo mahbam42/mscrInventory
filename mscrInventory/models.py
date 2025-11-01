@@ -2,6 +2,8 @@
 
 from decimal import Decimal
 from django.conf import settings
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -72,6 +74,54 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
+
+class Coffee(Product):
+    """
+    Subclass of Product for Coffee Roasts to hold specific properties
+    """
+    BAG_SIZES = [
+        ('3oz', '3 oz sample'),
+        ('11oz', '11 oz bag'),
+        ('20oz', '20 oz bag'),
+        ('80oz', '5 lb bulk'),
+    ]
+
+    GRINDS = [
+        ('whole', 'Whole Bean'),
+        ('drip', 'Drip Grind (flat bottom filter)'),
+        ('espresso', 'Espresso Grind'),
+        ('coarse', 'Coarse Grind (French Press)'),
+        ('fine', 'Fine Grind (cone filter)'),
+    ]
+
+    bag_size = models.CharField(max_length=10, choices=BAG_SIZES)
+    grind = models.CharField(max_length=10, choices=GRINDS)
+
+@receiver(post_save, sender=Product)
+def create_coffee_record(sender, instance, created, **kwargs):
+    """
+    Automatically create a Coffee record for new Products categorized as 'Coffee'.
+    Avoids duplicate Product rows by inserting directly into mscrInventory_coffee.
+    """
+    if not created:
+        return
+
+    category_names = [c.name.lower() for c in instance.categories.all()]
+    if "coffee" not in category_names:
+        return
+
+    from mscrInventory.models import Coffee
+    if hasattr(instance, "coffee"):
+        return
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO mscrInventory_coffee (product_ptr_id, bag_size, grind)
+            VALUES (%s, %s, %s)
+            """,
+            [instance.id, "11oz", "whole"],
+        )
     
 class ProductVariantCache(models.Model):
     """

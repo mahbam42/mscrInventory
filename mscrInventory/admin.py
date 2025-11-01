@@ -13,6 +13,7 @@ from .models import (
     RecipeItem,
     RecipeModifier,
     Category,
+    Coffee,
     Order,
     OrderItem,
     IngredientUsageLog,
@@ -85,22 +86,36 @@ class RecipeItemInline(admin.TabularInline):
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
+
+#Subclass of Product for Bagged Coffee Properties 
+class CoffeeInline(admin.StackedInline):
+    model = Coffee
+    extra = 0
+    can_delete = False
+    verbose_name_plural = "Coffee Details"
     
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ("name", "sku", "category_list", "active", "created_at")
     list_filter = ("active", "categories")
-#    list_display = ('name', 'sku', 'category', 'active')
-#    list_filter = (UnmappedProductFilter, 'category', 'active')
+
+    def get_inline_instances(self, request, obj=None):
+        """
+        Dynamically include Coffee inline when editing Coffee products.
+        """
+        CoffeeInlines = []
+        if obj and hasattr(obj, "coffee"):
+            CoffeeInlines.append(CoffeeInline(self.model, self.admin_site))
+        return CoffeeInlines
+
     search_fields = ('name', 'sku')
     filter_horizontal = ("modifiers",)  # 👈 adds nice M2M selector widget
-    inlines = [RecipeItemInline]   # 👈 use the inline class defined above
+    inlines = [RecipeItemInline, ]   # 👈 use the inline class defined above
     ordering = ['name']
 
     def category_list(self, obj):
         return ", ".join(c.name for c in obj.categories.all())
     category_list.short_description = "Categories"
-
 
 @admin.register(IngredientType)
 class IngredientTypeAdmin(admin.ModelAdmin):
