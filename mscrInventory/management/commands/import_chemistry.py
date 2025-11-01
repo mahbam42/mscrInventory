@@ -27,10 +27,18 @@ Logging & safety:
 
 CSV columns required:
     type,name,unit_type,base_quantity,size_multiplier,
-    cost_per_unit,price_per_unit,modifier_type
+    cost_per_unit,price_per_unit,modifier_type,create_ingredient,create_modifier
 
-Example row:
-    ingredient,Espresso Beans,oz,1,False,0.45,0.90,BASE
+Row customization flags:
+    - create_ingredient (defaults to TRUE when omitted) lets a row update or
+      skip touching Ingredient records.
+    - create_modifier (defaults to TRUE when omitted) lets a row update or
+      skip touching RecipeModifier records.
+
+Example rows:
+    ingredient,Espresso Beans,oz,1,False,0.45,0.90,BASE,TRUE,TRUE
+    ingredient,Holiday Syrup,oz,1,False,0.75,1.10,FLAVOR,FALSE,TRUE
+    ingredient,Winter Blend,lb,1,False,18.00,0.00,COFFEE,TRUE,FALSE
 
 Maintainers:
     Use this command when updating your core recipe “chemistry” or ingredient
@@ -84,11 +92,18 @@ class Command(BaseCommand):
             reader = csv.DictReader(f)
             expected = [
                 "type", "name", "unit_type", "base_quantity", "size_multiplier",
-                "cost_per_unit", "price_per_unit", "modifier_type",
+                "cost_per_unit", "price_per_unit", "modifier_type", "create_ingredient", "create_modifier",
             ]
+            optional_flags = {"create_ingredient", "create_modifier"}
             missing = [c for c in expected if c not in reader.fieldnames]
-            if missing:
-                raise CommandError(f"Missing required columns: {', '.join(missing)}")
+            missing_required = [c for c in missing if c not in optional_flags]
+            if missing_required:
+                raise CommandError(f"Missing required columns: {', '.join(missing_required)}")
+            if missing and not missing_required:
+                logger.info(
+                    "ℹ️ Optional columns absent (%s); defaulting to TRUE for each flag.",
+                    ", ".join(sorted(optional_flags.intersection(missing))),
+                )
 
             for row_num, row in enumerate(reader, start=2):
                 sid = transaction.savepoint()
@@ -122,86 +137,117 @@ class Command(BaseCommand):
                     unit_name = (row.get("unit_type") or "Unit").strip().title()
                     mod_type = (row.get("modifier_type") or "").strip().upper() or "BASE"
 
+                    def parse_bool(value, default=True):
+                        if value is None or value == "":
+                            return default
+                        if isinstance(value, bool):
+                            return value
+                        return str(value).strip().lower() in {"true", "1", "yes", "y"}
+
+                    create_ing = parse_bool(row.get("create_ingredient"), default=True)
+                    create_mod = parse_bool(row.get("create_modifier"), default=True)
+
                     # Ensure category and unit exist
                     category, _ = IngredientType.objects.get_or_create(name=category_name)
                     unit_obj, _ = UnitType.objects.get_or_create(name=unit_name)
 
-                    # Create or update Ingredient
-                    ing, created = Ingredient.objects.get_or_create(
-                        name=name,
-                        defaults={
-                            "unit_type": unit_obj,
-                            "average_cost_per_unit": avg_cost,
-                            #"price_per_unit": price,
-                            "type": category,
-                        },
-                    )
-                    if created:
-                        created_ing += 1
-                        logger.info(f"✅ Created Ingredient: {name}")
+                    ing = None
+                    if create_ing:
+                        # Create or update Ingredient
+                        ing, created = Ingredient.objects.get_or_create(
+                            name=name,
+                            defaults={
+                                "unit_type": unit_obj,
+                                "average_cost_per_unit": avg_cost,
+                                #"price_per_unit": price,
+                                "type": category,
+                            },
+                        )
+                        if created:
+                            created_ing += 1
+                            logger.info(f"✅ Created Ingredient: {name}")
+                        else:
+                            changed_fields = []
+                            if ing.unit_type_id != unit_obj.id:
+                                ing.unit_type = unit_obj
+                                changed_fields.append("unit_type")
+                            if ing.average_cost_per_unit != avg_cost:
+                                ing.average_cost_per_unit = avg_cost
+                                changed_fields.append("average_cost_per_unit")
+                            # if getattr(ing, "price_per_unit", None) != price:
+                            #         ing.price_per_unit = price
+                            #         changed_fields.append("price_per_unit"),
+                            if ing.type_id != category.id:
+                                ing.type = category
+                                changed_fields.append("type")
+                            if changed_fields:
+                                ing.save(update_fields=changed_fields)
+                                updated_ing += 1
+                                logger.info(
+                                    f"🔁 Updated Ingredient ({', '.join(changed_fields)}): {name}"
+                                )
                     else:
-                        changed_fields = []
-                        if ing.unit_type_id != unit_obj.id:
-                            ing.unit_type = unit_obj
-                            changed_fields.append("unit_type")
-                        if ing.average_cost_per_unit != avg_cost:
-                            ing.average_cost_per_unit = avg_cost
-                            changed_fields.append("average_cost_per_unit")
-                        # if getattr(ing, "price_per_unit", None) != price:
-                        #         ing.price_per_unit = price
-                        #         changed_fields.append("price_per_unit"),
-                        if ing.type_id != category.id:
-                            ing.type = category
-                            changed_fields.append("type")
-                        if changed_fields:
-                            ing.save(update_fields=changed_fields)
-                            updated_ing += 1
-                            logger.info(f"🔁 Updated Ingredient ({', '.join(changed_fields)}): {name}")
+                        logger.info(f"ℹ️ Skipped ingredient creation for {name} (flag false)")
+                        ing = Ingredient.objects.filter(name=name).first()
 
-                    # Create or update corresponding RecipeModifier
-                    mod, mod_created = RecipeModifier.objects.get_or_create(
-                        name=name,
-                        defaults={
-                            "ingredient": ing,
-                            "unit": unit_name,
-                            "base_quantity": base_qty,
-                            "size_multiplier": size_mult,
-                            "cost_per_unit": avg_cost,
-                            #"price_per_unit": price,
-                            "type": mod_type,
-                        },
-                    )
-                    if mod_created:
-                        created_mod += 1
-                        logger.info(f"✅ Created Modifier: {name}")
+                    if create_mod:
+                        if ing is None:
+                            logger.error(
+                                "❌ Cannot process modifier for %s: ingredient is missing.",
+                                name,
+                            )
+                            skipped += 1
+                            transaction.savepoint_rollback(sid)
+                            continue
+
+                        # Create or update corresponding RecipeModifier
+                        mod, mod_created = RecipeModifier.objects.get_or_create(
+                            name=name,
+                            defaults={
+                                "ingredient": ing,
+                                "unit": unit_name,
+                                "base_quantity": base_qty,
+                                "size_multiplier": size_mult,
+                                "cost_per_unit": avg_cost,
+                                #"price_per_unit": price,
+                                "type": mod_type,
+                            },
+                        )
+                        if mod_created:
+                            created_mod += 1
+                            logger.info(f"✅ Created Modifier: {name}")
+                        else:
+                            mod_changed = []
+                            if mod.ingredient_id != ing.id:
+                                mod.ingredient = ing
+                                mod_changed.append("ingredient")
+                            if mod.unit != unit_name:
+                                mod.unit = unit_name
+                                mod_changed.append("unit")
+                            if mod.base_quantity != base_qty:
+                                mod.base_quantity = base_qty
+                                mod_changed.append("base_quantity")
+                            if mod.size_multiplier != size_mult:
+                                mod.size_multiplier = size_mult
+                                mod_changed.append("size_multiplier")
+                            if mod.cost_per_unit != avg_cost:
+                                mod.cost_per_unit = avg_cost
+                                mod_changed.append("cost_per_unit")
+                            #if mod.price_per_unit != price:
+                            #    mod.price_per_unit = price
+                            #    mod_changed.append("price_per_unit")
+                            if mod.type != mod_type:
+                                mod.type = mod_type
+                                mod_changed.append("type")
+
+                            if mod_changed:
+                                mod.save(update_fields=mod_changed)
+                                updated_mod += 1
+                                logger.info(
+                                    f"🔁 Updated Modifier ({', '.join(mod_changed)}): {name}"
+                                )
                     else:
-                        mod_changed = []
-                        if mod.ingredient_id != ing.id:
-                            mod.ingredient = ing
-                            mod_changed.append("ingredient")
-                        if mod.unit != unit_name:
-                            mod.unit = unit_name
-                            mod_changed.append("unit")
-                        if mod.base_quantity != base_qty:
-                            mod.base_quantity = base_qty
-                            mod_changed.append("base_quantity")
-                        if mod.size_multiplier != size_mult:
-                            mod.size_multiplier = size_mult
-                            mod_changed.append("size_multiplier")
-                        if mod.cost_per_unit != avg_cost:
-                            mod.cost_per_unit = avg_cost
-                            mod_changed.append("cost_per_unit")
-                        #if mod.price_per_unit != price:
-                        #    mod.price_per_unit = price
-                        #    mod_changed.append("price_per_unit")
-                        if mod.type != mod_type:
-                            mod.type = mod_type
-                            mod_changed.append("type")
-
-                        if mod_changed:
-                            mod.save(update_fields=mod_changed)
-                            updated_mod += 1
-                            logger.info(f"🔁 Updated Modifier ({', '.join(mod_changed)}): {name}")
+                        logger.info(f"ℹ️ Skipped modifier creation for {name} (flag false)")
 
                     transaction.savepoint_commit(sid)
 
