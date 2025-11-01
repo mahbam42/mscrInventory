@@ -13,14 +13,14 @@ from .models import (
     RecipeItem,
     RecipeModifier,
     Category,
-    Coffee,
     Order,
     OrderItem,
     IngredientUsageLog,
     StockEntry,
     ImportLog,
     IngredientType,
-    UnitType
+    UnitType,
+    RoastProfile,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -87,35 +87,10 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
 
-#Subclass of Product for Bagged Coffee Properties 
-class CoffeeInline(admin.StackedInline):
-    model = Coffee
-    extra = 0
-    can_delete = False
-    verbose_name_plural = "Coffee Details"
-    fields = ["bag_size", "grind"]
-    
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ("name", "sku", "category_list", "active", "created_at")
     list_filter = ("active", "categories")
-
-    def get_inline_instances(self, request, obj=None):
-        """
-        Show Coffee inline *instead of* Recipe editor for Coffee products.
-        """
-        # Default: no inlines yet
-        inlines = []
-
-        if obj:
-            if hasattr(obj, "coffee"):
-                # Only show Coffee inline
-                inlines.append(CoffeeInline(self.model, self.admin_site))
-            else:
-                # Only show normal inlines (e.g., Recipe editor)
-                inlines.extend(super().get_inline_instances(request, obj))
-
-        return inlines
 
     search_fields = ('name', 'sku')
     filter_horizontal = ("modifiers",)  # 👈 adds nice M2M selector widget
@@ -144,6 +119,14 @@ class StockEntryInline(admin.TabularInline):
     readonly_fields = ("quantity_added", "cost_per_unit", "source", "note", "date_received")
     can_delete = False
 
+
+class RoastProfileInline(admin.StackedInline):
+    model = RoastProfile
+    extra = 0
+    can_delete = False
+    verbose_name_plural = "Roast Properties"
+    fields = ["bag_size", "grind"]
+
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
     list_display = (
@@ -153,6 +136,26 @@ class IngredientAdmin(admin.ModelAdmin):
     list_filter = ("type", "unit_type",)
     search_fields = ("name",)
     inlines = [StockEntryInline]
+
+    def get_inline_instances(self, request, obj=None):
+        inline_instances = super().get_inline_instances(request, obj)
+        if not obj:
+            return inline_instances
+
+        roast_type = IngredientType.objects.filter(name__iexact="roasts").first()
+        is_roast = bool(roast_type and obj.type_id == roast_type.id)
+        try:
+            profile = obj.roastprofile
+        except RoastProfile.DoesNotExist:
+            profile = None
+
+        if is_roast and profile is None:
+            profile = RoastProfile.objects.create(ingredient_ptr=obj)
+
+        if profile is not None:
+            inline_instances.insert(0, RoastProfileInline(self.model, self.admin_site))
+
+        return inline_instances
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem

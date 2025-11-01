@@ -17,7 +17,7 @@ from django.db import transaction
 from django.db.models.functions import Length
 from mscrInventory.models import (
     Ingredient, Product, RecipeModifier,
-    ProductVariantCache, Order, OrderItem
+    ProductVariantCache, Order, OrderItem, RoastProfile
 )
 from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
 from importers._handle_extras import handle_extras, normalize_modifier
@@ -110,6 +110,90 @@ def _product_is_drink(product: Product | None) -> bool:
             if token in name:
                 return True
     return False
+
+
+RETAIL_BAG_NAMES = {"retail bag"}
+
+BAG_SIZE_ALIASES = {
+    "3 oz": "3oz",
+    "3oz": "3oz",
+    "11 oz": "11oz",
+    "11oz": "11oz",
+    "20 oz": "20oz",
+    "20oz": "20oz",
+    "5 lb": "5lb",
+    "5lb": "5lb",
+    "80 oz": "5lb",
+    "80oz": "5lb",
+}
+
+GRIND_ALIASES = {
+    "whole bean": "whole",
+    "whole": "whole",
+    "drip grind": "drip",
+    "drip": "drip",
+    "espresso grind": "espresso",
+    "espresso": "espresso",
+    "coarse grind": "coarse",
+    "coarse": "coarse",
+    "fine grind": "fine",
+    "fine": "fine",
+}
+
+
+def _extract_retail_bag_details(tokens: list[str]) -> tuple[str | None, str | None, str | None]:
+    roast_candidates: list[str] = []
+    bag_size: str | None = None
+    grind: str | None = None
+
+    for raw in tokens:
+        token = (raw or "").strip().lower()
+        if not token:
+            continue
+
+        cleaned = token
+
+        for alias, canonical in BAG_SIZE_ALIASES.items():
+            if alias in cleaned:
+                if bag_size is None:
+                    bag_size = canonical
+                cleaned = cleaned.replace(alias, " ")
+
+        for alias, canonical in GRIND_ALIASES.items():
+            if alias in token:
+                grind = canonical
+                cleaned = cleaned.replace(alias, " ")
+
+        cleaned = cleaned.replace("retail bag", " ")
+        cleaned = cleaned.replace("bag", " ")
+        cleaned = cleaned.replace("coffee", " ")
+        cleaned = " ".join(cleaned.split())
+
+        if cleaned:
+            roast_candidates.append(cleaned)
+
+    roast_name = None
+    if roast_candidates:
+        roast_candidates.sort(key=len, reverse=True)
+        roast_name = roast_candidates[0]
+
+    return roast_name, bag_size, grind
+
+
+def _locate_roast_ingredient(roast_name: str | None) -> Ingredient | None:
+    if not roast_name:
+        return None
+
+    roast_qs = Ingredient.objects.filter(type__name__iexact="roasts")
+    candidate = roast_qs.filter(name__iexact=roast_name).first()
+    if candidate:
+        return candidate
+
+    candidate = roast_qs.filter(name__icontains=roast_name).order_by(Length("name")).first()
+    if candidate:
+        return candidate
+
+    return Ingredient.objects.filter(name__iexact=roast_name).first()
 
 
 def _build_recipe_map_from_product(product: Product | None):
@@ -379,6 +463,45 @@ class SquareImporter:
                     is_drink=is_drink_context,
                 )
 
+                is_retail_bag = False
+                if product and (product.name or ""):
+                    is_retail_bag = product.name.strip().lower() in RETAIL_BAG_NAMES
+
+                if is_retail_bag:
+                    roast_name, bag_size, grind_label = _extract_retail_bag_details(normalized_modifiers)
+                    roast_ingredient = _locate_roast_ingredient(roast_name)
+
+                    if roast_ingredient:
+                        profile = None
+                        try:
+                            profile = roast_ingredient.roastprofile
+                        except RoastProfile.DoesNotExist:
+                            profile = RoastProfile.objects.create(ingredient_ptr=roast_ingredient)
+
+                        profile_updates = []
+                        if profile:
+                            if bag_size and profile.bag_size != bag_size:
+                                profile.bag_size = bag_size
+                                profile_updates.append("bag_size")
+                            if grind_label and profile.grind != grind_label:
+                                profile.grind = grind_label
+                                profile_updates.append("grind")
+                            if profile_updates:
+                                profile.save(update_fields=profile_updates)
+
+                        usage_summary = {
+                            roast_ingredient.name: {
+                                "qty": qty,
+                                "sources": ["retail_bag"],
+                                "unit_type": "unit",
+                                "bag_size": bag_size or getattr(profile, "bag_size", None),
+                                "grind": grind_label or getattr(profile, "grind", None),
+                            }
+                        }
+                    else:
+                        if self.dry_run and roast_name:
+                            self.buffer.append(f"⚠️  No roast ingredient found for '{roast_name}'")
+
                 replacements: list[tuple[str, str]] = []
                 additions: dict[str, set[str]] = {}
                 for log in change_logs:
@@ -425,7 +548,12 @@ class SquareImporter:
                     for ing, data in usage_summary.items():
                         qty = data["qty"]
                         sources = ", ".join(data["sources"])
-                        self.buffer.append(f"   {ing}: {qty} (from {sources})")
+                        metadata_bits = [bit for bit in [data.get("bag_size"), data.get("grind")] if bit]
+                        if metadata_bits:
+                            meta_str = " | ".join(metadata_bits)
+                            self.buffer.append(f"   {ing}: {qty} (from {sources}) [{meta_str}]")
+                        else:
+                            self.buffer.append(f"   {ing}: {qty} (from {sources})")
 
             # 🧮 Dry-run log
             if self.dry_run:
