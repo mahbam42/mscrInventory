@@ -18,6 +18,31 @@ MODIFIER_TYPE_CHOICES = {
 }
 
 
+def cleanup_orphan_roast_profiles(apps, schema_editor):
+    Ingredient = apps.get_model("mscrInventory", "Ingredient")
+    RoastProfile = apps.get_model("mscrInventory", "RoastProfile")
+
+    connection = getattr(schema_editor, "connection", None)
+    if connection is None:
+        from django.db import connections, DEFAULT_DB_ALIAS
+
+        connection = connections[DEFAULT_DB_ALIAS]
+
+    roast_table = RoastProfile._meta.db_table
+    ingredient_table = Ingredient._meta.db_table
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            DELETE FROM {roast_table}
+            WHERE NOT EXISTS (
+                SELECT 1 FROM {ingredient_table}
+                WHERE {ingredient_table}.id = {roast_table}.ingredient_ptr_id
+            )
+            """
+        )
+
+
 def _normalize_selector(selector, type_lookup):
     if not isinstance(selector, dict):
         return selector
@@ -85,6 +110,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(cleanup_orphan_roast_profiles, noop),
         migrations.AddField(
             model_name="recipemodifier",
             name="ingredient_type",
