@@ -46,9 +46,9 @@ class RecipeModifierFactory(factory.django.DjangoModelFactory):
         model = RecipeModifier
 
     name = factory.Sequence(lambda n: f"Modifier {n}")
-    type = "MILK"
+    ingredient_type = factory.SubFactory(IngredientTypeFactory)
     behavior = RecipeModifier.ModifierBehavior.ADD
-    ingredient = factory.SubFactory(IngredientFactory)
+    ingredient = factory.SubFactory(IngredientFactory, type=factory.SelfAttribute("..ingredient_type"))
     base_quantity = 1
     unit = "oz"
     cost_per_unit = 0

@@ -40,17 +40,43 @@ def normalize_modifier(raw: str) -> str:
 
 def _select_targets(recipe_map: Dict[str, Dict],
                     current_context: Optional[List[str]] = None,
-                    by_type: Optional[Iterable[str]] = None,
+                    by_type: Optional[Iterable[object]] = None,
                     by_name: Optional[Iterable[str]] = None) -> List[str]:
     """Restrict matches to ingredients within the current recipe context."""
     if current_context:
         recipe_map = {k: v for k, v in recipe_map.items() if k in current_context}
-    by_type = {t.upper() for t in (by_type or [])}
+    by_type_ids: set[int] = set()
+    by_type_names: set[str] = set()
+    for value in by_type or []:
+        if value is None:
+            continue
+        if isinstance(value, int):
+            by_type_ids.add(value)
+            continue
+        if isinstance(value, str):
+            if value.isdigit():
+                try:
+                    by_type_ids.add(int(value))
+                    continue
+                except ValueError:
+                    pass
+            by_type_names.add(value.strip().lower())
+            continue
+    by_type_names = {name for name in by_type_names if name}
     by_name = {_normalize_token(n) for n in (by_name or [])}
     matches = []
     for ing_name, meta in recipe_map.items():
-        ing_type = (meta.get("type") or "").upper()
-        if (by_type and ing_type in by_type) or (_normalize_token(ing_name) in by_name):
+        ing_type_name = (meta.get("type_name") or meta.get("type") or "").strip().lower()
+        ing_type_id = meta.get("type_id")
+        type_match = False
+        if by_type_ids and ing_type_id is not None:
+            type_match = ing_type_id in by_type_ids
+        if not type_match and by_type_names:
+            type_match = ing_type_name in by_type_names
+        if (by_type_ids or by_type_names) and type_match:
+            matches.append(ing_name)
+            continue
+        if _normalize_token(ing_name) in by_name:
             matches.append(ing_name)
     return matches
 
@@ -112,10 +138,15 @@ def _expand_baristas_choice(product: Product,
     for item in product.recipe_items.all():
         ing = item.ingredient
         ing_name = ing.name
-        ing_type = ing.type.name if getattr(ing, "type", None) else ""
+        ing_type = ing.type
         qty = Decimal(item.quantity or 1)
         existed = ing_name in recipe_map
-        recipe_map[ing_name] = {"qty": qty, "type": ing_type}
+        recipe_map[ing_name] = {
+            "qty": qty,
+            "type_id": getattr(ing_type, "id", None),
+            "type_name": getattr(ing_type, "name", "") or "",
+            "type": getattr(ing_type, "name", "") or "",
+        }
         if verbose:
             status = "🔁 override" if existed else "➕ add"
             print(f"   {status}: {ing_name} ×{qty} (from {product.name})")
@@ -167,9 +198,12 @@ def handle_extras(modifier_name: str,
             print(f"🧩 '{modifier_name}' recognized as recipe preset → expanding")
         product = target.product  # get parent Product
         for item in product.recipe_items.all():
+            type_obj = item.ingredient.type
             result[item.ingredient.name] = {
                 "qty": item.quantity,
-                "type": item.ingredient.type.name if item.ingredient.type else "",
+                "type_id": getattr(type_obj, "id", None),
+                "type_name": getattr(type_obj, "name", "") or "",
+                "type": getattr(type_obj, "name", "") or "",
             }
         return result, {
             "added": [item.ingredient.name for item in product.recipe_items.all()],
@@ -209,7 +243,14 @@ def handle_extras(modifier_name: str,
 
     ingredient = getattr(mod, "ingredient", None)
     ingredient_name = getattr(ingredient, "name", mod.name)
-    ingredient_type = getattr(getattr(ingredient, "type", None), "name", mod.type)
+    ingredient_type = getattr(ingredient, "type", None)
+    ingredient_type_name = getattr(ingredient_type, "name", None) or getattr(getattr(mod, "ingredient_type", None), "name", "")
+    ingredient_type_id = (
+        getattr(ingredient_type, "id", None)
+        if ingredient_type is not None
+        else getattr(mod, "ingredient_type_id", None)
+    )
+    ingredient_type_name = ingredient_type_name or ""
 
     if verbose:
         print(f"🧩 Modifier: {modifier_name} ({behavior})")
@@ -219,7 +260,9 @@ def handle_extras(modifier_name: str,
     if behavior == ModifierBehavior.ADD:
         result[ingredient_name] = {
             "qty": getattr(mod, "base_quantity", Decimal("1.0")),
-            "type": ingredient_type,
+            "type_id": ingredient_type_id,
+            "type_name": ingredient_type_name,
+            "type": ingredient_type_name,
         }
         if verbose:
             print(f"   ➕ Added {ingredient_name} ×{getattr(mod, 'base_quantity', Decimal('1.0'))}")
@@ -235,7 +278,9 @@ def handle_extras(modifier_name: str,
             replaced_entries.append((m, new_name))
         result[new_name] = {
             "qty": getattr(mod, "base_quantity", Decimal("1.0")),
-            "type": ingredient_type,
+            "type_id": ingredient_type_id,
+            "type_name": ingredient_type_name,
+            "type": ingredient_type_name,
         }
 
     # --- SCALE -------------------------------------------------------------
@@ -252,9 +297,14 @@ def handle_extras(modifier_name: str,
         if not sub_ing:
             continue
         sub_name = sub_ing.name
-        sub_type = sub_ing.type.name if getattr(sub_ing, "type", None) else ""
+        sub_type = sub_ing.type
         sub_qty = getattr(sub, "base_quantity", Decimal("1.0"))
-        result[sub_name] = {"qty": sub_qty, "type": sub_type}
+        result[sub_name] = {
+            "qty": sub_qty,
+            "type_id": getattr(sub_type, "id", None),
+            "type_name": getattr(sub_type, "name", "") or "",
+            "type": getattr(sub_type, "name", "") or "",
+        }
         if verbose:
             print(f"   🌱 Expanded to include {sub_name}")
 
