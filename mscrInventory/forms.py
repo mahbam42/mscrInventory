@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django import forms
+from django.db import IntegrityError
 from django.utils.text import slugify
 
 from mscrInventory.models import (
@@ -128,13 +129,23 @@ class CreateFromUnmappedItemForm(forms.Form):
 
         if self.item.item_type == "product":
             sku = self.cleaned_data.get("sku") or self._generate_default_sku(self.item, fallback=name)
-            product = Product.objects.create(name=name, sku=sku)
+            try:
+                product = Product.objects.create(name=name, sku=sku)
+            except IntegrityError as exc:
+                raise forms.ValidationError(
+                    "A product with this name or SKU already exists. Use 'Link to Existing' instead."
+                ) from exc
             self.item.mark_resolved(user=user, product=product)
         elif self.item.item_type == "ingredient":
-            ingredient = Ingredient.objects.create(
-                name=name,
-                type=self.cleaned_data.get("ingredient_type"),
-            )
+            try:
+                ingredient = Ingredient.objects.create(
+                    name=name,
+                    type=self.cleaned_data.get("ingredient_type"),
+                )
+            except IntegrityError as exc:
+                raise forms.ValidationError(
+                    "An ingredient with this name already exists. Use 'Link to Existing' instead."
+                ) from exc
             self.item.mark_resolved(user=user, ingredient=ingredient)
         else:
             ingredient = self.cleaned_data["modifier_ingredient"]
@@ -146,15 +157,20 @@ class CreateFromUnmappedItemForm(forms.Form):
                 raise forms.ValidationError(
                     "Select an ingredient with a type or specify an 'Applies To Type'."
                 )
-            modifier = RecipeModifier.objects.create(
-                name=name,
-                ingredient=ingredient,
-                ingredient_type=modifier_type,
-                behavior=behavior,
-                quantity_factor=1,
-                base_quantity=base_quantity,
-                unit=unit,
-            )
+            try:
+                modifier = RecipeModifier.objects.create(
+                    name=name,
+                    ingredient=ingredient,
+                    ingredient_type=modifier_type,
+                    behavior=behavior,
+                    quantity_factor=1,
+                    base_quantity=base_quantity,
+                    unit=unit,
+                )
+            except IntegrityError as exc:
+                raise forms.ValidationError(
+                    "A modifier with this name already exists. Use 'Link to Existing' instead."
+                ) from exc
             self.item.mark_resolved(user=user, modifier=modifier)
         return self.item
 
