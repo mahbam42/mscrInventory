@@ -17,7 +17,7 @@ from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
 from importers.square_importer import SquareImporter
-from mscrInventory.models import ImportLog, Ingredient, Product
+from mscrInventory.models import ImportLog, Ingredient, Product, SquareUnmappedItem
 
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
@@ -85,9 +85,14 @@ def upload_square_view(request):
 
 def unmapped_items_view(request):
     """Return modal/page content summarising unmapped products and ingredients."""
-    products = Product.objects.filter(name__startswith="Unmapped:").order_by("name")
+    square_items = SquareUnmappedItem.objects.all()
+    legacy_products = Product.objects.filter(name__startswith="Unmapped:").order_by("name")
     ingredients = Ingredient.objects.filter(name__startswith="Unmapped:").order_by("name")
-    context = {"products": products, "ingredients": ingredients}
+    context = {
+        "square_items": square_items,
+        "legacy_products": legacy_products,
+        "ingredients": ingredients,
+    }
 
     if request.headers.get("HX-Request") == "true":
         template = "imports/_unmapped_modal.html"

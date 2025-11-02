@@ -22,6 +22,7 @@ from .models import (
     UnitType,
     RoastProfile,
     get_or_create_roast_profile,
+    SquareUnmappedItem,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -197,6 +198,26 @@ class ImportLogAdmin(admin.ModelAdmin):
         return (preview[:75] + "…") if len(preview) > 75 else preview
 
     short_excerpt.short_description = "Preview"
+
+
+@admin.register(SquareUnmappedItem)
+class SquareUnmappedItemAdmin(admin.ModelAdmin):
+    list_display = (
+        "display_label",
+        "price_point_name",
+        "seen_count",
+        "first_seen",
+        "last_seen",
+    )
+    search_fields = ("item_name", "price_point_name")
+    readonly_fields = (
+        "normalized_item",
+        "normalized_price_point",
+        "first_seen",
+        "last_seen",
+        "seen_count",
+    )
+    ordering = ("-last_seen",)
 
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):

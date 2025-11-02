@@ -12,6 +12,7 @@ from mscrInventory.models import (
     OrderItem,
     Product,
     ProductVariantCache,
+    SquareUnmappedItem,
 )
 
 
@@ -30,6 +31,7 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
     output = importer.run_from_file(csv_path)
 
     assert "Dry-run" in output
+    assert "would record unmapped placeholder" in output.lower()
     assert Order.objects.count() == 0
     assert OrderItem.objects.count() == 0
     assert ProductVariantCache.objects.count() == 0
@@ -137,3 +139,28 @@ def test_square_importer_live_rerun_is_idempotent(tmp_path, monkeypatch):
     order_item = order.items.get()
     assert order_item.quantity == 2
     assert importer_second.stats["order_items_logged"] == 1
+
+
+@pytest.mark.django_db
+def test_unmapped_items_recorded_once_with_counts(tmp_path):
+    csv_path = tmp_path / "unmapped.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\n"
+        "Mystery Drink,1,5.00,Decaf.,\n"
+    )
+
+    importer = SquareImporter(dry_run=False)
+    importer.run_from_file(csv_path)
+
+    assert SquareUnmappedItem.objects.count() == 1
+    item = SquareUnmappedItem.objects.get()
+    assert item.item_name == "Mystery Drink"
+    assert item.seen_count == 1
+    assert item.last_modifiers == ["decaf"]
+
+    importer_second = SquareImporter(dry_run=False)
+    importer_second.run_from_file(csv_path)
+
+    assert SquareUnmappedItem.objects.count() == 1
+    item.refresh_from_db()
+    assert item.seen_count == 2

@@ -1,5 +1,6 @@
 # inventory/models.py
 
+import re
 from decimal import Decimal
 from django.conf import settings
 from django.db.models.signals import post_save
@@ -455,6 +456,45 @@ class ImportLog(models.Model):
 
     def __str__(self):
         return f"{self.get_source_display()} import @ {self.last_run:%Y-%m-%d %H:%M}"
+
+
+class SquareUnmappedItem(models.Model):
+    """Tracks Square rows that could not be resolved to a product mapping."""
+
+    item_name = models.CharField(max_length=255)
+    price_point_name = models.CharField(max_length=255, blank=True)
+    normalized_item = models.CharField(max_length=255, editable=False)
+    normalized_price_point = models.CharField(max_length=255, editable=False, blank=True)
+    last_modifiers = models.JSONField(default=list, blank=True)
+    last_reason = models.CharField(max_length=64, blank=True)
+    seen_count = models.PositiveIntegerField(default=1)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("normalized_item", "normalized_price_point")
+        ordering = ("-last_seen", "item_name")
+
+    def __str__(self):
+        return self.display_label
+
+    @staticmethod
+    def _normalize_value(value) -> str:
+        raw = (value or "").strip().lower()
+        cleaned = re.sub(r"[^a-z0-9\s]", " ", raw)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
+
+    @property
+    def display_label(self) -> str:
+        if self.price_point_name:
+            return f"{self.item_name} — {self.price_point_name}"
+        return self.item_name
+
+    def save(self, *args, **kwargs):
+        self.normalized_item = self._normalize_value(self.item_name)
+        self.normalized_price_point = self._normalize_value(self.price_point_name)
+        super().save(*args, **kwargs)
 
 
 def get_or_create_roast_profile(ingredient: "Ingredient") -> RoastProfile | None:

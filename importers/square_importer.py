@@ -26,6 +26,7 @@ from mscrInventory.models import (
     Order,
     OrderItem,
     RoastProfile,
+    SquareUnmappedItem,
     get_or_create_roast_profile,
 )
 from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
@@ -304,6 +305,7 @@ class SquareImporter:
         self._summary_cache: list[str] | None = None
         self._last_run_started: datetime | None = None
         self._current_order: Order | None = None
+        self._unmapped_seen_keys: set[tuple[str, str]] = set()
 
     # ------------------------------------------------------------------
     # 🧩 Single-row processing
@@ -362,12 +364,16 @@ class SquareImporter:
                 self.buffer.append(f"✅ Matched → {product.name} ({reason})")
             else:
                 self.stats["unmatched"] += 1
+                self._record_unmapped_item(
+                    item_name,
+                    price_point,
+                    normalized_modifiers,
+                    reason,
+                )
                 if reason == "variant_unmapped" and price_point:
                     self.buffer.append(
                         f"⚠️ Variant '{price_point}' not mapped for base item '{item_name}'."
                     )
-                else:
-                    self.buffer.append("⚠️ No product match found; left unmapped.")
 
             # --- Create or update the order (daily batch file as order reference) ---
             order_obj = self._current_order
@@ -660,6 +666,7 @@ class SquareImporter:
         self._last_run_started = start_time
         self._summary_added = False
         self._summary_cache = None
+        self._unmapped_seen_keys = set()
         self.buffer.append(
             f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})"
         )
@@ -737,3 +744,91 @@ class SquareImporter:
     def get_summary(self) -> str:
         """Return the formatted summary for display (without mutating twice)."""
         return self.summarize()
+
+    # ------------------------------------------------------------------
+    # ⚠️ Unmapped tracking helpers
+    # ------------------------------------------------------------------
+    def _record_unmapped_item(self, item_name, price_point, modifiers, reason) -> None:
+        normalized_item = _normalize_name(item_name)
+        normalized_price = _normalize_name(price_point)
+        key = (normalized_item, normalized_price)
+        seen_in_run = key in self._unmapped_seen_keys
+        self._unmapped_seen_keys.add(key)
+
+        if self.dry_run:
+            existing = SquareUnmappedItem.objects.filter(
+                normalized_item=normalized_item,
+                normalized_price_point=normalized_price,
+            ).first()
+            if existing:
+                first_seen = existing.first_seen.strftime("%Y-%m-%d %H:%M")
+                self.buffer.append(
+                    f"⚠️ No product match found; first recorded {first_seen} (seen {existing.seen_count}×)."
+                )
+            else:
+                if seen_in_run:
+                    self.buffer.append(
+                        "⚠️ No product match found; would keep unmapped placeholder."
+                    )
+                else:
+                    self.buffer.append(
+                        "⚠️ No product match found; would record unmapped placeholder."
+                    )
+            return
+
+        now = timezone.now()
+        defaults = {
+            "item_name": item_name or "(unknown)",
+            "price_point_name": price_point or "",
+            "normalized_item": normalized_item,
+            "normalized_price_point": normalized_price,
+            "last_modifiers": modifiers,
+            "last_reason": reason or "unmapped",
+            "seen_count": 1,
+            "first_seen": now,
+            "last_seen": now,
+        }
+
+        obj, created = SquareUnmappedItem.objects.get_or_create(
+            normalized_item=normalized_item,
+            normalized_price_point=normalized_price,
+            defaults=defaults,
+        )
+
+        if created:
+            self.buffer.append(
+                f"⚠️ No product match found; recorded as unmapped (first seen {now:%Y-%m-%d %H:%M})."
+            )
+            return
+
+        updates = {}
+        if item_name and item_name != obj.item_name:
+            updates["item_name"] = item_name
+        if price_point and price_point != obj.price_point_name:
+            updates["price_point_name"] = price_point
+        updates["seen_count"] = obj.seen_count + 1
+        updates["last_modifiers"] = modifiers
+        if reason and reason != obj.last_reason:
+            updates["last_reason"] = reason
+        updates["last_seen"] = now
+
+        for field, value in updates.items():
+            setattr(obj, field, value)
+
+        update_fields = list(updates.keys())
+        if "item_name" in update_fields and "normalized_item" not in update_fields:
+            update_fields.append("normalized_item")
+        if "price_point_name" in update_fields and "normalized_price_point" not in update_fields:
+            update_fields.append("normalized_price_point")
+
+        obj.save(update_fields=update_fields)
+
+        first_seen = obj.first_seen.strftime("%Y-%m-%d %H:%M")
+        message = (
+            f"⚠️ No product match found; first recorded {first_seen} (seen {obj.seen_count}×)."
+        )
+        if seen_in_run:
+            message = (
+                f"⚠️ Still unmapped (first recorded {first_seen}; seen {obj.seen_count}×)."
+            )
+        self.buffer.append(message)
