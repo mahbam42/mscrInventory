@@ -76,7 +76,7 @@ class Command(BaseCommand):
         # Logging setup
         log_dir = Path("archive/logs")
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"import_chemistry_{datetime.now():%Y%m%d_%H%M}.log"
+        log_file = log_dir / f"import_chemistry_{timezone.now():%Y%m%d_%H%M}.log"
 
         logging.basicConfig(
             level=logging.INFO,

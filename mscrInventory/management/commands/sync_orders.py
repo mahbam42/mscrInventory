@@ -413,7 +413,7 @@ class Command(BaseCommand):
         # Target date (cafe day). Default: today, but you may want 'yesterday' if you run at 4 PM.
         # import pytz
         tz = ZoneInfo(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
-        today_local = datetime.datetime.now(tz).date()
+        today_local = datetime.timezone.now(tz).date()
 
         target_date = (
             datetime.date.fromisoformat(options["date"])

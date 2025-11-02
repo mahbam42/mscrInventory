@@ -7,7 +7,7 @@ from django.http import HttpResponse, JsonResponse, QueryDict
 from django.contrib import messages
 from django.template.loader import render_to_string
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import timezone
 import json, csv, io
 from itertools import zip_longest
 from mscrInventory.models import Ingredient, StockEntry, IngredientType
@@ -222,7 +222,7 @@ def export_inventory_csv(request):
     Columns are intentionally simple and stable for round-tripping.
     """
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename=inventory_snapshot_{datetime.now():%Y%m%d_%H%M}.csv'
+    response["Content-Disposition"] = f'attachment; filename=inventory_snapshot_{timezone.now():%Y%m%d_%H%M}.csv'
     writer = csv.writer(response)
     writer.writerow([
         "id",

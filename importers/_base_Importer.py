@@ -30,7 +30,7 @@ class BaseImporter:
     # Logging
     # ---------------------------------------------------------------------
     def log(self, message, emoji="💬"):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.timezone.now().strftime("%H:%M:%S")
         line = f"[{timestamp}] {emoji} {message}"
         self.buffer.write(line + "\n")
         if self.log_to_console:

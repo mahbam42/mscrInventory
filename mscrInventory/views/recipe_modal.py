@@ -6,7 +6,7 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
 from django.contrib import messages
-from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from decimal import Decimal
 import csv, io, json
@@ -18,7 +18,7 @@ LOG_FILE = LOG_DIR / "import_recipes.log"
 
 def log_import(action: str, message: str):
     """Append an entry to the recipe import log."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
     LOG_FILE.write_text(
         f"[{timestamp}] {action}: {message}\n",
         encoding="utf-8",
@@ -424,7 +424,7 @@ def import_recipes_csv(request):
         })
 
     if dry_run:
-        dry_log = LOG_DIR / f"import_recipes_dryrun_{datetime.now():%Y%m%d}.txt"
+        dry_log = LOG_DIR / f"import_recipes_dryrun_{timezone.now():%Y%m%d}.txt"
         dry_log.write_text(json.dumps(valid_rows, indent=2))
     else:
         log_import(

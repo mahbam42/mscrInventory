@@ -11,12 +11,12 @@ Standalone SQLite backup utility for mscrInventory.
 
 import os
 import sqlite3
-from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 
 # ---- CONFIG ----
 DB_FILE = Path("db.sqlite3")  # or "db_backup_corrupted.sqlite3" if we really need to roll back
-OUTPUT_DIR = Path("archive/backup_csvs") / f"backup_{datetime.now():%Y%m%d_%H%M%S}"
+OUTPUT_DIR = Path("archive/backup_csvs") / f"backup_{timezone.now():%Y%m%d_%H%M%S}"
 INCLUDE_PREFIXES = ("mscrInventory_", "auth_", "django_")
 
 # Will uncomment after initial run (also fix comment in line 48)
