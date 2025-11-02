@@ -413,7 +413,7 @@ class Command(BaseCommand):
         # Target date (cafe day). Default: today, but you may want 'yesterday' if you run at 4 PM.
         # import pytz
         tz = ZoneInfo(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
-        today_local = datetime.timezone.now(tz).date()
+        today_local = timezone.now(tz).date()
 
         target_date = (
             datetime.date.fromisoformat(options["date"])
@@ -473,8 +473,8 @@ class Command(BaseCommand):
         This contains the logic that used to live in handle() for --date.
         """
         # Define UTC boundaries for the date
-        start_utc = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.min))
-        end_utc = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.max))
+        start_utc = datetime.make_aware(datetime.datetime.combine(target_date, datetime.time.min))
+        end_utc = datetime.make_aware(datetime.datetime.combine(target_date, datetime.time.max))
 
         self.stdout.write(self.style.NOTICE(
             f"📅 Syncing orders for {target_date} ({start_utc} → {end_utc} UTC)"

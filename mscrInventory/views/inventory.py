@@ -7,7 +7,7 @@ from django.http import HttpResponse, JsonResponse, QueryDict
 from django.contrib import messages
 from django.template.loader import render_to_string
 from decimal import Decimal, InvalidOperation
-from datetime import timezone
+from django.utils import timezone
 import json, csv, io
 from itertools import zip_longest
 from mscrInventory.models import Ingredient, StockEntry, IngredientType

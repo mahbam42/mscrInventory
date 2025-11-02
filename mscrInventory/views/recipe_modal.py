@@ -6,7 +6,7 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
 from django.contrib import messages
-from datetime import timezone
+from django.utils import timezone
 from pathlib import Path
 from decimal import Decimal
 import csv, io, json
