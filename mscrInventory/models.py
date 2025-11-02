@@ -646,6 +646,165 @@ class SquareUnmappedItem(models.Model):
         super().save(*args, **kwargs)
 
 
+class SquareUnmappedItem(models.Model):
+    """Tracks Square rows that could not be resolved to an internal mapping."""
+
+    SOURCE_CHOICES = [("square", "Square")]
+    ITEM_TYPE_CHOICES = [
+        ("product", "Product"),
+        ("ingredient", "Ingredient"),
+        ("modifier", "Modifier"),
+    ]
+
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default="square")
+    item_type = models.CharField(max_length=32, choices=ITEM_TYPE_CHOICES, default="product")
+    item_name = models.CharField(max_length=255)
+    price_point_name = models.CharField(max_length=255, blank=True)
+    normalized_item = models.CharField(max_length=255, editable=False)
+    normalized_price_point = models.CharField(max_length=255, editable=False, blank=True)
+    last_modifiers = models.JSONField(default=list, blank=True)
+    last_reason = models.CharField(max_length=64, blank=True)
+    seen_count = models.PositiveIntegerField(default=1)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+    resolved = models.BooleanField(default=False)
+    ignored = models.BooleanField(default=False)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="resolved_unmapped_items",
+    )
+    item_note = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional note describing how to handle this unmapped item.",
+    )
+    linked_product = models.ForeignKey(
+        "Product",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="unmapped_square_links",
+    )
+    linked_ingredient = models.ForeignKey(
+        "Ingredient",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="unmapped_square_links",
+    )
+    linked_modifier = models.ForeignKey(
+        "RecipeModifier",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="unmapped_square_links",
+    )
+
+    class Meta:
+        unique_together = (
+            "source",
+            "item_type",
+            "normalized_item",
+            "normalized_price_point",
+        )
+        ordering = ("-last_seen", "item_name")
+
+    def __str__(self):
+        return self.display_label
+
+    @staticmethod
+    def _normalize_value(value) -> str:
+        raw = (value or "").strip().lower()
+        cleaned = re.sub(r"[^a-z0-9\s]", " ", raw)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
+
+    @property
+    def display_label(self) -> str:
+        if self.price_point_name:
+            return f"{self.item_name} — {self.price_point_name}"
+        return self.item_name
+
+    @property
+    def is_resolved(self) -> bool:
+        return self.resolved or self.ignored
+
+    def mark_resolved(
+        self,
+        *,
+        user=None,
+        ignored: bool = False,
+        product: Optional["Product"] = None,
+        ingredient: Optional["Ingredient"] = None,
+        modifier: Optional["RecipeModifier"] = None,
+        note: str | None = None,
+    ) -> None:
+        """Mark the item as resolved and optionally link an existing record."""
+
+        update_fields = {"resolved", "ignored", "resolved_at"}
+
+        self.resolved = not ignored
+        self.ignored = ignored
+        self.resolved_at = timezone.now()
+        self.resolved_by = user
+        update_fields.add("resolved_by")
+
+        if self.item_type == "product":
+            self.linked_product = product
+        else:
+            self.linked_product = None
+        update_fields.add("linked_product")
+
+        if self.item_type == "ingredient":
+            self.linked_ingredient = ingredient
+        else:
+            self.linked_ingredient = None
+        update_fields.add("linked_ingredient")
+
+        if self.item_type == "modifier":
+            self.linked_modifier = modifier
+        else:
+            self.linked_modifier = None
+        update_fields.add("linked_modifier")
+
+        if note is not None:
+            self.item_note = note
+            update_fields.add("item_note")
+
+        self.save(update_fields=list(update_fields))
+
+    def reopen(self) -> None:
+        """Reopen an item for review."""
+
+        self.resolved = False
+        self.ignored = False
+        self.resolved_at = None
+        self.resolved_by = None
+        self.linked_product = None
+        self.linked_ingredient = None
+        self.linked_modifier = None
+        self.save(
+            update_fields=[
+                "resolved",
+                "ignored",
+                "resolved_at",
+                "resolved_by",
+                "linked_product",
+                "linked_ingredient",
+                "linked_modifier",
+            ]
+        )
+
+    def save(self, *args, **kwargs):
+        self.normalized_item = self._normalize_value(self.item_name)
+        self.normalized_price_point = self._normalize_value(self.price_point_name)
+        super().save(*args, **kwargs)
+
+
 def get_or_create_roast_profile(ingredient: "Ingredient") -> RoastProfile | None:
     """Return the roast profile for an ingredient, creating it if needed."""
 
