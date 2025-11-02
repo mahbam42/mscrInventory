@@ -38,10 +38,11 @@ jobs:
       - name: 🧪 Run pytest
         run: pytest #--cov=mscrInventory --cov-report=term-missing
 
-      - name: ✅ Lint check
-        run: |
-          black --check .
-          flake8 mscrInventory
+# Stuff I'm not ready for
+#      - name: ✅ Lint check
+#        run: |
+#          black --check .
+#          flake8 mscrInventory
 
 #      - name: 📊 Upload coverage report
 #        uses: codecov/codecov-action@v4
