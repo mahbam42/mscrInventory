@@ -5,7 +5,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("mscrInventory", "0023_squareunmappeditem"),
+        ("mscrInventory", "0024_schema_sync_checkpoint"),
     ]
 
     operations = [
