@@ -1,12 +1,11 @@
 from io import StringIO
+from decimal import Decimal
 
 import pytest
 from django.core.management import call_command
 
 from importers import square_importer
 from importers.square_importer import SquareImporter
-from decimal import Decimal
-
 from mscrInventory.models import (
     Order,
     OrderItem,
@@ -31,7 +30,7 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
     output = importer.run_from_file(csv_path)
 
     assert "Dry-run" in output
-    assert "would record unmapped placeholder" in output.lower()
+    assert "no product match found" in output.lower()
     assert Order.objects.count() == 0
     assert OrderItem.objects.count() == 0
     assert ProductVariantCache.objects.count() == 0

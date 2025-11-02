@@ -352,7 +352,8 @@ class SquareImporter:
             self.buffer.append(f"\nRow {self.stats['rows_processed']}:")
             self.buffer.append(f"  🏷 Item: {item_name}")
             self.buffer.append(f"  💲 Price Point: {price_point or '(none)'}")
-            self.buffer.append(f"  🔧 Modifiers: {normalized_modifiers or '(none)'}")
+            modifier_display = ", ".join(normalized_modifiers) if normalized_modifiers else "(none)"
+            self.buffer.append(f"  🔧 Modifiers: {modifier_display}")
 
             # 🧩 Find best product match (based on core_name only)
             product, reason = _find_best_product_match(
@@ -778,6 +779,8 @@ class SquareImporter:
 
         now = timezone.now()
         defaults = {
+            "source": "square",
+            "item_type": "product",
             "item_name": item_name or "(unknown)",
             "price_point_name": price_point or "",
             "normalized_item": normalized_item,
@@ -801,16 +804,23 @@ class SquareImporter:
             )
             return
 
-        updates = {}
+        updates = {"last_seen": now}
         if item_name and item_name != obj.item_name:
             updates["item_name"] = item_name
         if price_point and price_point != obj.price_point_name:
             updates["price_point_name"] = price_point
-        updates["seen_count"] = obj.seen_count + 1
+        if not seen_in_run:
+            updates["seen_count"] = obj.seen_count + 1
         updates["last_modifiers"] = modifiers
         if reason and reason != obj.last_reason:
             updates["last_reason"] = reason
-        updates["last_seen"] = now
+
+        if obj.resolved and not obj.ignored:
+            obj.reopen()
+            updates["resolved"] = obj.resolved
+            updates["ignored"] = obj.ignored
+            updates["resolved_at"] = obj.resolved_at
+            updates["resolved_by"] = obj.resolved_by
 
         for field, value in updates.items():
             setattr(obj, field, value)

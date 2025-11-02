@@ -1,13 +1,23 @@
 <div class="mb-3">
-  <p class="text-muted mb-0">
-    Map Square items to products and ingredients using the admin links below. Dry runs will remain read-only.
+  {% if total_unresolved %}
+    <p class="mb-1">
+      <strong>{{ total_unresolved }}</strong> unresolved Square items require mapping. Use the quick actions
+      below to link them to existing records, create new entries, or ignore them temporarily.
+    </p>
+  {% else %}
+    <p class="text-success mb-0">✅ All Square items are currently mapped.</p>
+  {% endif %}
+  <p class="text-muted small mb-0">
+    Filters apply to the table and actions update instantly via HTMX.
   </p>
 </div>
-<div class="row g-4">
-  <div class="col-lg-6">
-    {% include "partials/unmapped_square_items_table.html" with square_items=square_items legacy_products=legacy_products %}
-  </div>
-  <div class="col-lg-6">
-    {% include "partials/unmapped_ingredients_table.html" with items=ingredients %}
-  </div>
+
+{% include "partials/unmapped_square_items_table.html" %}
+
+<div class="mt-4">
+  <h5 class="mb-2">Legacy Unmapped Ingredients</h5>
+  <p class="text-muted small">
+    Ingredients created as placeholders prior to the new workflow still appear here.
+  </p>
+  {% include "partials/unmapped_ingredients_table.html" with items=ingredients %}
 </div>

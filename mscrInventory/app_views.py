@@ -1,6 +1,8 @@
 # mscrInventory/views.py
 from django.shortcuts import render
-from .models import Product, Ingredient, SquareUnmappedItem
+
+from mscrInventory.views.imports import _build_unmapped_context
+from .models import Ingredient
 
 # --------------------------------------------------------------------
 # Unified HTMX partials for unmapped items
@@ -11,12 +13,7 @@ def unmapped_products_partial(request):
     Partial table for unmapped products.
     Appears on Products dashboard and Imports dashboard.
     """
-    square_items = SquareUnmappedItem.objects.all()
-    legacy_products = Product.objects.filter(name__startswith="Unmapped:").order_by("name")
-    context = {
-        "square_items": square_items,
-        "legacy_products": legacy_products,
-    }
+    context = _build_unmapped_context(filter_type="product")
     return render(request, "partials/unmapped_square_items_table.html", context)
 
 

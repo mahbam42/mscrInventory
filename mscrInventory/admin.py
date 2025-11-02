@@ -204,12 +204,15 @@ class ImportLogAdmin(admin.ModelAdmin):
 class SquareUnmappedItemAdmin(admin.ModelAdmin):
     list_display = (
         "display_label",
-        "price_point_name",
+        "source",
+        "item_type",
         "seen_count",
-        "first_seen",
+        "resolved",
+        "ignored",
         "last_seen",
     )
-    search_fields = ("item_name", "price_point_name")
+    list_filter = ("source", "item_type", "resolved", "ignored")
+    search_fields = ("item_name", "price_point_name", "last_reason")
     readonly_fields = (
         "normalized_item",
         "normalized_price_point",
@@ -218,6 +221,60 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
         "seen_count",
     )
     ordering = ("-last_seen",)
+    autocomplete_fields = ("linked_product", "linked_ingredient", "linked_modifier")
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    ("source", "item_type"),
+                    "item_name",
+                    "price_point_name",
+                    "last_reason",
+                    "item_note",
+                )
+            },
+        ),
+        (
+            "Resolution",
+            {
+                "fields": (
+                    ("resolved", "ignored"),
+                    ("linked_product", "linked_ingredient", "linked_modifier"),
+                    ("resolved_by", "resolved_at"),
+                )
+            },
+        ),
+        (
+            "History",
+            {
+                "fields": (
+                    "seen_count",
+                    ("first_seen", "last_seen"),
+                    "last_modifiers",
+                    ("normalized_item", "normalized_price_point"),
+                )
+            },
+        ),
+    )
+
+    actions = ["mark_as_resolved", "mark_as_ignored", "reopen_items"]
+
+    @admin.action(description="Mark selected items as resolved")
+    def mark_as_resolved(self, request, queryset):
+        for item in queryset:
+            item.mark_resolved(user=request.user)
+
+    @admin.action(description="Ignore selected items")
+    def mark_as_ignored(self, request, queryset):
+        for item in queryset:
+            item.mark_resolved(user=request.user, ignored=True)
+
+    @admin.action(description="Reopen selected items")
+    def reopen_items(self, request, queryset):
+        for item in queryset:
+            item.reopen()
 
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):

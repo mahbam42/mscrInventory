@@ -3,7 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from importers import square_importer
-from mscrInventory.models import ImportLog, Ingredient, SquareUnmappedItem
+from mscrInventory.models import ImportLog, Ingredient, Product, SquareUnmappedItem
 
 
 @pytest.mark.django_db
@@ -41,9 +41,11 @@ def test_unmapped_items_view_modal(client):
     assert response.status_code == 200
     content = response.content.decode("utf-8")
     assert "modal-header" in content
+    assert "Raw Name" in content
+    assert "Link to Existing" in content
     assert "Barista&#x27;s Choice" in content
     assert "Dracula&#x27;s Delight" in content
-    assert "Unmapped: Syrup" in content
+    assert "Legacy Unmapped Ingredients" in content
 
 
 @pytest.mark.django_db
@@ -52,4 +54,22 @@ def test_unmapped_items_view_page(client):
     response = client.get(reverse("imports_unmapped_items"))
     assert response.status_code == 200
     assert b"Unmapped Square Items" in response.content
+    assert b"Resolve All" in response.content
     assert b"Seasonal Special" in response.content
+
+
+@pytest.mark.django_db
+def test_bulk_unmapped_create_products(client, django_user_model):
+    user = django_user_model.objects.create_user(username="staff", password="pw", is_staff=True)
+    client.force_login(user)
+
+    SquareUnmappedItem.objects.create(item_name="Mystery Drink", price_point_name="Nightcap")
+    response = client.post(
+        reverse("imports_unmapped_bulk"),
+        {"action": "create", "filter_type": "product"},
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    assert Product.objects.filter(name="Nightcap").exists()
+    assert SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count() == 0
