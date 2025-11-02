@@ -46,20 +46,42 @@ class BaseImporter:
         - defaults: dict of values to set/update
         """
         defaults = defaults or {}
+
+        if self.dry_run:
+            obj = model.objects.filter(**lookup).first()
+            created = obj is None
+
+            if created:
+                # Simulate the object that would be created.
+                obj = model(**{**lookup, **defaults})
+                self.counters["added"] += 1
+                self.log(
+                    f"[Dry Run] Would create {model.__name__}: {obj}",
+                    "🧪",
+                )
+            elif defaults:
+                for key, value in defaults.items():
+                    setattr(obj, key, value)
+                self.counters["updated"] += 1
+                self.log(
+                    f"[Dry Run] Would update {model.__name__}: {obj}",
+                    "🧪",
+                )
+
+            return obj, created
+
         obj, created = model.objects.get_or_create(**lookup, defaults=defaults)
 
-        if not created and defaults:
-            for key, value in defaults.items():
-                setattr(obj, key, value)
-            if not self.dry_run:
-                obj.save()
-            self.counters["updated"] += 1
-            self.log(f"Updated {model.__name__}: {obj}", "🔄")
-        else:
-            if not self.dry_run:
-                obj.save()
+        if created:
+            obj.save()
             self.counters["added"] += 1
             self.log(f"Created {model.__name__}: {obj}", "🆕")
+        elif defaults:
+            for key, value in defaults.items():
+                setattr(obj, key, value)
+            obj.save()
+            self.counters["updated"] += 1
+            self.log(f"Updated {model.__name__}: {obj}", "🔄")
 
         return obj, created
 
