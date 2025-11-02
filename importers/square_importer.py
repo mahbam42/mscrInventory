@@ -16,6 +16,7 @@ from pathlib import Path
 
 from django.db import transaction
 from django.db.models.functions import Length
+from django.utils import timezone
 
 from mscrInventory.models import (
     Ingredient,
@@ -302,6 +303,7 @@ class SquareImporter:
         self._summary_added = False
         self._summary_cache: list[str] | None = None
         self._last_run_started: datetime | None = None
+        self._current_order: Order | None = None
 
     # ------------------------------------------------------------------
     # 🧩 Single-row processing
@@ -360,24 +362,31 @@ class SquareImporter:
                 self.buffer.append(f"✅ Matched → {product.name} ({reason})")
             else:
                 self.stats["unmatched"] += 1
-                self.buffer.append("⚠️ No product match found; left unmapped.")
+                if reason == "variant_unmapped" and price_point:
+                    self.buffer.append(
+                        f"⚠️ Variant '{price_point}' not mapped for base item '{item_name}'."
+                    )
+                else:
+                    self.buffer.append("⚠️ No product match found; left unmapped.")
 
             # --- Create or update the order (daily batch file as order reference) ---
-            order_obj = None
-            if not self.dry_run:
-                order_obj, _ = Order.objects.get_or_create(
-                    platform="square",
-                    order_id=file_path.stem if file_path else "test_row",
-                    defaults={
-                        "order_date": datetime.now(),
-                        "total_amount": Decimal("0.00"),
-                    },
-                )
-            else:
+            order_obj = self._current_order
+            if self.dry_run:
                 display_id = file_path.stem if file_path else "test_row"
                 self.buffer.append(
                     f"🧪 Would ensure order square#{display_id} exists"
                 )
+            elif order_obj is None:
+                # Fallback for tests that call _process_row directly without run_from_file
+                order_obj, _ = Order.objects.get_or_create(
+                    platform="square",
+                    order_id=file_path.stem if file_path else "test_row",
+                    defaults={
+                        "order_date": timezone.now(),
+                        "total_amount": Decimal("0.00"),
+                    },
+                )
+                self._current_order = order_obj
 
             # --- Cache descriptors ---
             if product and descriptors:
@@ -639,16 +648,44 @@ class SquareImporter:
     def run_from_file(self, file_path: Path):
         """Run import from a given CSV file."""
         self.buffer = []
+        self.stats = {
+            "rows_processed": 0,
+            "matched": 0,
+            "unmatched": 0,
+            "order_items_logged": 0,
+            "modifiers_applied": 0,
+            "errors": 0,
+        }
         start_time = datetime.now()
         self._last_run_started = start_time
         self._summary_added = False
         self._summary_cache = None
-        self.buffer.append(f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})")
+        self.buffer.append(
+            f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})"
+        )
 
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
+        order_identifier = file_path.stem
+
         with transaction.atomic():
+            if not self.dry_run:
+                order_obj, created = Order.objects.get_or_create(
+                    platform="square",
+                    order_id=order_identifier,
+                    defaults={
+                        "order_date": timezone.now(),
+                        "total_amount": Decimal("0.00"),
+                    },
+                )
+                if not created:
+                    order_obj.items.all().delete()
+                order_obj.total_amount = Decimal("0.00")
+                order_obj.save(update_fields=["total_amount"])
+                self._current_order = order_obj
+            else:
+                self._current_order = None
             with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
@@ -658,6 +695,8 @@ class SquareImporter:
 
             if self.dry_run:
                 transaction.set_rollback(True)
+
+        self._current_order = None
 
         return self.get_output()
 

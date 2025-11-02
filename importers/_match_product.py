@@ -22,6 +22,9 @@ Returns:
 
 from difflib import SequenceMatcher
 import re
+
+from django.db.models.functions import Length
+
 from mscrInventory.models import Product
 
 
@@ -53,6 +56,40 @@ def _extract_descriptors(name: str):
     return core_name or name, descriptors
 
 
+GENERIC_MENU_PREFIXES = {
+    "baristas choice",
+    "barista s choice",
+    "barista choice",
+    "build your own",
+    "custom drink",
+}
+
+
+def _match_variant_by_name(name: str):
+    """Attempt to resolve a product directly from a variant/price-point token."""
+    normalized = _normalize_name(name)
+    if not normalized:
+        return None, "variant_unmapped"
+
+    product = Product.objects.filter(name__iexact=name).first()
+    if product:
+        return product, "variant_exact"
+
+    product = Product.objects.filter(name__iexact=normalized).first()
+    if product:
+        return product, "variant_exact_normalized"
+
+    product = (
+        Product.objects.filter(name__icontains=normalized)
+        .order_by(Length("name"))
+        .first()
+    )
+    if product:
+        return product, "variant_partial"
+
+    return None, "variant_unmapped"
+
+
 def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
     """Improved product matching logic that preserves descriptors."""
     raw_name = (item_name or "").strip()
@@ -68,6 +105,23 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
     if not core_name:
         log(f"Empty item_name after normalization → '{raw_name}'")
         return None, "empty_name"
+
+    # Detect generic menu containers (e.g. "Barista's Choice") that should rely on
+    # the price point / variant name instead of the generic item label.
+    normalized_plain = normalized.replace("'", "")
+    for prefix in GENERIC_MENU_PREFIXES:
+        if normalized_plain.startswith(prefix):
+            if price_point:
+                variant_product, variant_reason = _match_variant_by_name(price_point)
+                if variant_product:
+                    log(
+                        f"Generic menu item '{raw_name}' resolved via price point '{price_point}'"
+                    )
+                    return variant_product, variant_reason
+            log(
+                f"Generic menu item '{raw_name}' without known variant → unmapped"
+            )
+            return None, "variant_unmapped"
 
     # 1️⃣ Exact Item Name
     # Try exact match against the raw name first (preserves casing/punctuation)
