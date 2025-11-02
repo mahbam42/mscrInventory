@@ -22,6 +22,7 @@ from .models import (
     UnitType,
     RoastProfile,
     get_or_create_roast_profile,
+    SquareUnmappedItem,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -180,6 +181,43 @@ class OrderItemAdmin(admin.ModelAdmin):
     search_fields = ('order__order_id', 'product__name', 'product__sku')
     ordering = ['-order__order_date']
     readonly_fields = ('order', 'product', 'quantity', 'unit_price')
+
+
+@admin.register(ImportLog)
+class ImportLogAdmin(admin.ModelAdmin):
+    list_display = ("source", "last_run", "short_excerpt")
+    list_filter = ("source",)
+    search_fields = ("source", "log_excerpt")
+    readonly_fields = ("source", "last_run", "log_excerpt")
+    ordering = ("-last_run",)
+
+    def short_excerpt(self, obj):
+        if not obj.log_excerpt:
+            return "—"
+        preview = obj.log_excerpt.strip().splitlines()[0]
+        return (preview[:75] + "…") if len(preview) > 75 else preview
+
+    short_excerpt.short_description = "Preview"
+
+
+@admin.register(SquareUnmappedItem)
+class SquareUnmappedItemAdmin(admin.ModelAdmin):
+    list_display = (
+        "display_label",
+        "price_point_name",
+        "seen_count",
+        "first_seen",
+        "last_seen",
+    )
+    search_fields = ("item_name", "price_point_name")
+    readonly_fields = (
+        "normalized_item",
+        "normalized_price_point",
+        "first_seen",
+        "last_seen",
+        "seen_count",
+    )
+    ordering = ("-last_seen",)
 
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):
