@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Import Logs{% endblock %}
+
+{% block content %}
+<h1>Import Logs</h1>
+<p class="text-muted">Review the full history of Square and Shopify imports.</p>
+
+<div class="table-responsive shadow-sm border rounded">
+  <table class="table table-striped mb-0">
+    <thead>
+      <tr>
+        <th scope="col">Source</th>
+        <th scope="col">Run Type</th>
+        <th scope="col">Started</th>
+        <th scope="col">Filename</th>
+        <th scope="col" class="text-end">Rows</th>
+        <th scope="col" class="text-end">Matched</th>
+        <th scope="col" class="text-end">Unmatched</th>
+        <th scope="col" class="text-end">Errors</th>
+        <th scope="col">Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if page_obj.object_list %}
+        {% for log in page_obj.object_list %}
+          <tr>
+            <td>{{ log.get_source_display }}</td>
+            <td>{{ log.get_run_type_display }}</td>
+            <td>{{ log.started_at|default:log.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ log.filename|default:"—" }}</td>
+            <td class="text-end">{{ log.rows_processed }}</td>
+            <td class="text-end">{{ log.matched_count }}</td>
+            <td class="text-end">{{ log.unmatched_count }}</td>
+            <td class="text-end">{{ log.error_count }}</td>
+            <td>
+              {% if log.summary %}
+                <div class="small fw-semibold">{{ log.summary }}</div>
+              {% else %}
+                <div class="text-muted small">(no summary)</div>
+              {% endif %}
+              {% if log.log_output %}
+                <details class="mt-1">
+                  <summary class="text-primary">View full log</summary>
+                  <pre class="bg-light border rounded p-3 mt-2">{{ log.log_output }}</pre>
+                </details>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="9" class="text-center py-4 text-muted">No import runs recorded yet.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<nav aria-label="Import log pagination" class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">&laquo;</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+      {% else %}
+        <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">&raquo;</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endblock %}
