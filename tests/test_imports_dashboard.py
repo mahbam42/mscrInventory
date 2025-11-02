@@ -8,7 +8,7 @@ from mscrInventory.models import ImportLog, Ingredient, Product, SquareUnmappedI
 
 @pytest.mark.django_db
 def test_upload_square_view_logs_output(client, monkeypatch):
-    csv_content = "Item,Qty\nLatte,1\n"
+    csv_content = "Item,Qty,Transaction ID\nLatte,1,txn-test\n"
     upload = SimpleUploadedFile("square.csv", csv_content.encode("utf-8"))
 
     def fake_run(self, path):
@@ -24,8 +24,12 @@ def test_upload_square_view_logs_output(client, monkeypatch):
     )
 
     assert response.status_code == 302
-    log = ImportLog.objects.get(source="square")
-    assert "Test output" in log.log_excerpt
+    logs = ImportLog.objects.filter(source="square")
+    assert logs.count() == 1
+    log = logs.first()
+    assert log.run_type == "dry-run"
+    assert log.filename == "square.csv"
+    assert "Test output" in (log.log_output or "")
 
 
 @pytest.mark.django_db
@@ -73,3 +77,22 @@ def test_bulk_unmapped_create_products(client, django_user_model):
     assert response.status_code == 200
     assert Product.objects.filter(name="Nightcap").exists()
     assert SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count() == 0
+
+
+@pytest.mark.django_db
+def test_import_logs_view_lists_entries(client, django_user_model):
+    user = django_user_model.objects.create_user(username="viewer", password="pw")
+    ImportLog.objects.create(
+        source="square",
+        run_type="dry-run",
+        filename="example.csv",
+        summary="Sample summary",
+        log_output="Line one",
+        uploaded_by=user,
+    )
+
+    response = client.get(reverse("import_logs"))
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "example.csv" in content
+    assert "Sample summary" in content

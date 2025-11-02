@@ -4,6 +4,7 @@ Import views for handling external data sources.
 
 import json
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 from django import forms as django_forms
@@ -116,13 +117,27 @@ def upload_square_view(request):
         importer.run_from_file(tmp_path)
         output = importer.get_output()
         summary = importer.get_summary()
+        metadata = importer.get_run_metadata()
+        stats = metadata.get("stats", {})
+        duration = metadata.get("duration_seconds")
+        duration_decimal = Decimal(str(duration)) if duration is not None else None
 
-        ImportLog.objects.update_or_create(
+        ImportLog.objects.create(
             source="square",
-            defaults={
-                "last_run": timezone.now(),
-                "log_excerpt": output[:2000],
-            },
+            run_type="dry-run" if dry_run else "live",
+            filename=uploaded_file.name,
+            started_at=metadata.get("started_at"),
+            finished_at=metadata.get("finished_at"),
+            duration_seconds=duration_decimal,
+            rows_processed=stats.get("rows_processed", 0),
+            matched_count=stats.get("matched", 0),
+            unmatched_count=stats.get("unmatched", 0),
+            order_items=stats.get("order_items_logged", 0),
+            modifiers_applied=stats.get("modifiers_applied", 0),
+            error_count=stats.get("errors", 0),
+            summary=summary,
+            log_output=output,
+            uploaded_by=request.user if request.user.is_authenticated else None,
         )
 
         messages.success(
@@ -312,14 +327,53 @@ def fetch_shopify_view(request):
     try:
         if end_date:
             call_command("sync_orders", start=start_date, end=end_date)
-            ImportLog.objects.update_or_create(
-                source="shopify", defaults={"last_run": timezone.now()}
+            summary = f"Shopify orders fetched for {start_date} → {end_date}"
+            ImportLog.objects.create(
+                source="shopify",
+                run_type="live",
+                filename="",
+                started_at=timezone.now(),
+                finished_at=timezone.now(),
+                summary=summary,
+                log_output=summary,
+                uploaded_by=request.user if request.user.is_authenticated else None,
             )
-            messages.success(request, f"✅ Shopify orders fetched for {start_date} → {end_date}")
+            messages.success(request, f"✅ {summary}")
         else:
             call_command("sync_orders", date=start_date)
-            messages.success(request, f"✅ Shopify orders fetched for {start_date}")
+            summary = f"Shopify orders fetched for {start_date}"
+            ImportLog.objects.create(
+                source="shopify",
+                run_type="live",
+                filename="",
+                started_at=timezone.now(),
+                finished_at=timezone.now(),
+                summary=summary,
+                log_output=summary,
+                uploaded_by=request.user if request.user.is_authenticated else None,
+            )
+            messages.success(request, f"✅ {summary}")
     except Exception as exc:  # pragma: no cover - defensive logging
         messages.error(request, f"❌ Error fetching Shopify data: {exc}")
 
     return redirect("imports_dashboard")
+
+
+def import_logs_view(request):
+    """Display a paginated history of import logs."""
+
+    logs = ImportLog.objects.select_related("uploaded_by").order_by("-created_at")
+    paginator = Paginator(logs, 20)
+    page_number = request.GET.get("page")
+    try:
+        page_obj = paginator.page(page_number or 1)
+    except (PageNotAnInteger, EmptyPage):
+        page_obj = paginator.page(1)
+
+    return render(
+        request,
+        "imports/log_list.html",
+        {
+            "page_obj": page_obj,
+        },
+    )

@@ -10,6 +10,7 @@ Handles:
 """
 
 import csv
+from contextlib import nullcontext
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -304,7 +305,9 @@ class SquareImporter:
         self._summary_added = False
         self._summary_cache: list[str] | None = None
         self._last_run_started: datetime | None = None
+        self._last_run_finished: datetime | None = None
         self._current_order: Order | None = None
+        self._orders_by_transaction: dict[str, Order | None] = {}
         self._unmapped_seen_keys: set[tuple[str, str]] = set()
 
     # ------------------------------------------------------------------
@@ -376,23 +379,17 @@ class SquareImporter:
                         f"⚠️ Variant '{price_point}' not mapped for base item '{item_name}'."
                     )
 
-            # --- Create or update the order (daily batch file as order reference) ---
-            order_obj = self._current_order
+            transaction_id = self._extract_transaction_id(row, file_path)
+            order_obj = None
             if self.dry_run:
-                display_id = file_path.stem if file_path else "test_row"
-                self.buffer.append(
-                    f"🧪 Would ensure order square#{display_id} exists"
-                )
-            elif order_obj is None:
-                # Fallback for tests that call _process_row directly without run_from_file
-                order_obj, _ = Order.objects.get_or_create(
-                    platform="square",
-                    order_id=file_path.stem if file_path else "test_row",
-                    defaults={
-                        "order_date": timezone.now(),
-                        "total_amount": Decimal("0.00"),
-                    },
-                )
+                display_id = transaction_id or (file_path.stem if file_path else "test_row")
+                if display_id not in self._orders_by_transaction:
+                    self._orders_by_transaction[display_id] = None
+                    self.buffer.append(
+                        f"🧪 Would ensure order square#{display_id} exists"
+                    )
+            else:
+                order_obj = self._ensure_order_for_transaction(transaction_id, file_path)
                 self._current_order = order_obj
 
             # --- Cache descriptors ---
@@ -649,6 +646,47 @@ class SquareImporter:
 
         return self.buffer
 
+    def _extract_transaction_id(self, row: dict, file_path: Path | None) -> str:
+        candidates = [
+            "Transaction ID",
+            "Transaction Id",
+            "Transaction Id(s)",
+            "Transaction",
+            "Transaction UUID",
+            "Payment ID",
+            "Payment Id",
+            "Payment ID(s)",
+        ]
+        for key in candidates:
+            raw = row.get(key)
+            if raw:
+                value = str(raw).strip()
+                if value:
+                    return value
+        return file_path.stem if file_path else "square-order"
+
+    def _ensure_order_for_transaction(self, transaction_id: str, file_path: Path | None) -> Order:
+        key = transaction_id or (file_path.stem if file_path else "square-order")
+        if key in self._orders_by_transaction:
+            return self._orders_by_transaction[key]
+
+        order_obj, created = Order.objects.get_or_create(
+            platform="square",
+            order_id=key,
+            defaults={
+                "order_date": timezone.now(),
+                "total_amount": Decimal("0.00"),
+            },
+        )
+        if not created:
+            order_obj.items.all().delete()
+        order_obj.total_amount = Decimal("0.00")
+        order_obj.save(update_fields=["total_amount"])
+        self._orders_by_transaction[key] = order_obj
+        action = "created" if created else "reset"
+        self.buffer.append(f"🧾 Using order square#{key} ({action})")
+        return order_obj
+
     # ------------------------------------------------------------------
     # 🧾 Batch importer wrapper
     # ------------------------------------------------------------------
@@ -663,11 +701,12 @@ class SquareImporter:
             "modifiers_applied": 0,
             "errors": 0,
         }
-        start_time = datetime.now()
+        start_time = timezone.now()
         self._last_run_started = start_time
         self._summary_added = False
         self._summary_cache = None
         self._unmapped_seen_keys = set()
+        self._orders_by_transaction = {}
         self.buffer.append(
             f"📥 Importing {file_path.name} ({'dry-run' if self.dry_run else 'live'})"
         )
@@ -675,24 +714,10 @@ class SquareImporter:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        order_identifier = file_path.stem
+        context = nullcontext() if self.dry_run else transaction.atomic()
 
-        with transaction.atomic():
+        with context:
             if not self.dry_run:
-                order_obj, created = Order.objects.get_or_create(
-                    platform="square",
-                    order_id=order_identifier,
-                    defaults={
-                        "order_date": timezone.now(),
-                        "total_amount": Decimal("0.00"),
-                    },
-                )
-                if not created:
-                    order_obj.items.all().delete()
-                order_obj.total_amount = Decimal("0.00")
-                order_obj.save(update_fields=["total_amount"])
-                self._current_order = order_obj
-            else:
                 self._current_order = None
             with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -702,10 +727,10 @@ class SquareImporter:
             self.summarize()
 
             if self.dry_run:
-                transaction.set_rollback(True)
+                self._current_order = None
 
+        self._last_run_finished = timezone.now()
         self._current_order = None
-
         return self.get_output()
 
     # ------------------------------------------------------------------
@@ -715,8 +740,9 @@ class SquareImporter:
         if self._summary_added and self._summary_cache is not None:
             return "\n".join(self._summary_cache)
 
-        start_time = self._last_run_started or datetime.now()
-        elapsed = (datetime.now() - start_time).total_seconds()
+        start_time = self._last_run_started or timezone.now()
+        end_time = self._last_run_finished or timezone.now()
+        elapsed = (end_time - start_time).total_seconds()
 
         summary_lines = [
             "",
@@ -738,6 +764,22 @@ class SquareImporter:
         self._summary_cache = summary_lines
         return "\n".join(summary_lines)
 
+    def get_run_metadata(self) -> dict:
+        """Return structured metadata about the most recent run."""
+        stats = dict(self.stats)
+        started_at = self._last_run_started
+        finished_at = self._last_run_finished
+        duration = None
+        if started_at and finished_at:
+            duration = (finished_at - started_at).total_seconds()
+
+        return {
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "duration_seconds": duration,
+            "stats": stats,
+        }
+
     def get_output(self) -> str:
         """Return the collected log as a single string."""
         return "\n".join(self.buffer)
@@ -755,27 +797,6 @@ class SquareImporter:
         key = (normalized_item, normalized_price)
         seen_in_run = key in self._unmapped_seen_keys
         self._unmapped_seen_keys.add(key)
-
-        if self.dry_run:
-            existing = SquareUnmappedItem.objects.filter(
-                normalized_item=normalized_item,
-                normalized_price_point=normalized_price,
-            ).first()
-            if existing:
-                first_seen = existing.first_seen.strftime("%Y-%m-%d %H:%M")
-                self.buffer.append(
-                    f"⚠️ No product match found; first recorded {first_seen} (seen {existing.seen_count}×)."
-                )
-            else:
-                if seen_in_run:
-                    self.buffer.append(
-                        "⚠️ No product match found; would keep unmapped placeholder."
-                    )
-                else:
-                    self.buffer.append(
-                        "⚠️ No product match found; would record unmapped placeholder."
-                    )
-            return
 
         now = timezone.now()
         defaults = {
@@ -799,8 +820,9 @@ class SquareImporter:
         )
 
         if created:
+            label = "🧪" if self.dry_run else "⚠️"
             self.buffer.append(
-                f"⚠️ No product match found; recorded as unmapped (first seen {now:%Y-%m-%d %H:%M})."
+                f"{label} No product match found; recorded as unmapped (first seen {now:%Y-%m-%d %H:%M})."
             )
             return
 
@@ -834,11 +856,12 @@ class SquareImporter:
         obj.save(update_fields=update_fields)
 
         first_seen = obj.first_seen.strftime("%Y-%m-%d %H:%M")
-        message = (
-            f"⚠️ No product match found; first recorded {first_seen} (seen {obj.seen_count}×)."
+        base_message = (
+            f"No product match found; first recorded {first_seen} (seen {obj.seen_count}×)."
         )
         if seen_in_run:
-            message = (
-                f"⚠️ Still unmapped (first recorded {first_seen}; seen {obj.seen_count}×)."
+            base_message = (
+                f"Still unmapped (first recorded {first_seen}; seen {obj.seen_count}×)."
             )
-        self.buffer.append(message)
+        label = "🧪" if self.dry_run else "⚠️"
+        self.buffer.append(f"{label} {base_message}")

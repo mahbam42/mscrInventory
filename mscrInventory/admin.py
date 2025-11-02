@@ -185,19 +185,44 @@ class OrderItemAdmin(admin.ModelAdmin):
 
 @admin.register(ImportLog)
 class ImportLogAdmin(admin.ModelAdmin):
-    list_display = ("source", "last_run", "short_excerpt")
-    list_filter = ("source",)
-    search_fields = ("source", "log_excerpt")
-    readonly_fields = ("source", "last_run", "log_excerpt")
-    ordering = ("-last_run",)
+    list_display = (
+        "source",
+        "run_type",
+        "filename",
+        "created_at",
+        "rows_processed",
+        "unmatched_count",
+        "short_summary",
+    )
+    list_filter = ("source", "run_type")
+    search_fields = ("filename", "summary", "log_output")
+    readonly_fields = (
+        "source",
+        "run_type",
+        "filename",
+        "created_at",
+        "started_at",
+        "finished_at",
+        "duration_seconds",
+        "rows_processed",
+        "matched_count",
+        "unmatched_count",
+        "order_items",
+        "modifiers_applied",
+        "error_count",
+        "summary",
+        "log_output",
+        "uploaded_by",
+    )
+    ordering = ("-created_at",)
 
-    def short_excerpt(self, obj):
-        if not obj.log_excerpt:
+    def short_summary(self, obj):
+        if not obj.summary:
             return "—"
-        preview = obj.log_excerpt.strip().splitlines()[0]
+        preview = obj.summary.strip().splitlines()[0]
         return (preview[:75] + "…") if len(preview) > 75 else preview
 
-    short_excerpt.short_description = "Preview"
+    short_summary.short_description = "Summary"
 
 
 @admin.register(SquareUnmappedItem)

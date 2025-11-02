@@ -18,7 +18,10 @@ from mscrInventory.models import (
 @pytest.mark.django_db
 def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
     csv_path = tmp_path / "square.csv"
-    csv_path.write_text("Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\nLatte,1,5.00,,\n")
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,1,5.00,,,txn-dry\n"
+    )
 
     monkeypatch.setattr(
         square_importer,
@@ -38,6 +41,10 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
     assert importer.stats["order_items_logged"] == 0
     summary = importer.get_summary()
     assert "Unmatched items: 1" in summary
+    assert SquareUnmappedItem.objects.count() == 1
+    unmapped = SquareUnmappedItem.objects.get()
+    assert unmapped.item_name == "Latte"
+    assert unmapped.seen_count == 1
 
 
 @pytest.mark.django_db
@@ -45,7 +52,10 @@ def test_square_importer_live_creates_orders(tmp_path, monkeypatch):
     product = Product.objects.create(name="Latte", sku="LATTE-1")
 
     csv_path = tmp_path / "square_live.csv"
-    csv_path.write_text("Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\nLatte,2,10.00,,\n")
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,2,10.00,,,txn-live\n"
+    )
 
     monkeypatch.setattr(
         square_importer,
@@ -71,7 +81,10 @@ def test_square_importer_live_creates_orders(tmp_path, monkeypatch):
 @pytest.mark.django_db
 def test_import_square_command_respects_dry_run(tmp_path, monkeypatch):
     csv_path = tmp_path / "square_cmd.csv"
-    csv_path.write_text("Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\nLatte,1,5.00,,\n")
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,1,5.00,,,txn-cmd\n"
+    )
 
     monkeypatch.setattr(
         square_importer,
@@ -95,8 +108,8 @@ def test_baristas_choice_variant_treated_as_unmapped(tmp_path):
 
     csv_path = tmp_path / "barista.csv"
     csv_path.write_text(
-        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\n"
-        "Barista's Choice,1,7.50,,Dracula's Delight\n"
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Barista's Choice,1,7.50,,Dracula's Delight,txn-dracula\n"
     )
 
     importer = SquareImporter(dry_run=True)
@@ -112,7 +125,10 @@ def test_square_importer_live_rerun_is_idempotent(tmp_path, monkeypatch):
     product = Product.objects.create(name="Latte", sku="LATTE-1")
 
     csv_path = tmp_path / "square_live.csv"
-    csv_path.write_text("Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\nLatte,2,10.00,,\n")
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,2,10.00,,,txn-live\n"
+    )
 
     monkeypatch.setattr(
         square_importer,
@@ -144,8 +160,8 @@ def test_square_importer_live_rerun_is_idempotent(tmp_path, monkeypatch):
 def test_unmapped_items_recorded_once_with_counts(tmp_path):
     csv_path = tmp_path / "unmapped.csv"
     csv_path.write_text(
-        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name\n"
-        "Mystery Drink,1,5.00,Decaf.,\n"
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Mystery Drink,1,5.00,Decaf.,,txn-mystery\n"
     )
 
     importer = SquareImporter(dry_run=False)
@@ -163,3 +179,35 @@ def test_unmapped_items_recorded_once_with_counts(tmp_path):
     assert SquareUnmappedItem.objects.count() == 1
     item.refresh_from_db()
     assert item.seen_count == 2
+
+
+@pytest.mark.django_db
+def test_square_importer_live_creates_orders_per_transaction(tmp_path, monkeypatch):
+    product = Product.objects.create(name="Latte", sku="LATTE-1")
+
+    csv_path = tmp_path / "square_multi.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,1,5.00,,,txn-a\n"
+        "Latte,1,5.00,,,txn-b\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (product, "exact name"),
+    )
+    monkeypatch.setattr(square_importer, "handle_extras", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(square_importer, "resolve_modifier_tree", lambda *a, **k: [])
+    monkeypatch.setattr(square_importer, "aggregate_ingredient_usage", lambda *a, **k: {})
+    monkeypatch.setattr(square_importer, "infer_temp_and_size", lambda *a, **k: (None, None))
+
+    importer = SquareImporter(dry_run=False)
+    importer.run_from_file(csv_path)
+
+    orders = Order.objects.order_by("order_id")
+    assert orders.count() == 2
+    assert {order.order_id for order in orders} == {"txn-a", "txn-b"}
+    for order in orders:
+        assert order.items.count() == 1
+        assert order.total_amount == Decimal("5.00")
