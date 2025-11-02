@@ -181,6 +181,23 @@ class OrderItemAdmin(admin.ModelAdmin):
     ordering = ['-order__order_date']
     readonly_fields = ('order', 'product', 'quantity', 'unit_price')
 
+
+@admin.register(ImportLog)
+class ImportLogAdmin(admin.ModelAdmin):
+    list_display = ("source", "last_run", "short_excerpt")
+    list_filter = ("source",)
+    search_fields = ("source", "log_excerpt")
+    readonly_fields = ("source", "last_run", "log_excerpt")
+    ordering = ("-last_run",)
+
+    def short_excerpt(self, obj):
+        if not obj.log_excerpt:
+            return "—"
+        preview = obj.log_excerpt.strip().splitlines()[0]
+        return (preview[:75] + "…") if len(preview) > 75 else preview
+
+    short_excerpt.short_description = "Preview"
+
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):
     """

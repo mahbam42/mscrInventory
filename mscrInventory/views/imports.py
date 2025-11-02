@@ -8,14 +8,16 @@ Example subclasses: SquareImporter, ShopifyImporter.
 import datetime
 import tempfile
 from pathlib import Path
+
 from django.contrib import messages
-from django.core.files.storage import default_storage
-from django.shortcuts import render, redirect
-from django.views.decorators.http import require_POST
 from django.core.management import call_command
+from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.utils.html import format_html
+from django.views.decorators.http import require_POST
+
 from importers.square_importer import SquareImporter
-from mscrInventory.models import ImportLog
+from mscrInventory.models import ImportLog, Ingredient, Product
 
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
@@ -44,35 +46,55 @@ def upload_square_view(request):
             f.write(chunk)
 
     try:
-        # Create and run the importer
-        from importers import SquareImporter
         importer = SquareImporter(dry_run=dry_run)
         importer.run_from_file(tmp_path)
+        output = importer.get_output()
+        summary = importer.get_summary()
 
-        # Save or update log *inside this block* where importer exists
         ImportLog.objects.update_or_create(
             source="square",
             defaults={
                 "last_run": timezone.now(),
-                "log_excerpt": importer.buffer.getvalue()[:2000],  # ✅ now in scope
+                "log_excerpt": output[:2000],
             },
         )
 
-        """ summary = importer.buffer.getvalue()
         messages.success(
             request,
             f"{'🧪 Dry-run complete' if dry_run else '✅ Import complete'} — {uploaded_file.name}",
         )
-        messages.info(request, f"<pre>{summary}</pre>") """
-
-        summary = importer.summarize()
-        messages.success(request, "Dry-run complete." if dry_run else "Import complete.")
-        messages.info(request, f"<pre>{summary}</pre>")
+        messages.info(
+            request,
+            format_html(
+                "<pre class='import-log bg-light p-3 border rounded small mb-0'>{}</pre>",
+                summary,
+            ),
+        )
 
     except Exception as e:
         messages.error(request, f"❌ Error importing Square CSV: {e}")
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except TypeError:
+            if tmp_path.exists():
+                tmp_path.unlink()
 
     return redirect("imports_dashboard")
+
+
+def unmapped_items_view(request):
+    """Return modal/page content summarising unmapped products and ingredients."""
+    products = Product.objects.filter(name__startswith="Unmapped:").order_by("name")
+    ingredients = Ingredient.objects.filter(name__startswith="Unmapped:").order_by("name")
+    context = {"products": products, "ingredients": ingredients}
+
+    if request.headers.get("HX-Request") == "true":
+        template = "imports/_unmapped_modal.html"
+    else:
+        template = "imports/unmapped_items.html"
+
+    return render(request, template, context)
 
 
 @require_POST
