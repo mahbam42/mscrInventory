@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Iterable, Tuple
 from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior, Product
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,8 @@ def normalize_modifier(raw: str) -> str:
     token = token.replace("½", "half").replace("1/2", "half")
     token = token.replace("-", " ").replace("_", " ")
     token = token.replace("’", "'").replace("–", "-")
-    while "  " in token:
-        token = token.replace("  ", " ")
+    token = re.sub(r"[^a-z0-9\s]", " ", token)
+    token = re.sub(r"\s+", " ", token)
     return token.strip()
 
 

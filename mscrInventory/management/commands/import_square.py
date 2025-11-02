@@ -30,15 +30,11 @@ class Command(BaseCommand):
             f"📥 Importing {file_path} {'(dry-run)' if opts['dry_run'] else ''}"
         ))
         try:
-            summary = importer.run_from_file(file_path)
+            output = importer.run_from_file(file_path)
         except Exception as e:
             raise CommandError(f"Import failed: {e}")
 
         # Optional: pretty summary from importer
-        if summary:
-            self.stdout.write(summary)
+        if output:
+            self.stdout.write(output)
         self.stdout.write(self.style.SUCCESS("✅ Done."))
-
-        # Pretty Summary 
-        summary += importer.summarize()
-        self.stdout.write(summary)
