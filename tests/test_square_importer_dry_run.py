@@ -182,6 +182,50 @@ def test_unmapped_items_recorded_once_with_counts(tmp_path):
 
 
 @pytest.mark.django_db
+def test_resolved_unmapped_mapping_reused(tmp_path, monkeypatch):
+    csv_path = tmp_path / "unmapped.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Mystery Drink,1,5.00,,Medium,txn-1\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (None, "no match"),
+    )
+
+    importer = SquareImporter(dry_run=True)
+    importer.run_from_file(csv_path)
+
+    item = SquareUnmappedItem.objects.get()
+    product = Product.objects.create(name="Mystery Drink", sku="MYS-001")
+    item.mark_resolved(product=product)
+
+    def should_not_run(*args, **kwargs):
+        raise AssertionError("Matching should reuse saved mapping")
+
+    monkeypatch.setattr(square_importer, "_find_best_product_match", should_not_run)
+    monkeypatch.setattr(square_importer, "handle_extras", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(square_importer, "resolve_modifier_tree", lambda *a, **k: [])
+    monkeypatch.setattr(square_importer, "aggregate_ingredient_usage", lambda *a, **k: {})
+    monkeypatch.setattr(square_importer, "infer_temp_and_size", lambda *a, **k: (None, None))
+
+    importer_live = SquareImporter(dry_run=False)
+    importer_live.run_from_file(csv_path)
+
+    item.refresh_from_db()
+
+    assert importer_live.stats["matched"] == 1
+    assert importer_live.stats["unmatched"] == 0
+    assert item.resolved is True
+    assert item.ignored is False
+    assert item.linked_product == product
+    assert item.seen_count == 1
+    assert SquareUnmappedItem.objects.count() == 1
+
+
+@pytest.mark.django_db
 def test_square_importer_live_creates_orders_per_transaction(tmp_path, monkeypatch):
     product = Product.objects.create(name="Latte", sku="LATTE-1")
 
