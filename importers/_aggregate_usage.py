@@ -139,6 +139,7 @@ def aggregate_ingredient_usage(
     size: str | None = None,
     overrides_map: dict[str, dict] | None = None,
     is_drink: bool = True,
+    include_cup: bool = True,
 ):
     """
     Aggregate all ingredient usage for a given product, scaled to size.
@@ -177,7 +178,8 @@ def aggregate_ingredient_usage(
         return fallback
 
     # --- Add cup as inventory item automatically -------------------------
-    cup_name = get_default_cup(temp_type, size) if is_drink else None
+    # I call this auto_cup() a lot
+    cup_name = get_default_cup(temp_type, size) if (is_drink and include_cup) else None
     if cup_name:
         usage_summary[cup_name] = {
             "qty": Decimal("1.0"),  # one per drink

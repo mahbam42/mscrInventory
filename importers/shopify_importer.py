@@ -15,6 +15,7 @@ Shopify and Square stay in sync.
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 import datetime as dt
 from decimal import Decimal
 from typing import Any, Iterable
@@ -30,7 +31,7 @@ from importers._aggregate_usage import (
     resolve_modifier_tree,
 )
 from importers._base_Importer import BaseImporter
-from importers._match_product import _extract_descriptors, _normalize_name
+from importers._match_product import _extract_descriptors, _normalize_name, _find_best_product_match
 from importers.square_importer import (
     RETAIL_BAG_NAMES,
     _extract_retail_bag_details,
@@ -69,6 +70,9 @@ class ShopifyImporter(BaseImporter):
     def __init__(self, *, dry_run: bool = False, log_to_console: bool = True):
         super().__init__(dry_run=dry_run, log_to_console=log_to_console)
         self.usage_totals: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+        self.usage_breakdown: dict[int, dict[str, Decimal]] = defaultdict(
+            lambda: defaultdict(lambda: Decimal("0"))
+        )
         self._retail_bag_product: Product | None = None
         self.counters.setdefault("matched", 0)
 
@@ -98,6 +102,8 @@ class ShopifyImporter(BaseImporter):
         with transaction.atomic():
             for raw_order in orders:
                 self.process_row(raw_order)
+
+        self.log_usage_breakdown()
 
         self.summarize()
         return dict(self.usage_totals)
@@ -251,6 +257,28 @@ class ShopifyImporter(BaseImporter):
             is_retail_bag = any(name in title_lower for name in RETAIL_BAG_NAMES)
         if not is_retail_bag and variant_lower:
             is_retail_bag = any(name in variant_lower for name in RETAIL_BAG_NAMES)
+
+        bag_keywords = [
+            "whole bean",
+            "drip grind",
+            "espresso grind",
+            "fine grind",
+            "coarse grind",
+            "course grind",
+            "ground",
+            "5 lb",
+            "5lbs",
+            "11 oz",
+            "12 oz",
+            "20 oz",
+            "bag",
+            "beans",
+            "roast",
+        ]
+        if not is_retail_bag and any(key in variant_lower for key in bag_keywords):
+            is_retail_bag = True
+        if not is_retail_bag and any(key in title_lower for key in bag_keywords):
+            is_retail_bag = True
         if not is_retail_bag and "bag" in title_lower and "coffee" in title_lower:
             is_retail_bag = True
 
@@ -294,6 +322,8 @@ class ShopifyImporter(BaseImporter):
             normalized_title=normalized_title,
             is_retail_bag=is_retail_bag,
             shopify_product_id=shopify_product_id,
+            descriptors=descriptors,
+            variant_title=variant_title,
         )
 
         quantity = int(line_item.get("quantity", 0) or 0)
@@ -345,6 +375,8 @@ class ShopifyImporter(BaseImporter):
         normalized_title: str,
         is_retail_bag: bool,
         shopify_product_id: Any = None,
+        descriptors: list[str] | None = None,
+        variant_title: str | None = None,
     ) -> Product | None:
         """Locate the Product that should back the Shopify line item."""
 
@@ -379,8 +411,24 @@ class ShopifyImporter(BaseImporter):
         if not product and normalized_title:
             product = Product.objects.filter(name__icontains=normalized_title).first()
 
+        if not product and normalized_title:
+            if not hasattr(self, "_normalized_product_cache"):
+                cache: dict[str, Product] = {}
+                for prod in Product.objects.all():
+                    normalized = _normalize_name(prod.name)
+                    if normalized:
+                        cache.setdefault(normalized, prod)
+                self._normalized_product_cache = cache
+            product = self._normalized_product_cache.get(normalized_title)
+
         if not product and is_retail_bag:
             product = self._get_retail_bag_product()
+
+        if not product:
+            modifiers = descriptors or []
+            matched, _reason = _find_best_product_match(title, variant_title or "", modifiers, buffer=None)
+            if matched:
+                product = matched
 
         if sku:
             self._sku_cache[sku_key] = product
@@ -400,6 +448,44 @@ class ShopifyImporter(BaseImporter):
     # ------------------------------------------------------------------
     # Ingredient usage tracking
     # ------------------------------------------------------------------
+    def _is_retail_bag_line(self, product: Product | None, variant_info: dict[str, Any]) -> bool:
+        bag_meta = variant_info.get("retail_bag") or {}
+        if bag_meta.get("is_retail_bag"):
+            return True
+
+        text_parts = [
+            (product.name if product else "") or "",
+            variant_info.get("variant_title") or "",
+            " ".join(variant_info.get("descriptors") or []),
+        ]
+        combined = " ".join(text_parts).lower()
+
+        bag_keywords = [
+            "whole bean",
+            "drip grind",
+            "espresso grind",
+            "fine grind",
+            "coarse grind",
+            "course grind",
+            "ground",
+            "bag",
+            "beans",
+            "roast",
+            "5 lb",
+            "11 oz",
+            "12 oz",
+            "20 oz",
+        ]
+        if any(key in combined for key in bag_keywords):
+            return True
+
+        if ("bag" in combined or "bean" in combined or "roast" in combined) and re.search(
+            r"\b\d+\s?(oz|ounce|lb|pound|kg|g)\b", combined
+        ):
+            return True
+
+        return False
+
     def _track_usage_from_item(self, item: dict[str, Any]) -> None:
         product: Product | None = item.get("product")
         if not product:
@@ -411,8 +497,9 @@ class ShopifyImporter(BaseImporter):
 
         variant_info = item.get("variant_info") or {}
         bag_meta = variant_info.get("retail_bag") or {}
+        is_retail_bag_line = self._is_retail_bag_line(product, variant_info)
         roast_ingredient_id = bag_meta.get("roast_ingredient_id")
-        if roast_ingredient_id:
+        if roast_ingredient_id and is_retail_bag_line:
             self.usage_totals[roast_ingredient_id] += quantity
             return
 
@@ -425,6 +512,12 @@ class ShopifyImporter(BaseImporter):
             temp_type = temp_type or inferred_temp
             size = size or inferred_size
 
+        is_drink_context = variant_info.get("is_drink")
+        if is_drink_context is None:
+            is_drink_context = _product_is_drink(product)
+        if is_retail_bag_line:
+            is_drink_context = False
+
         resolved_modifiers = []
         for token in descriptors:
             modifier = RecipeModifier.objects.filter(name__iexact=token).first()
@@ -432,12 +525,15 @@ class ShopifyImporter(BaseImporter):
                 resolved_modifiers.extend(resolve_modifier_tree(modifier))
 
         recipe_items = product.recipe_items.select_related("ingredient", "ingredient__type").all()
+        include_cup = bool(is_drink_context)
+
         usage_summary = aggregate_ingredient_usage(
             recipe_items,
             resolved_modifiers,
             temp_type=temp_type,
             size=size,
-            is_drink=variant_info.get("is_drink", _product_is_drink(product)),
+            is_drink=is_drink_context,
+            include_cup=include_cup,
         )
 
         for ingredient_name, data in usage_summary.items():
@@ -446,6 +542,37 @@ class ShopifyImporter(BaseImporter):
                 continue
             qty = Decimal(data.get("qty", 0)) * quantity
             self.usage_totals[ingredient.id] += qty
+            base_label = item.get("title") or product.name
+            variant_title = (item.get("variant_info") or {}).get("variant_title") or ""
+            if variant_title:
+                source_label = f"{base_label} ({variant_title})"
+            else:
+                source_label = base_label
+            self.usage_breakdown[ingredient.id][source_label] += qty
+
+    def log_usage_breakdown(self) -> None:
+        if not self.usage_totals:
+            return
+        lines = ["Ingredient usage breakdown:"]
+        for ingredient_id, total_qty in sorted(self.usage_totals.items(), key=lambda item: item[0]):
+            ingredient = Ingredient.objects.filter(id=ingredient_id).first()
+            name = ingredient.name if ingredient else f"Ingredient #{ingredient_id}"
+            lines.append(f"- {name}: {_format_decimal(total_qty)} total")
+            breakdown = self.usage_breakdown.get(ingredient_id, {})
+            for source, qty in sorted(breakdown.items(), key=lambda item: item[0]):
+                lines.append(f"    • {source}: {_format_decimal(qty)}")
+        message = "\n".join(lines)
+        self.log(message, "📦")
+
+    def get_usage_breakdown(self) -> dict[str, dict[str, Decimal]]:
+        """Return a copy of the usage breakdown keyed by ingredient name."""
+
+        result: dict[str, dict[str, Decimal]] = {}
+        for ingredient_id, per_source in self.usage_breakdown.items():
+            ingredient = Ingredient.objects.filter(id=ingredient_id).first()
+            name = ingredient.name if ingredient else f"Ingredient #{ingredient_id}"
+            result[name] = dict(per_source)
+        return result
 
     # ------------------------------------------------------------------
     # Shopify API
@@ -511,3 +638,9 @@ class ShopifyImporter(BaseImporter):
                 "ℹ️",
             )
         return orders
+def _format_decimal(value: Decimal) -> str:
+    normalized = value.normalize()
+    text = format(normalized, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"

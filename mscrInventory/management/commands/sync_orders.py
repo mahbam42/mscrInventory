@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.core.mail import send_mail
 
-from importers.shopify_importer import ShopifyImporter
+from importers.shopify_importer import ShopifyImporter, _format_decimal
 from ...models import Ingredient, IngredientUsageLog
 
 
@@ -175,6 +175,7 @@ class Command(BaseCommand):
             orders = None
 
         usage = importer.import_window(start_utc, end_utc, orders=orders)
+        usage_breakdown = importer.get_usage_breakdown()
 
         orders_added = importer.counters.get("added", 0)
         orders_updated = importer.counters.get("updated", 0)
@@ -187,6 +188,14 @@ class Command(BaseCommand):
             f"{matched_items} items matched, {unmapped_items} unmapped"
         )
         self.stdout.write(self.style.SUCCESS(summary))
+
+        if usage_breakdown:
+            self.stdout.write("Ingredient usage detail:")
+            for ingredient_name, per_source in sorted(usage_breakdown.items()):
+                total_qty = sum(per_source.values(), Decimal("0"))
+                self.stdout.write(f"  - {ingredient_name}: {_format_decimal(total_qty)}")
+                for source, qty in sorted(per_source.items()):
+                    self.stdout.write(f"      • {source}: {_format_decimal(qty)}")
 
         if dry_run:
             self.stdout.write(self.style.WARNING("Dry run enabled; no database writes performed."))
