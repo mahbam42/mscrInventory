@@ -11,7 +11,8 @@ from pathlib import Path
 from decimal import Decimal
 import csv, io, json
 from ..forms import ProductForm
-from ..models import Product, Ingredient, RecipeItem, RecipeModifier
+from ..models import Product, Ingredient, RecipeItem, RecipeModifier, SquareUnmappedItem
+
 
 LOG_DIR = Path("archive/logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,13 +82,21 @@ def recipes_dashboard_view(request):
 
     requested_category = request.GET.get("category", "").strip().lower()
     selected_category = category or ("none" if requested_category in ("none", "null") else "")
+    unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
 
     ctx = {
         "products": products,
         "categories": categories,
         "selected_category": selected_category,
         "base_items": base_items,
+        "unresolved_count": unresolved_count
     }
+
+    """Renders the unified imports dashboard."""
+
+    
+    #return render(request, "imports/dashboard.html", {"unresolved_count": unresolved_count})
+
 
     # 🧩 HTMX support: only return the table partial when requested
     if request.headers.get("HX-Request"):

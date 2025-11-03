@@ -24,22 +24,20 @@
   </a>
   {% endif %}
 
-  <button class="btn btn-warning"
-          hx-get="{% url 'imports_unmapped_items' %}?type=ingredient"
-          hx-target="#globalModal .modal-content"
-          hx-swap="innerHTML"
-          data-bs-toggle="modal"
-          data-bs-target="#globalModal">
-    ⚠️ View Unmapped Ingredients
+  % if unresolved_count %}
+  <button class="btn btn-warning" hx-get="{% url 'imports_unmapped_items' %}" hx-target="#modal-body" hx-trigger="click">
+    ⚠️ View Unmapped Items ({{ unresolved_count }})
   </button>
-
-  <button class="btn btn-outline-secondary"
-          hx-get="{% url 'imports_unmapped_items' %}?type=product"
-          hx-target="#globalModal .modal-content"
-          hx-swap="innerHTML"
-          data-bs-toggle="modal"
-          data-bs-target="#globalModal">
-    ⚠️ View Unmapped Products
-  </button>
+  <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+    View Full Dashboard
+  </a>
+  {% else %}
+    <button class="btn btn-outline-success" disabled>
+      ✅ All items mapped
+    </button>
+    <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+      View Full Dashboard
+    </a>
+  {% endif %}
 </div>
 {% endwith %}
