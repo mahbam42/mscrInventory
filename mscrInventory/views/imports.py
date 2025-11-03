@@ -5,6 +5,7 @@ Import views for handling external data sources.
 import json
 import tempfile
 from decimal import Decimal
+from io import StringIO
 from pathlib import Path
 
 from django import forms as django_forms
@@ -324,37 +325,64 @@ def fetch_shopify_view(request):
         messages.error(request, "Start date is required.")
         return redirect("imports_dashboard")
 
+    output_buffer = StringIO()
+    started_at = timezone.now()
     try:
         if end_date:
-            call_command("sync_orders", start_date=start_date, end_date=end_date)
+            call_command(
+                "sync_orders",
+                start_date=start_date,
+                end_date=end_date,
+                verbosity=2,
+                stdout=output_buffer,
+                stderr=output_buffer,
+            )
             summary = f"Shopify orders fetched for {start_date} → {end_date}"
-            ImportLog.objects.create(
-                source="shopify",
-                run_type="live",
-                filename="",
-                started_at=timezone.now(),
-                finished_at=timezone.now(),
-                summary=summary,
-                log_output=summary,
-                uploaded_by=request.user if request.user.is_authenticated else None,
-            )
-            messages.success(request, f"✅ {summary}")
         else:
-            call_command("sync_orders", date=start_date)
-            summary = f"Shopify orders fetched for {start_date}"
-            ImportLog.objects.create(
-                source="shopify",
-                run_type="live",
-                filename="",
-                started_at=timezone.now(),
-                finished_at=timezone.now(),
-                summary=summary,
-                log_output=summary,
-                uploaded_by=request.user if request.user.is_authenticated else None,
+            call_command(
+                "sync_orders",
+                date=start_date,
+                verbosity=2,
+                stdout=output_buffer,
+                stderr=output_buffer,
             )
-            messages.success(request, f"✅ {summary}")
+            summary = f"Shopify orders fetched for {start_date}"
+        finished_at = timezone.now()
+        duration_seconds = (finished_at - started_at).total_seconds()
+        log_output = output_buffer.getvalue() or summary
+
+        ImportLog.objects.create(
+            source="shopify",
+            run_type="live",
+            filename="",
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=Decimal(str(duration_seconds)),
+            summary=summary,
+            log_output=log_output,
+            uploaded_by=request.user if request.user.is_authenticated else None,
+        )
+        messages.success(request, f"✅ {summary}")
+        if log_output and log_output != summary:
+            messages.info(
+                request,
+                format_html(
+                    "<pre class='import-log bg-light p-3 border rounded small mb-0'>{}</pre>",
+                    log_output,
+                ),
+            )
     except Exception as exc:  # pragma: no cover - defensive logging
+        finished_at = timezone.now()
+        log_output = output_buffer.getvalue()
         messages.error(request, f"❌ Error fetching Shopify data: {exc}")
+        if log_output:
+            messages.error(
+                request,
+                format_html(
+                    "<pre class='import-log bg-light p-3 border rounded small mb-0'>{}</pre>",
+                    log_output,
+                ),
+            )
 
     return redirect("imports_dashboard")
 

@@ -455,13 +455,21 @@ class ShopifyImporter(BaseImporter):
     ) -> list[dict[str, Any]]:
         api_key = getattr(settings, "SHOPIFY_API_KEY", None) or None
         password = getattr(settings, "SHOPIFY_PASSWORD", None) or None
-        store_domain = getattr(settings, "SHOPIFY_STORE_DOMAIN", None) or None
+        access_token = getattr(settings, "SHOPIFY_ACCESS_TOKEN", None) or None
+        store_domain = (getattr(settings, "SHOPIFY_STORE_DOMAIN", None) or "").strip()
 
-        if not (api_key and password and store_domain):
-            self.log("⚠️  Shopify credentials not configured; no orders fetched", "⚠️")
+        if store_domain.startswith("https://"):
+            store_domain = store_domain[len("https://") :]
+        if store_domain.startswith("http://"):
+            store_domain = store_domain[len("http://") :]
+        store_domain = store_domain.rstrip("/")
+
+        if not store_domain:
+            self.log("⚠️  SHOPIFY_STORE_DOMAIN is not configured; no orders fetched", "⚠️")
             return []
 
-        url = f"https://{store_domain}/admin/api/2024-10/orders.json"
+        api_version = getattr(settings, "SHOPIFY_API_VERSION", "2024-10")
+        url = f"https://{store_domain}/admin/api/{api_version}/orders.json"
         params = {
             "status": "any",
             "financial_status": "any",
@@ -472,13 +480,34 @@ class ShopifyImporter(BaseImporter):
             "fields": "id,created_at,total_price,line_items,name",
         }
 
+        headers: dict[str, str] = {}
+        auth = None
+        if access_token:
+            headers["X-Shopify-Access-Token"] = access_token
+        elif api_key and password:
+            auth = (api_key, password)
+        else:
+            self.log(
+                "⚠️  Shopify credentials not configured; set SHOPIFY_ACCESS_TOKEN or API key/password",
+                "⚠️",
+            )
+            return []
+
         try:
-            response = requests.get(url, auth=(api_key, password), params=params, timeout=30)
+            response = requests.get(url, auth=auth, headers=headers, params=params, timeout=30)
             response.raise_for_status()
         except requests.RequestException as exc:  # pragma: no cover - network failure path
             self.log(f"❌ Shopify API error: {exc}", "❌")
-            return []
+            raise
 
         payload = response.json() or {}
-        return payload.get("orders", [])
-
+        orders = payload.get("orders", [])
+        self.log(f"Fetched {len(orders)} order(s) from Shopify API", "📦")
+        if not orders:
+            window = f"{start_utc.isoformat()} → {end_utc.isoformat()}"
+            self.log(
+                f"No Shopify orders returned for window {window}. "
+                "Check credentials and confirm there were orders for that period.",
+                "ℹ️",
+            )
+        return orders

@@ -102,7 +102,7 @@ def _mock_orders_for_date(target_date: datetime.date) -> list[Dict[str, Any]]:
             "line_items": [
                 {
                     "sku": "COFFEE-RET-BAG",
-                    "title": "Sisters Blend Retail Bag",
+                    "title": "Mike's Perfecto Retail Bag",
                     "variant_title": "11 oz / Whole Bean",
                     "quantity": 2,
                     "price": "18.00",
@@ -134,10 +134,11 @@ class Command(BaseCommand):
         date_str: str | None = options.get("date")
         start_str: str | None = options.get("start_date")
         end_str: str | None = options.get("end_date")
+        verbosity: int = int(options.get("verbosity", 1))
 
         if date_str:
             target_date = datetime.date.fromisoformat(date_str)
-            self._sync_for_date(target_date, dry_run=dry_run, mock=mock)
+            self._sync_for_date(target_date, dry_run=dry_run, mock=mock, verbosity=verbosity)
             return
 
         if start_str and end_str:
@@ -149,15 +150,22 @@ class Command(BaseCommand):
             current = start_date
             while current <= end_date:
                 self.stdout.write(self.style.NOTICE(f"📅 Syncing {current}"))
-                self._sync_for_date(current, dry_run=dry_run, mock=mock)
+                self._sync_for_date(current, dry_run=dry_run, mock=mock, verbosity=verbosity)
                 current += datetime.timedelta(days=1)
             return
 
         raise CommandError("❌ Must provide --date OR --start-date and --end-date")
 
-    def _sync_for_date(self, target_date: datetime.date, *, dry_run: bool, mock: bool) -> Dict[int, Decimal]:
+    def _sync_for_date(
+        self,
+        target_date: datetime.date,
+        *,
+        dry_run: bool,
+        mock: bool,
+        verbosity: int,
+    ) -> Dict[int, Decimal]:
         start_utc, end_utc = nyc_day_window(target_date)
-        log_to_console = self.verbosity > 1
+        log_to_console = verbosity > 1
         importer = ShopifyImporter(dry_run=dry_run, log_to_console=log_to_console)
 
         if mock:
