@@ -18,10 +18,40 @@
       {% for field in form %}
       <div class="col-12">
         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>
-        {{ field }}
-        {% if field.help_text %}
-        <div class="form-text">{{ field.help_text }}</div>
+
+        {% if field.name == 'categories' %}
+          <div class="bubble-select" data-bubble-root>
+            <div class="input-group input-group-sm mb-2">
+              <span class="input-group-text">🔍</span>
+              <input type="text" class="form-control" data-bubble-search-input placeholder="Search categories…">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bubble-search-clear aria-label="Clear category search">✕</button>
+            </div>
+            <select
+              class="form-select tall-select"
+              id="{{ field.id_for_label }}"
+              name="{{ field.html_name }}"
+              autocomplete="off"
+              {% if field.field.required %}required{% endif %}
+              multiple
+              size="8">
+              <option value="" class="placeholder-option" disabled {% if not selected_category_ids %}selected{% endif %}>-- Select Categories --</option>
+              {% for category in category_choices %}
+              <option value="{{ category.id }}" {% if category.id|stringformat:"s" in selected_category_ids %}selected{% endif %}>
+                {{ category.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if field.help_text %}
+          <div class="form-text">{{ field.help_text }}</div>
+          {% endif %}
+        {% else %}
+          {{ field }}
+          {% if field.help_text %}
+          <div class="form-text">{{ field.help_text }}</div>
+          {% endif %}
         {% endif %}
+
         {% if field.errors %}
         <div class="invalid-feedback d-block">
           {% for error in field.errors %}
@@ -34,7 +64,76 @@
     </div>
     <div class="d-flex justify-content-end gap-2 mt-4">
       <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+  <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
     </div>
   </form>
 </div>
+
+<script>
+  (function () {
+    function initBubbleSelect(root) {
+      if (!root || root.dataset.bubbleReady === 'true') return;
+      const select = root.querySelector('select');
+      const searchInput = root.querySelector('[data-bubble-search-input]');
+      const clearBtn = root.querySelector('[data-bubble-search-clear]');
+      if (!select || !searchInput) return;
+
+      root.dataset.bubbleReady = 'true';
+      const options = Array.from(select.options);
+      options.forEach((opt, idx) => {
+        opt.dataset.originalIndex = idx;
+      });
+
+      function restoreOrder() {
+        options
+          .sort((a, b) => Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex))
+          .forEach(opt => select.appendChild(opt));
+      }
+
+      function applySearch() {
+        const term = searchInput.value.trim().toLowerCase();
+        if (!term) {
+          options.forEach(opt => {
+            if (opt.value === '') return;
+            opt.hidden = false;
+          });
+          restoreOrder();
+          return;
+        }
+
+        options.forEach(opt => {
+          if (opt.value === '') {
+            opt.hidden = false;
+            return;
+          }
+          const text = opt.textContent.toLowerCase();
+          const match = text.includes(term);
+          opt.hidden = !match;
+          if (match) {
+            select.appendChild(opt);
+          }
+        });
+      }
+
+      searchInput.addEventListener('input', applySearch);
+      clearBtn?.addEventListener('click', () => {
+        searchInput.value = '';
+        applySearch();
+      });
+
+      applySearch();
+    }
+
+    function initAllBubbleSelects(root) {
+      root.querySelectorAll('[data-bubble-root]').forEach(initBubbleSelect);
+    }
+
+    if (window.htmx) {
+      htmx.onLoad(function (content) {
+        initAllBubbleSelects(content);
+      });
+    } else {
+      initAllBubbleSelects(document);
+    }
+  })();
+</script>

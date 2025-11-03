@@ -37,6 +37,14 @@ def _product_modal_response(message: str):
 
 
 def _render_product_form_modal(request, form: ProductForm, *, title: str, submit_label: str):
+    category_field = form.fields.get("categories")
+    category_choices = category_field.queryset if category_field else []
+    selected_category_ids = []
+    try:
+        selected_category_ids = [str(value) for value in (form["categories"].value() or [])]
+    except Exception:
+        selected_category_ids = []
+
     return render(
         request,
         "recipes/_product_form_modal.html",
@@ -44,6 +52,8 @@ def _render_product_form_modal(request, form: ProductForm, *, title: str, submit
             "form": form,
             "title": title,
             "submit_label": submit_label,
+            "category_choices": category_choices,
+            "selected_category_ids": selected_category_ids,
         },
     )
 
