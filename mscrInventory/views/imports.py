@@ -363,6 +363,15 @@ def import_logs_view(request):
     """Display a paginated history of import logs."""
 
     logs = ImportLog.objects.select_related("uploaded_by").order_by("-created_at")
+    unresolved_qs = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).order_by(
+        "-last_seen", "item_name"
+    )
+    unmapped_preview = list(unresolved_qs[:5])
+    unmapped_total = unresolved_qs.count()
+
+    error_qs = ImportLog.objects.filter(error_count__gt=0)
+    error_preview = list(error_qs.order_by("-created_at")[:5])
+    error_total = error_qs.count()
     paginator = Paginator(logs, 20)
     page_number = request.GET.get("page")
     try:
@@ -375,5 +384,9 @@ def import_logs_view(request):
         "imports/log_list.html",
         {
             "page_obj": page_obj,
+            "unmapped_preview": unmapped_preview,
+            "unmapped_total": unmapped_total,
+            "error_preview": error_preview,
+            "error_total": error_total,
         },
     )

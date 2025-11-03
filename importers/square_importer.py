@@ -337,6 +337,7 @@ class SquareImporter:
 
             # --- Extract descriptors (size/temp adjectives) ---
             normalized_item = _normalize_name(item_name)
+            normalized_price = _normalize_name(price_point)
             core_name, descriptors = _extract_descriptors(normalized_item)
             descriptor_tokens = list(descriptors)
             for token in normalized_modifiers:
@@ -359,9 +360,31 @@ class SquareImporter:
             self.buffer.append(f"  🔧 Modifiers: {modifier_display}")
 
             # 🧩 Find best product match (based on core_name only)
-            product, reason = _find_best_product_match(
-                item_name, price_point, normalized_modifiers, buffer=self.buffer
+            resolved_mapping = (
+                SquareUnmappedItem.objects.filter(
+                    source="square",
+                    item_type="product",
+                    normalized_item=normalized_item,
+                    normalized_price_point=normalized_price,
+                    resolved=True,
+                    ignored=False,
+                )
+                .select_related("linked_product")
+                .first()
             )
+
+            if resolved_mapping and resolved_mapping.linked_product:
+                product = resolved_mapping.linked_product
+                reason = "saved mapping"
+                resolved_mapping.last_seen = timezone.now()
+                resolved_mapping.save(update_fields=["last_seen"])
+                self.buffer.append(
+                    f"🔁 Used saved mapping → {product.name}"
+                )
+            else:
+                product, reason = _find_best_product_match(
+                    item_name, price_point, normalized_modifiers, buffer=self.buffer
+                )
 
             if product:
                 self.stats["matched"] += 1
@@ -837,8 +860,20 @@ class SquareImporter:
         if reason and reason != obj.last_reason:
             updates["last_reason"] = reason
 
+        reopened = False
         if obj.resolved and not obj.ignored:
-            obj.reopen()
+            has_link = any(
+                [
+                    obj.linked_product_id,
+                    obj.linked_ingredient_id,
+                    obj.linked_modifier_id,
+                ]
+            )
+            if not has_link:
+                obj.reopen()
+                reopened = True
+
+        if reopened:
             updates["resolved"] = obj.resolved
             updates["ignored"] = obj.ignored
             updates["resolved_at"] = obj.resolved_at
