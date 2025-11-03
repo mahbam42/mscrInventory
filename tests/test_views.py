@@ -17,3 +17,10 @@ def test_add_recipe_ingredient(client):
     url = reverse("add_recipe_ingredient", args=[product.id])
     response = client.post(url, {"ingredient_id": ingredient.id, "quantity": 1, "unit": "oz"})
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_reporting_dashboard_view(client):
+    response = client.get(reverse("reporting_dashboard"))
+    assert response.status_code == 200
+    assert b"Reporting Dashboard" in response.content

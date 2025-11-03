@@ -1,7 +1,9 @@
 # mscrInventory/management/commands/_base_importer.py
 
+import csv
 import io
-import datetime
+from pathlib import Path
+
 from django.utils import timezone
 
 
@@ -13,7 +15,7 @@ class BaseImporter:
     - summary counters for test assertions
     """
 
-    def __init__(self, dry_run=False, log_to_console=True):
+    def __init__(self, dry_run=False, log_to_console=True, *, report=False, report_dir=None):
         self.dry_run = dry_run
         self.log_to_console = log_to_console
         self.buffer = io.StringIO()
@@ -25,6 +27,9 @@ class BaseImporter:
             "errors": 0,
         }
         self.start_time = timezone.now()
+        self.report_enabled = report
+        self.report_dir = Path(report_dir) if report_dir else Path("archive/reports")
+        self.report_date = timezone.localdate()
 
     # ---------------------------------------------------------------------
     # Logging
@@ -100,7 +105,41 @@ class BaseImporter:
             f"Elapsed: {elapsed:.2f}s\n"
         )
         self.log(summary, "✅")
+        if self.report_enabled:
+            self._write_report(elapsed)
         return summary
+
+    # ---------------------------------------------------------------------
+    # Reporting helpers
+    # ---------------------------------------------------------------------
+    def _write_report(self, elapsed_seconds: float) -> None:
+        """Persist a simple CSV summary when reporting is enabled."""
+
+        try:
+            self.report_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self.log(f"Unable to create report directory {self.report_dir}: {exc}", "⚠️")
+            return
+
+        report_date = getattr(self, "report_date", None) or timezone.localdate()
+        filename = f"{report_date.isoformat()}.csv"
+        destination = self.report_dir / filename
+
+        headers = ["metric", "value"]
+        rows = [
+            ("run_mode", "dry-run" if self.dry_run else "live"),
+            ("started_at", self.start_time.isoformat()),
+            ("elapsed_seconds", f"{elapsed_seconds:.2f}"),
+        ]
+        rows.extend((key, str(value)) for key, value in self.counters.items())
+
+        with destination.open("w", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(headers)
+            for metric, value in rows:
+                writer.writerow([metric, value])
+
+        self.log(f"Report written to {destination}", "📝")
 
     # ---------------------------------------------------------------------
     # Abstract Hooks

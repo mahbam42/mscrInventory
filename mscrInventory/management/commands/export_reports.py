@@ -9,7 +9,17 @@ from typing import Optional
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 
-from ...utils.reports import cogs_by_day, usage_detail_by_day
+from ...utils.reports import (
+    aggregate_usage_totals,
+    category_profitability,
+    cogs_by_day,
+    cogs_summary_by_category,
+    cogs_summary_by_product,
+    cogs_trend_with_variance,
+    top_modifiers,
+    top_selling_products,
+    usage_detail_by_day,
+)
 
 
 class Command(BaseCommand):
@@ -18,8 +28,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--start", required=True, type=str, help="Start date (YYYY-MM-DD)")
         parser.add_argument("--end", required=True, type=str, help="End date (YYYY-MM-DD, inclusive)")
-        parser.add_argument("--outdir", type=str, default="reports",
-                            help="Output directory (default: ./reports)")
+        parser.add_argument("--outdir", type=str, default="archive/reports",
+                            help="Output directory (default: ./archive/reports)")
         parser.add_argument("--tz", type=str, default=getattr(settings, "SYNC_TIMEZONE", "America/New_York"),
                             help="Business timezone for day boundaries")
 
@@ -62,5 +72,95 @@ class Command(BaseCommand):
                     f"{r['cogs']:.2f}",
                 ])
 
+        # 3) Aggregated reporting summary
+        product_rows = cogs_summary_by_product(start, end)
+        category_rows = cogs_summary_by_category(start, end)
+        profitability = category_profitability(start, end)
+        trend_rows = cogs_trend_with_variance(start, end, tzname=tzname)
+        top_products = top_selling_products(start, end)
+        modifier_rows = top_modifiers(start, end)
+        usage_totals = aggregate_usage_totals(start, end)
+
+        label = start.isoformat() if start == end else f"{start}_{end}"
+        summary_path = outdir / f"{label}.csv"
+        with summary_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Reporting Window", start.isoformat(), end.isoformat()])
+            writer.writerow([])
+            writer.writerow(["Overall Revenue", f"{profitability['overall_revenue']:.2f}"])
+            writer.writerow(["Overall COGS", f"{profitability['overall_cogs']:.2f}"])
+            writer.writerow(["Overall Profit", f"{profitability['overall_profit']:.2f}"])
+            writer.writerow([
+                "Overall Margin %",
+                profitability["overall_margin_pct"] if profitability["overall_margin_pct"] is not None else "",
+            ])
+
+            writer.writerow([])
+            writer.writerow(["Per Product Summary"])
+            writer.writerow(["product", "sku", "quantity", "revenue", "cogs", "profit", "margin_pct"])
+            for row in product_rows:
+                writer.writerow([
+                    row["product_name"],
+                    row["sku"],
+                    f"{row['quantity']:.0f}",
+                    f"{row['revenue']:.2f}",
+                    f"{row['cogs']:.2f}",
+                    f"{row['profit']:.2f}",
+                    row["margin_pct"] if row["margin_pct"] is not None else "",
+                ])
+
+            writer.writerow([])
+            writer.writerow(["Per Category Summary"])
+            writer.writerow(["category", "quantity", "revenue", "cogs", "profit", "margin_pct"])
+            for row in category_rows:
+                writer.writerow([
+                    row["category"],
+                    f"{row['quantity']:.0f}",
+                    f"{row['revenue']:.2f}",
+                    f"{row['cogs']:.2f}",
+                    f"{row['profit']:.2f}",
+                    row["margin_pct"] if row["margin_pct"] is not None else "",
+                ])
+
+            writer.writerow([])
+            writer.writerow(["Top Selling Products"])
+            writer.writerow(["product", "descriptors", "modifiers", "quantity", "gross_sales"])
+            for row in top_products:
+                writer.writerow([
+                    row["product_name"],
+                    ", ".join(row["adjectives"]),
+                    ", ".join(row["modifiers"]),
+                    f"{row['quantity']:.0f}",
+                    f"{row['gross_sales']:.2f}",
+                ])
+
+            writer.writerow([])
+            writer.writerow(["Top Modifiers"])
+            writer.writerow(["modifier", "quantity", "gross_sales"])
+            for row in modifier_rows:
+                writer.writerow([
+                    row["modifier"],
+                    f"{row['quantity']:.0f}",
+                    f"{row['gross_sales']:.2f}",
+                ])
+
+            writer.writerow([])
+            writer.writerow(["COGS Trend"])
+            writer.writerow(["date", "cogs", "variance", "variance_pct"])
+            for row in trend_rows:
+                writer.writerow([
+                    row["date"],
+                    f"{row['cogs_total']:.2f}",
+                    f"{row['variance']:.2f}" if row["variance"] is not None else "",
+                    row["variance_pct"] if row["variance_pct"] is not None else "",
+                ])
+
+            writer.writerow([])
+            writer.writerow(["Ingredient Usage Totals"])
+            writer.writerow(["ingredient", "quantity"])
+            for name, qty in sorted(usage_totals.items()):
+                writer.writerow([name, f"{qty:.3f}"])
+
         self.stdout.write(self.style.SUCCESS(f"Wrote: {cogs_path}"))
         self.stdout.write(self.style.SUCCESS(f"Wrote: {usage_path}"))
+        self.stdout.write(self.style.SUCCESS(f"Wrote: {summary_path}"))

@@ -1,5 +1,8 @@
 import pytest
 
+from pathlib import Path
+import datetime
+
 from importers._base_Importer import BaseImporter
 from mscrInventory.models import Ingredient
 
@@ -51,3 +54,24 @@ def test_create_or_update_live_persists_changes():
     assert obj.pk is not None
     obj.refresh_from_db()
     assert obj.notes == "Saved"
+
+
+@pytest.mark.django_db
+def test_base_importer_report(tmp_path):
+    report_dir = tmp_path / "reports"
+    importer = BaseImporter(
+        dry_run=True,
+        log_to_console=False,
+        report=True,
+        report_dir=report_dir,
+    )
+
+    fake_date = datetime.date(2024, 1, 1)
+    importer.report_date = fake_date
+    importer.summarize()
+
+    expected = Path(report_dir) / "2024-01-01.csv"
+    assert expected.exists()
+
+    content = expected.read_text().splitlines()
+    assert content[0] == "metric,value"
