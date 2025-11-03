@@ -217,9 +217,19 @@ class Command(BaseCommand):
         if usage:
             write_usage_logs(target_date, usage, source=ShopifyImporter.platform)
             send_low_stock_email(target_date)
-            self.stdout.write(self.style.SUCCESS(
-                f"📊 Logged usage for {len(usage)} ingredient(s) from Shopify orders."
-            ))
+
+            ingredient_lines: list[str] = []
+            for ingredient_name, per_source in sorted(usage_breakdown.items()):
+                total_qty = sum(per_source.values(), Decimal("0"))
+                if total_qty <= 0:
+                    continue
+                ingredient_lines.append(f"{ingredient_name} × {_format_decimal(total_qty)}")
+
+            detail = "; ".join(ingredient_lines) if ingredient_lines else ""
+            message = f"📊 Logged usage for {len(usage)} ingredient(s) from Shopify orders."
+            if detail:
+                message = f"{message} {detail}"
+            self.stdout.write(self.style.SUCCESS(message))
         else:
             self.stdout.write(self.style.WARNING("No ingredient usage detected for this date."))
 

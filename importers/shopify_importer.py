@@ -512,7 +512,20 @@ class ShopifyImporter(BaseImporter):
         is_retail_bag_line = self._is_retail_bag_line(product, variant_info)
         roast_ingredient_id = bag_meta.get("roast_ingredient_id")
         if roast_ingredient_id and is_retail_bag_line:
-            self.usage_totals[roast_ingredient_id] += quantity
+            ingredient = Ingredient.objects.filter(id=roast_ingredient_id).first()
+            if ingredient:
+                ingredient_name = ingredient.name
+                self.usage_totals[roast_ingredient_id] += quantity
+                base_label = item.get("title") or product.name
+                variant_title = (item.get("variant_info") or {}).get("variant_title") or ""
+                if variant_title:
+                    source_label = f"{base_label} ({variant_title})"
+                else:
+                    source_label = base_label
+                self.usage_breakdown[roast_ingredient_id][source_label] += quantity
+            else:
+                self.usage_totals.setdefault(roast_ingredient_id, Decimal("0"))
+                self.usage_totals[roast_ingredient_id] += quantity
             return
 
         descriptors: list[str] = variant_info.get("descriptors", [])
