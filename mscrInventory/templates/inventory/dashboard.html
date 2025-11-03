@@ -8,6 +8,7 @@
   <!-- Summary Widgets -->
   {% include "inventory/_summary.html" %}
   <hr>
+<<<<<<< HEAD
   <div class="d-flex justify-content-end gap-2 mt-3">
     <button class="btn btn-primary" hx-get="{% url 'inventory_bulk_add_modal' %}" hx-target="#modal-body"
       hx-swap="innerHTML" data-bs-toggle="modal" data-bs-target="#globalModal">
@@ -24,6 +25,9 @@
     </a>
   </div>
   {% include "inventory/_tools.html" %}
+=======
+  {% include "partials/_tools.html" with show_inventory_tools=True %}
+>>>>>>> f42082b070f9ebbd96b4f04fc186021eaaba7419
   <hr />
   <!-- 🧾 Low Stock Ingredients (collapsible card) -->
   <div class="card mb-3 shadow-sm">
