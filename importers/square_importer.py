@@ -322,8 +322,19 @@ class SquareImporter:
             item_name = (row.get("Item") or "").strip()
             price_point = (row.get("Price Point Name") or "").strip()
             modifiers_raw = (row.get("Modifiers Applied") or "").strip()
-            qty = Decimal(row.get("Qty", "1") or "1")
+            qty_raw = row.get("Qty", "1") or "1"
+            try:
+                qty = Decimal(qty_raw)
+            except (InvalidOperation, TypeError, ValueError):
+                qty = Decimal("0")
             gross_sales = Decimal(str(row.get("Gross Sales", "0")).replace("$", "").strip() or "0")
+            event_type = (
+                row.get("Event Type")
+                or row.get("Event type")
+                or row.get("Event_Type")
+                or ""
+            ).strip()
+            event_type_normalized = event_type.lower()
 
             # --- Collect modifiers (Square-provided or price-point) ---
             modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
@@ -358,6 +369,16 @@ class SquareImporter:
             self.buffer.append(f"  💲 Price Point: {price_point or '(none)'}")
             modifier_display = ", ".join(normalized_modifiers) if normalized_modifiers else "(none)"
             self.buffer.append(f"  🔧 Modifiers: {modifier_display}")
+            if event_type:
+                self.buffer.append(f"  🛈 Event Type: {event_type}")
+
+            if qty <= 0:
+                self.buffer.append(f"  ⚠️ Skipping row due to non-positive quantity ({qty}).")
+                return
+
+            if "refund" in event_type_normalized:
+                self.buffer.append("  ⚠️ Skipping row because it is a refund event.")
+                return
 
             # 🧩 Find best product match (based on core_name only)
             resolved_mapping = (
