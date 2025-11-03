@@ -1,5 +1,6 @@
 import factory
 from mscrInventory.models import (
+    Category,
     Ingredient,
     IngredientType,
     Product,
@@ -32,6 +33,21 @@ class ProductFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Product
     name = factory.Sequence(lambda n: f"Product {n}")
+    sku = factory.Sequence(lambda n: f"SKU{n:05d}")
+
+    @factory.post_generation
+    def categories(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            return
+        for category in extracted:
+            self.categories.add(category)
+
+
+class CategoryFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Category
+
+    name = factory.Sequence(lambda n: f"Category {n}")
 
 class RecipeItemFactory(factory.django.DjangoModelFactory):
     class Meta:

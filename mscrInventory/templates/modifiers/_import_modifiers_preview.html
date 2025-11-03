@@ -1,0 +1,102 @@
+<div class="modal-header">
+  <h5 class="modal-title">📊 Preview Modifier Import</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+  <form id="modifier-import-csrf" class="d-none">
+    {% csrf_token %}
+  </form>
+  {% if count_invalid %}
+  <div class="alert alert-warning small mb-3">
+    ⚠️ {{ count_invalid }} invalid row{{ count_invalid|pluralize }} detected. They will be skipped.
+  </div>
+  {% endif %}
+
+  {% if count_valid %}
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div><strong>{{ count_valid }}</strong> valid row{{ count_valid|pluralize }}</div>
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#validModifierRows">
+      📦 Show Valid Rows
+    </button>
+  </div>
+  <div class="collapse show" id="validModifierRows">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Ingredient</th>
+            <th class="text-end">Base Qty</th>
+            <th>Unit</th>
+            <th class="text-end">Cost</th>
+            <th class="text-end">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in valid_rows %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.ingredient_type_name }}</td>
+            <td>{{ row.ingredient_name }}</td>
+            <td class="text-end">{{ row.base_quantity }}</td>
+            <td>{{ row.unit }}</td>
+            <td class="text-end">{{ row.cost_per_unit }}</td>
+            <td class="text-end">{{ row.price_per_unit }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info small">
+    No valid rows detected yet.
+  </div>
+  {% endif %}
+
+  {% if invalid_rows %}
+  <div class="mt-4">
+    <h6 class="fw-semibold">Invalid Rows</h6>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>Row</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Ingredient</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in invalid_rows %}
+          <tr>
+            <td>{{ row.row|default:"–" }}</td>
+            <td>{{ row.name|default:"" }}</td>
+            <td>{{ row.type|default:"" }}</td>
+            <td>{{ row.ingredient|default:"" }}</td>
+            <td class="text-danger">{{ row.error }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <textarea id="modifierImportData" hidden>{{ valid_rows_json|safe }}</textarea>
+  <div class="text-end mt-3">
+    <button class="btn btn-success btn-sm"
+            hx-post="{% url 'confirm_modifiers_import' %}"
+            hx-vals='js:{
+              csrfmiddlewaretoken: document.querySelector("[name=csrfmiddlewaretoken]").value,
+              valid_rows: JSON.stringify(JSON.parse(document.getElementById("modifierImportData").value))
+            }'
+            hx-target="#globalModal .modal-content"
+            hx-swap="innerHTML"
+            {% if not count_valid %}disabled{% endif %}>
+      Confirm Import
+    </button>
+  </div>
+</div>
