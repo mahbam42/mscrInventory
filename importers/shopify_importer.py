@@ -37,6 +37,7 @@ from importers.square_importer import (
     _extract_retail_bag_details,
     _locate_roast_ingredient,
     _product_is_drink,
+    BAG_SIZE_ALIASES,
 )
 from mscrInventory.models import (
     Ingredient,
@@ -87,6 +88,13 @@ class ShopifyImporter(BaseImporter):
         )
         self._retail_bag_product: Product | None = None
         self.counters.setdefault("matched", 0)
+
+        self._bag_weight_cache: dict[str, Decimal] = {
+            "3oz": Decimal("3"),
+            "11oz": Decimal("11"),
+            "20oz": Decimal("20"),
+            "5lb": Decimal("80"),
+        }
 
     # ------------------------------------------------------------------
     # Public API
@@ -512,20 +520,20 @@ class ShopifyImporter(BaseImporter):
         is_retail_bag_line = self._is_retail_bag_line(product, variant_info)
         roast_ingredient_id = bag_meta.get("roast_ingredient_id")
         if roast_ingredient_id and is_retail_bag_line:
-            ingredient = Ingredient.objects.filter(id=roast_ingredient_id).first()
-            if ingredient:
-                ingredient_name = ingredient.name
-                self.usage_totals[roast_ingredient_id] += quantity
-                base_label = item.get("title") or product.name
-                variant_title = (item.get("variant_info") or {}).get("variant_title") or ""
-                if variant_title:
-                    source_label = f"{base_label} ({variant_title})"
-                else:
-                    source_label = base_label
-                self.usage_breakdown[roast_ingredient_id][source_label] += quantity
+            bag_label = bag_meta.get("bag_size")
+            bag_weight = self._resolve_bag_weight_ounces(bag_label)
+            adjusted_qty = quantity * bag_weight
+
+            base_label = item.get("title") or product.name
+            variant_title = (item.get("variant_info") or {}).get("variant_title") or ""
+            if variant_title:
+                source_label = f"{base_label} ({variant_title})"
             else:
-                self.usage_totals.setdefault(roast_ingredient_id, Decimal("0"))
-                self.usage_totals[roast_ingredient_id] += quantity
+                source_label = base_label
+
+            self.usage_totals.setdefault(roast_ingredient_id, Decimal("0"))
+            self.usage_totals[roast_ingredient_id] += adjusted_qty
+            self.usage_breakdown[roast_ingredient_id][source_label] += adjusted_qty
             return
 
         descriptors: list[str] = variant_info.get("descriptors", [])
@@ -598,6 +606,27 @@ class ShopifyImporter(BaseImporter):
             name = ingredient.name if ingredient else f"Ingredient #{ingredient_id}"
             result[name] = dict(per_source)
         return result
+
+    def _resolve_bag_weight_ounces(self, bag_label: str | None) -> Decimal:
+        if not bag_label:
+            return Decimal("1")
+        normalized = bag_label.strip().lower()
+        normalized = BAG_SIZE_ALIASES.get(normalized, normalized)
+        weight = self._bag_weight_cache.get(normalized)
+        if weight is None:
+            try:
+                # attempt to parse raw digits (e.g., "64oz")
+                digits = re.findall(r"\d+", normalized)
+                if digits:
+                    value = Decimal(digits[0])
+                    if "lb" in normalized or "pound" in normalized:
+                        value *= Decimal("16")
+                    weight = value
+            except Exception:
+                weight = None
+        if weight is None:
+            weight = Decimal("1")
+        return weight
 
     # ------------------------------------------------------------------
     # Shopify API
