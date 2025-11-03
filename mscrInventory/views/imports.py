@@ -326,7 +326,7 @@ def fetch_shopify_view(request):
 
     try:
         if end_date:
-            call_command("sync_orders", start=start_date, end=end_date)
+            call_command("sync_orders", start_date=start_date, end_date=end_date)
             summary = f"Shopify orders fetched for {start_date} → {end_date}"
             ImportLog.objects.create(
                 source="shopify",
