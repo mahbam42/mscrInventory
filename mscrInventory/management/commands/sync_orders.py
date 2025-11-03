@@ -1,309 +1,73 @@
-# yourapp/management/commands/sync_orders.py
-import os
-import requests
-from decimal import Decimal
+"""Management command to synchronise Shopify orders and ingredient usage."""
 
+from __future__ import annotations
 import datetime
-from zoneinfo import ZoneInfo
-import datetime
-from collections import defaultdict
 from decimal import Decimal
-from typing import Iterable, Dict, Any, List, Tuple
+from typing import Any, Dict
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.core.mail import send_mail
-from django.db import transaction
-from django.utils import timezone
 
-from ...models import (
-    Product, Ingredient, RecipeItem,
-    Order, OrderItem, IngredientUsageLog
-)
+from importers.shopify_importer import ShopifyImporter
+from ...models import Ingredient, IngredientUsageLog
 
-# ---------------------------
-# Helpers
-# ---------------------------
-
-# def nyc_day_window(target_date: datetime.date) -> Tuple[datetime.datetime, datetime.datetime]:
-#    """Return start/end datetimes for the cafe day in America/New_York."""
-#    tz = timezone.pytz.timezone(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
-#    start = tz.localize(datetime.datetime.combine(target_date, datetime.time.min)).astimezone(timezone.utc)
-#    end = tz.localize(datetime.datetime.combine(target_date, datetime.time.max)).astimezone(timezone.utc)
-#    return start, end
 
 def nyc_day_window(target_date: datetime.date) -> tuple[datetime.datetime, datetime.datetime]:
+    """Return the UTC start/end datetimes for the cafe day in New York."""
+
     tz = ZoneInfo(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
     start_local = datetime.datetime.combine(target_date, datetime.time.min, tzinfo=tz)
-    end_local   = datetime.datetime.combine(target_date, datetime.time.max, tzinfo=tz)
-    # Convert to UTC datetimes
+    end_local = datetime.datetime.combine(target_date, datetime.time.max, tzinfo=tz)
     return start_local.astimezone(datetime.timezone.utc), end_local.astimezone(datetime.timezone.utc)
 
-def to_decimal(value) -> Decimal:
-    if value is None:
-        return Decimal("0")
-    if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value))
 
-def _json_safe(value):
-    import datetime, decimal
-    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
-        return value.isoformat()
-    if isinstance(value, decimal.Decimal):
-        return float(value)
-    if isinstance(value, dict):
-        return {k: _json_safe(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_json_safe(v) for v in value]
-    return value
+def write_usage_logs(target_date: datetime.date, usage: Dict[int, Decimal], *, source: str) -> None:
+    """Upsert IngredientUsageLog rows using the provided totals."""
 
-# Old Version - the above function should correct 
-#def _json_safe(value):
-#    import datetime
-#    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
-#        return value.isoformat()
-#    if isinstance(value, dict):
-#        return {k: _json_safe(v) for k, v in value.items()}
-#    if isinstance(value, list):
-#        return [_json_safe(v) for v in value]
-#    return value
-
-# ---------------------------
-# Shopify fetch (placeholder)
-# ---------------------------
-
-def fetch_shopify_orders(start_utc: datetime.datetime, end_utc: datetime.datetime) -> List[Dict[str, Any]]:
-    """
-    Fetch orders from Shopify REST API between the given UTC datetimes.
-    Returns normalized list of orders:
-    [
-      {
-        "order_id": str,
-        "order_date": datetime,
-        "total_amount": Decimal,
-        "items": [{"sku_or_handle": str, "quantity": int, "unit_price": Decimal}],
-      },
-      ...
-    ]
-    """
-    api_key = os.getenv("SHOPIFY_API_KEY")
-    password = os.getenv("SHOPIFY_PASSWORD")
-    store_domain = os.getenv("SHOPIFY_STORE_DOMAIN")
-    if not (api_key and password and store_domain):
-        print("⚠️ Shopify credentials not set; skipping fetch.")
-        return []
-
-    url = f"https://{store_domain}/admin/api/2024-10/orders.json"
-
-    params = {
-        "status": "any",
-        "financial_status": "any",
-        "fulfillment_status": "any",
-        "created_at_min": start_utc.isoformat().replace("+00:00", "Z"),
-        "created_at_max": end_utc.isoformat().replace("+00:00", "Z"),
-        "limit": 250,
-        "fields": "id,created_at,total_price,line_items",
-    }
-
-    try:
-        resp = requests.get(url, auth=(api_key, password), params=params, timeout=15)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        print(f"❌ Shopify API error: {e}")
-        return []
-
-    data = resp.json()
-    orders = data.get("orders", [])
-    normalized = []
-
-    for o in orders:
-        order_id = str(o["id"])
-        order_date = datetime.datetime.fromisoformat(o["created_at"].replace("Z", "+00:00"))
-        total_amount = Decimal(o["total_price"])
-        items = []
-        for li in o.get("line_items", []):
-            sku = li.get("sku")
-            title = li.get("title") or ""
-            if title and "(" in title and title.endswith(f"({sku})"):
-                # Strip redundant (SKU)
-                title = title[:title.rfind("(")].strip()
-
-            name = li.get("name") or ""
-            variant_title = li.get("variant_title") or ""
-
-            # Choose SKU if present; otherwise fall back to the cleanest display name
-            sku_or_handle = sku or (title if title else name)
-            
-            # sku_or_handle = li.get("sku") or li.get("title")
-            # ^^ old line ^^ 
-            quantity = int(li["quantity"])
-            unit_price = Decimal(li["price"])
-            items.append({
-                "sku_or_handle": sku_or_handle,
-                "quantity": quantity,
-                "unit_price": unit_price,
-            })
-        normalized.append({
-            "order_id": order_id,
-            "order_date": order_date,
-            "total_amount": total_amount,
-            "items": items,
-        })
-
-    print(f"✅ Shopify orders fetched: {len(normalized)}")
-    return normalized
-
-# ---------------------------
-# Square fetch (placeholder)
-# ---------------------------
-
-def fetch_square_orders(start_utc: datetime.datetime, end_utc: datetime.datetime) -> List[Dict[str, Any]]:
-    """
-    Return a list of normalized orders from Square.
-    Each order: same structure as Shopify fetch.
-    """
-    # For MVP, use Square Orders API (v2). Filter by location + date_time filter.
-    # https://developer.squareup.com/reference/square/orders-api/search-orders
-    return []
-
-# ---------------------------
-# Normalization / persistence
-# ---------------------------
-
-def find_product(sku_or_handle: str) -> Product | None:
-    """
-    Attempt to resolve a Product by SKU first, then by name as a loose fallback.
-    You’ll later expand this with a proper mapping UI.
-    """
-    sku = sku_or_handle.strip()
-    product = Product.objects.filter(sku__iexact=sku).first()
-    if product:
-        return product
-    # Fallback: try name match (handle/title)
-    return Product.objects.filter(name__iexact=sku).first()
-
-@transaction.atomic
-def persist_orders(platform: str, normalized_orders: Iterable[Dict[str, Any]]) -> None:
-    """
-    Save Order + OrderItems. Idempotent on (order_id, platform).
-    """
-    for o in normalized_orders:
-        order_obj, created = Order.objects.get_or_create(
-            order_id=o["order_id"], platform=platform,
-            defaults=dict(
-                order_date=o["order_date"],
-                total_amount=to_decimal(o.get("total_amount", 0)),
-                data_raw=_json_safe(o),  # keep raw for debugging
-            )
-        )
-        if not created:
-            # Optionally update totals if changed
-            order_obj.order_date = o["order_date"]
-            order_obj.total_amount = to_decimal(o.get("total_amount", order_obj.total_amount))
-            order_obj.save(update_fields=["order_date", "total_amount", "synced_at"])
-
-        # Clear and re-write items (safe for small daily batches)
-        order_obj.items.all().delete()
-
-        for item in o.get("items", []):
-            sku = item.get("sku_or_handle", "")
-            product = find_product(sku)
-
-            if not product:
-                # Log this so we can fix mappings later
-                print(f"⚠️ Unmapped product SKU: '{sku}' (creating placeholder)")
-                product, _ = Product.objects.get_or_create(
-                    sku=sku,
-                    defaults={"name": f"Unmapped: {sku}"}
-            )
-
-            OrderItem.objects.create(
-                order=order_obj,
-                product=product,
-                quantity=int(item.get("quantity", 1)),
-                unit_price=to_decimal(item.get("unit_price", 0)),
-            )
-
-        # # Clear and re-write items (safe for small daily batches)
-        # order_obj.items.all().delete()
-
-        # for item in o.get("items", []):
-        #     product = find_product(item.get("sku_or_handle", ""))
-        #     OrderItem.objects.create(
-        #         order=order_obj,
-        #         product=product,
-        #         quantity=int(item.get("quantity", 1)),
-        #         unit_price=to_decimal(item.get("unit_price", 0)),
-        #     )
-
-def aggregate_usage_for_date(target_date: datetime.date) -> Dict[int, Decimal]:
-    """
-    From OrderItems + RecipeItem, compute total ingredient usage for the date.
-    Returns dict {ingredient_id: quantity_used}
-    """
-    start, end = nyc_day_window(target_date)
-
-    # Fetch order items for the day
-    items = (
-        OrderItem.objects
-        .select_related("order", "product")
-        .filter(order__order_date__gte=start, order__order_date__lte=end)
-    )
-
-    usage_by_ingredient: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
-
-    # Build recipe lookup to cut queries
-    recipe_map: dict[int, list[RecipeItem]] = defaultdict(list)
-    for ri in RecipeItem.objects.select_related("ingredient", "product").all():
-        recipe_map[ri.product_id].append(ri)
-
-    for it in items:
-        if not it.product_id:
-            continue  # unmapped product
-        qty_sold = Decimal(it.quantity)
-        for ri in recipe_map.get(it.product_id, []):
-            usage_by_ingredient[ri.ingredient_id] += (to_decimal(ri.quantity_per_unit) * qty_sold)
-
-    return usage_by_ingredient
-
-@transaction.atomic
-def write_usage_logs(target_date: datetime.date, usage: Dict[int, Decimal], source: str):
-    """
-    Upsert IngredientUsageLog rows for the date and source.
-    We store one row per (ingredient, date, source).
-    """
     for ingredient_id, qty in usage.items():
-        if qty == 0:
+        quantity = Decimal(qty)
+        if quantity <= 0:
             continue
+        quantity = quantity.quantize(Decimal("0.001"))
         log, created = IngredientUsageLog.objects.get_or_create(
-            ingredient_id=ingredient_id, date=target_date, source=source,
-            defaults=dict(quantity_used=qty, calculated_from_orders=True),
+            ingredient_id=ingredient_id,
+            date=target_date,
+            source=source,
+            defaults=dict(quantity_used=quantity, calculated_from_orders=True),
         )
         if not created:
-            # Update quantity (additive). If you prefer overwrite, replace with assignment.
-            log.quantity_used = (to_decimal(log.quantity_used) + qty).quantize(Decimal("0.001"))
+            log.quantity_used = quantity
             log.calculated_from_orders = True
             log.save(update_fields=["quantity_used", "calculated_from_orders", "note"])
 
-def send_low_stock_email(target_date: datetime.date):
+
+def send_low_stock_email(target_date: datetime.date) -> None:
     qs = Ingredient.objects.all().order_by("name")
     lines = []
     include_zero = getattr(settings, "LOW_STOCK_INCLUDE_ZERO", True)
 
-    for ing in qs:
-        if ing.reorder_point is None:
+    for ingredient in qs:
+        if ingredient.reorder_point is None:
             continue
-        if (include_zero and ing.current_stock <= ing.reorder_point) or \
-           (not include_zero and ing.current_stock > 0 and ing.current_stock <= ing.reorder_point):
-            case_info = ""
-            if ing.case_size:
-                cases = (ing.current_stock / Decimal(ing.case_size)).quantize(Decimal("0.01"))
-                case_info = f" (~{cases} cases)"
-            lines.append(
-                f"- {ing.name}: {ing.current_stock} {ing.unit_type} "
-                f"(reorder @ {ing.reorder_point}){case_info}"
-            )
+        on_hand = Decimal(ingredient.current_stock or 0)
+        reorder_point = Decimal(ingredient.reorder_point or 0)
+        if include_zero and on_hand <= reorder_point:
+            should_include = True
+        elif not include_zero and 0 < on_hand <= reorder_point:
+            should_include = True
+        else:
+            should_include = False
+        if not should_include:
+            continue
+        case_info = ""
+        if ingredient.case_size:
+            cases = (on_hand / Decimal(ingredient.case_size)).quantize(Decimal("0.01"))
+            case_info = f" (~{cases} cases)"
+        lines.append(
+            f"- {ingredient.name}: {on_hand} {ingredient.unit_type} (reorder @ {reorder_point}){case_info}"
+        )
 
     subject = f"[Inventory] Low Stock Report — {target_date.isoformat()}"
     body = (
@@ -313,208 +77,120 @@ def send_low_stock_email(target_date: datetime.date):
         "\n\n— Your Django bot"
     )
 
-    if hasattr(settings, "LOW_STOCK_EMAIL_RECIPIENTS") and settings.LOW_STOCK_EMAIL_RECIPIENTS:
+    recipients = getattr(settings, "LOW_STOCK_EMAIL_RECIPIENTS", None)
+    if recipients:
         send_mail(
-            subject, body,
+            subject,
+            body,
             getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@example.com"),
-            settings.LOW_STOCK_EMAIL_RECIPIENTS,
+            recipients,
             fail_silently=False,
         )
 
-# Put this ABOVE the Command class, at the module level
-def _mock_orders_for_date(target_date):
+
+def _mock_orders_for_date(target_date: datetime.date) -> list[Dict[str, Any]]:
+    """Return deterministic mock Shopify orders for tests/demos."""
+
     tz = ZoneInfo(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
-    dt = datetime.datetime.combine(target_date, datetime.time(11, 0), tzinfo=tz)
+    order_time = datetime.datetime.combine(target_date, datetime.time(11, 0), tzinfo=tz)
 
-    shopify = [{
-        "order_id": f"sh-{target_date.isoformat()}-001",
-        "order_date": dt,
-        "total_amount": "45.00",
-        "items": [
-            {"sku_or_handle": "LATTE-12", "quantity": 6, "unit_price": "4.50"},
-            {"sku_or_handle": "BEANS-12", "quantity": 2, "unit_price": "12.00"},
-        ],
-    }]
+    return [
+        {
+            "id": f"sh-{target_date.isoformat()}-001",
+            "created_at": order_time.isoformat(),
+            "total_price": "42.00",
+            "line_items": [
+                {
+                    "sku": "COFFEE-RET-BAG",
+                    "title": "Sisters Blend Retail Bag",
+                    "variant_title": "11 oz / Whole Bean",
+                    "quantity": 2,
+                    "price": "18.00",
+                },
+                {
+                    "sku": "TUMBLER-01",
+                    "title": "Tumbler",
+                    "quantity": 1,
+                    "price": "6.00",
+                },
+            ],
+        }
+    ]
 
-    square = [{
-        "order_id": f"sq-{target_date.isoformat()}-001",
-        "order_date": dt.replace(hour=9),
-        "total_amount": "28.50",
-        "items": [
-            {"sku_or_handle": "LATTE-12", "quantity": 5, "unit_price": "4.50"},
-            {"sku_or_handle": "BEANS-12", "quantity": 1, "unit_price": "12.00"},
-        ],
-    }]
-
-    return shopify, square
-
-
-
-# ---------------------------
-# Command
-# ---------------------------
 
 class Command(BaseCommand):
-    help = "Fetch daily orders from Shopify and Square, compute ingredient usage, and email low stock report."
+    help = "Fetch daily orders from Shopify, compute ingredient usage, and email the low stock report."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser) -> None:
         parser.add_argument("--date", type=str, help="Target date (YYYY-MM-DD). Defaults to today.")
         parser.add_argument("--start-date", type=str, help="Start date (inclusive) for syncing YYYY-MM-DD")
         parser.add_argument("--end-date", type=str, help="End date (inclusive) for syncing YYYY-MM-DD")
         parser.add_argument("--dry-run", action="store_true", help="Do everything except write to DB/send email.")
-        parser.add_argument("--mock", action="store_true", help="Use mock orders instead of hitting APIs.")
-
+        parser.add_argument("--mock", action="store_true", help="Use mock orders instead of hitting Shopify APIs.")
 
     def handle(self, *args, **options):
-        # date range functionality
-        date_str = options.get("date")
-        start_str = options.get("start_date")
-        end_str = options.get("end_date")
-        mock = options.get("mock")
-
-        # summary values
-        total_orders_synced = 0
-        total_shopify = 0
-        total_square = 0
+        dry_run: bool = options.get("dry_run", False)
+        mock: bool = options.get("mock", False)
+        date_str: str | None = options.get("date")
+        start_str: str | None = options.get("start_date")
+        end_str: str | None = options.get("end_date")
 
         if date_str:
-        # Single-day mode
             target_date = datetime.date.fromisoformat(date_str)
-            self._sync_for_date(target_date, mock=mock)
-        elif start_str and end_str:
-        # Range mode
+            self._sync_for_date(target_date, dry_run=dry_run, mock=mock)
+            return
+
+        if start_str and end_str:
             start_date = datetime.date.fromisoformat(start_str)
             end_date = datetime.date.fromisoformat(end_str)
+            if start_date > end_date:
+                raise CommandError("❌ --start-date must be before --end-date")
 
             current = start_date
             while current <= end_date:
-                self._sync_for_date(current, mock=mock)
+                self.stdout.write(self.style.NOTICE(f"📅 Syncing {current}"))
+                self._sync_for_date(current, dry_run=dry_run, mock=mock)
                 current += datetime.timedelta(days=1)
-        else:
-            self.stderr.write(self.style.ERROR("❌ Must provide --date OR --start-date and --end-date"))
-        # if date_str:
-        #     # Single-day mode (existing)
-        #     start_date = end_date = datetime.date.fromisoformat(date_str)
-        # elif start_str and end_str:
-        #     # Date range mode
-        #     start_date = datetime.date.fromisoformat(start_str)
-        #     end_date = datetime.date.fromisoformat(end_str)
-        # else:
-        #     self.stderr.write(self.style.ERROR("❌ Must provide --date OR --start-date and --end-date"))
-        #     return
-
-        # Iterate over each date in the range
-        current_date = start_date
-        while current_date <= end_date:
-            self.stdout.write(self.style.NOTICE(f"📅 Syncing {current_date}"))
-            self._sync_for_date(current_date, mock=mock)
-            current_date += datetime.timedelta(days=1)
-        
-        # Target date (cafe day). Default: today, but you may want 'yesterday' if you run at 4 PM.
-        # import pytz
-        tz = ZoneInfo(getattr(settings, "SYNC_TIMEZONE", "America/New_York"))
-        today_local = timezone.now(tz).date()
-
-        target_date = (
-            datetime.date.fromisoformat(options["date"])
-            if options.get("date")
-            else today_local
-        )
-
-        start, end = nyc_day_window(target_date)
-
-        self.stdout.write(self.style.NOTICE(f"Syncing orders for {target_date} ({start} → {end} UTC)"))
-
-        all_orders = []
-
-        # Shopify
-        shopify_orders = fetch_shopify_orders(start, end)
-        self.stdout.write(f"Shopify orders fetched: {len(shopify_orders)}")
-        if not options["dry_run"]:
-            persist_orders("shopify", shopify_orders)
-
-        # Square
-        square_orders = fetch_square_orders(start, end)
-        self.stdout.write(f"Square orders fetched: {len(square_orders)}")
-        if not options["dry_run"]:
-            persist_orders("square", square_orders)
-
-        # Aggregate usage & write logs
-        usage = aggregate_usage_for_date(target_date)
-        self.stdout.write(f"Ingredients to log: {len(usage)}")
-
-        if not options["dry_run"]:
-            write_usage_logs(target_date, usage, source="shopify")
-            write_usage_logs(target_date, usage, source="square")
-            send_low_stock_email(target_date)
-
-        self.stdout.write(self.style.SUCCESS("Sync complete."))
-        if options.get("mock"):
-            self.stdout.write(self.style.WARNING("Running MOCK sync (no external APIs)."))
-            shopify_orders, square_orders = _mock_orders_for_date(target_date)
-
-            if not options["dry_run"]:
-                persist_orders("shopify", shopify_orders)
-                persist_orders("square", square_orders)
-
-            usage = aggregate_usage_for_date(target_date)
-            
-            if not options["dry_run"]:
-                write_usage_logs(target_date, usage, source="shopify")
-                write_usage_logs(target_date, usage, source="square")
-                send_low_stock_email(target_date)
-
-            self.stdout.write(self.style.SUCCESS("Mock sync complete."))
             return
 
-    def _sync_for_date(self, target_date: datetime.date, mock: bool = False):
-        """
-        Sync Shopify (and later Square) orders for a single date.
-        This contains the logic that used to live in handle() for --date.
-        """
-        # Define UTC boundaries for the date
-        start_utc = datetime.make_aware(datetime.datetime.combine(target_date, datetime.time.min))
-        end_utc = datetime.make_aware(datetime.datetime.combine(target_date, datetime.time.max))
+        raise CommandError("❌ Must provide --date OR --start-date and --end-date")
 
-        self.stdout.write(self.style.NOTICE(
-            f"📅 Syncing orders for {target_date} ({start_utc} → {end_utc} UTC)"
-        ))
+    def _sync_for_date(self, target_date: datetime.date, *, dry_run: bool, mock: bool) -> Dict[int, Decimal]:
+        start_utc, end_utc = nyc_day_window(target_date)
+        log_to_console = self.verbosity > 1
+        importer = ShopifyImporter(dry_run=dry_run, log_to_console=log_to_console)
 
-        # --- Shopify fetch ---
         if mock:
-            shopify_orders, square_orders = self._mock_orders_for_date(target_date)
+            orders = _mock_orders_for_date(target_date)
+            self.stdout.write(self.style.WARNING("Running mock Shopify sync (no external API calls)."))
         else:
-            shopify_orders = fetch_shopify_orders(start_utc, end_utc)
-            square_orders = []  # Square not integrated yet
+            orders = None
 
-        self.stdout.write(self.style.SUCCESS(f"✅ Shopify orders fetched: {len(shopify_orders)}"))
-        self.stdout.write(self.style.SUCCESS(f"✅ Square orders fetched: {len(square_orders)}"))
+        usage = importer.import_window(start_utc, end_utc, orders=orders)
 
-        # --- Persist to DB ---
-        with transaction.atomic():
-            persist_orders("shopify", shopify_orders)
-        if square_orders:
-            persist_orders("square", square_orders)
+        orders_added = importer.counters.get("added", 0)
+        orders_updated = importer.counters.get("updated", 0)
+        matched_items = importer.counters.get("matched", 0)
+        unmapped_items = importer.counters.get("unmapped", 0)
 
-        shopify_count = len(shopify_orders)
-        square_count = len(square_orders)
-        total = shopify_count + square_count
+        summary = (
+            f"✨ Shopify sync complete for {target_date}: "
+            f"{orders_added} added, {orders_updated} updated, "
+            f"{matched_items} items matched, {unmapped_items} unmapped"
+        )
+        self.stdout.write(self.style.SUCCESS(summary))
 
-        self.stdout.write(self.style.SUCCESS(f"✨ Sync complete for {target_date}: {total} orders ({shopify_count} Shopify, {square_count} Square)"
-    ))
-        return total, shopify_count, square_count
+        if dry_run:
+            self.stdout.write(self.style.WARNING("Dry run enabled; no database writes performed."))
+            return usage
 
-        total, shopify_count, square_count = self._sync_for_date(current, mock=mock)
-        total_orders_synced += total
-        total_shopify += shopify_count
-        total_square += square_count
+        if usage:
+            write_usage_logs(target_date, usage, source=ShopifyImporter.platform)
+            send_low_stock_email(target_date)
+            self.stdout.write(self.style.SUCCESS(
+                f"📊 Logged usage for {len(usage)} ingredient(s) from Shopify orders."
+            ))
+        else:
+            self.stdout.write(self.style.WARNING("No ingredient usage detected for this date."))
 
-        # After loop ends:
-        self.stdout.write(self.style.MIGRATE_HEADING(f"\n📊 Range Sync Summary ({start_date} → {end_date}):"))
-        self.stdout.write(self.style.SUCCESS(
-            f"  ✅ Total orders synced: {total_orders_synced} "
-            f"(Shopify: {total_shopify}, Square: {total_square})"
-        ))
-
-        # You could optionally trigger ingredient usage logging here
-        self.stdout.write(self.style.SUCCESS(f"✨ Sync complete for {target_date}"))
+        return usage
