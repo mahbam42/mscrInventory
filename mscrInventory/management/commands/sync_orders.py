@@ -127,6 +127,11 @@ class Command(BaseCommand):
         parser.add_argument("--end-date", type=str, help="End date (inclusive) for syncing YYYY-MM-DD")
         parser.add_argument("--dry-run", action="store_true", help="Do everything except write to DB/send email.")
         parser.add_argument("--mock", action="store_true", help="Use mock orders instead of hitting Shopify APIs.")
+        parser.add_argument(
+            "--report",
+            action="store_true",
+            help="Write importer summaries to archive/reports/YYYY-MM-DD.csv",
+        )
 
     def handle(self, *args, **options):
         dry_run: bool = options.get("dry_run", False)
@@ -135,10 +140,11 @@ class Command(BaseCommand):
         start_str: str | None = options.get("start_date")
         end_str: str | None = options.get("end_date")
         verbosity: int = int(options.get("verbosity", 1))
+        report: bool = options.get("report", False)
 
         if date_str:
             target_date = datetime.date.fromisoformat(date_str)
-            self._sync_for_date(target_date, dry_run=dry_run, mock=mock, verbosity=verbosity)
+            self._sync_for_date(target_date, dry_run=dry_run, mock=mock, verbosity=verbosity, report=report)
             return
 
         if start_str and end_str:
@@ -150,7 +156,7 @@ class Command(BaseCommand):
             current = start_date
             while current <= end_date:
                 self.stdout.write(self.style.NOTICE(f"📅 Syncing {current}"))
-                self._sync_for_date(current, dry_run=dry_run, mock=mock, verbosity=verbosity)
+                self._sync_for_date(current, dry_run=dry_run, mock=mock, verbosity=verbosity, report=report)
                 current += datetime.timedelta(days=1)
             return
 
@@ -163,10 +169,17 @@ class Command(BaseCommand):
         dry_run: bool,
         mock: bool,
         verbosity: int,
+        report: bool,
     ) -> Dict[int, Decimal]:
         start_utc, end_utc = nyc_day_window(target_date)
         log_to_console = verbosity > 1
-        importer = ShopifyImporter(dry_run=dry_run, log_to_console=log_to_console)
+        importer = ShopifyImporter(
+            dry_run=dry_run,
+            log_to_console=log_to_console,
+            report=report,
+            report_dir="archive/reports",
+        )
+        importer.report_date = target_date
 
         if mock:
             orders = _mock_orders_for_date(target_date)

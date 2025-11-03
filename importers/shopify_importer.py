@@ -67,8 +67,20 @@ class ShopifyImporter(BaseImporter):
 
     platform = "shopify"
 
-    def __init__(self, *, dry_run: bool = False, log_to_console: bool = True):
-        super().__init__(dry_run=dry_run, log_to_console=log_to_console)
+    def __init__(
+        self,
+        *,
+        dry_run: bool = False,
+        log_to_console: bool = True,
+        report: bool = False,
+        report_dir: str | None = None,
+    ):
+        super().__init__(
+            dry_run=dry_run,
+            log_to_console=log_to_console,
+            report=report,
+            report_dir=report_dir,
+        )
         self.usage_totals: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
         self.usage_breakdown: dict[int, dict[str, Decimal]] = defaultdict(
             lambda: defaultdict(lambda: Decimal("0"))

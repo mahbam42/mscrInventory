@@ -225,6 +225,14 @@ class ImportLogAdmin(admin.ModelAdmin):
     short_summary.short_description = "Summary"
 
 
+@admin.register(IngredientUsageLog)
+class IngredientUsageLogAdmin(admin.ModelAdmin):
+    list_display = ("ingredient", "date", "quantity_used", "source", "calculated_from_orders")
+    list_filter = ("source", "calculated_from_orders")
+    search_fields = ("ingredient__name", "note")
+    ordering = ("-date", "ingredient__name")
+
+
 @admin.register(SquareUnmappedItem)
 class SquareUnmappedItemAdmin(admin.ModelAdmin):
     list_display = (

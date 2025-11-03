@@ -12,6 +12,7 @@ def navigation_links(request):
         {"name": "Products", "url_name": "products_dashboard"},
         {"name": "Recipes", "url_name": "recipes_dashboard"},
         {"name": "Inventory", "url_name": "inventory_dashboard"},
+        {"name": "Reporting", "url_name": "reporting_dashboard"},
     ]
 
     links = []
