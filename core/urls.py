@@ -34,13 +34,33 @@ from mscrInventory.views.imports import (
     import_logs_view,
 )
 #from mscrInventory.views import recipes_modal
-from mscrInventory.views.recipe_modal import download_recipes_template, import_recipes_modal, confirm_recipes_import, export_recipes_csv, import_recipes_csv, recipes_dashboard_view, edit_recipe_view, add_recipe_ingredient, save_recipe_modifiers, delete_recipe_ingredient, recipes_table_fragment, extend_recipe, update_recipe_item
+from mscrInventory.views.recipe_modal import (
+    add_recipe_ingredient,
+    confirm_recipes_import,
+    create_product_modal,
+    delete_recipe_ingredient,
+    download_recipes_template,
+    edit_product_modal,
+    edit_recipe_view,
+    export_recipes_csv,
+    extend_recipe,
+    import_recipes_csv,
+    import_recipes_modal,
+    recipes_dashboard_view,
+    recipes_table_fragment,
+    save_recipe_modifiers,
+    update_recipe_item,
+)
 from mscrInventory.views.modifiers import (
+    confirm_modifiers_import,
     create_modifier,
+    download_modifiers_template,
     edit_modifier_extra_view,
+    export_modifiers_csv,
+    import_modifiers_csv,
+    import_modifiers_modal,
     modifier_rules_modal,
 )
-from mscrInventory.views.products import products_dashboard_view
 from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient, bulk_add_modal, inventory_low_stock_partial, inventory_all_ingredients_partial, ingredient_details, export_inventory_csv, import_inventory_csv, import_inventory_modal, confirm_inventory_import, download_inventory_csv_template
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
@@ -83,21 +103,25 @@ urlpatterns = [
     ),
     path("imports/fetch-shopify/", fetch_shopify_view, name="fetch_shopify"),
 
-    #products
-    path("products/", products_dashboard_view, name="products_dashboard"),
-
     #recipes
     path("recipes/", recipes_dashboard_view, name="recipes_dashboard"),
     path("recipes/<int:pk>/edit/", edit_recipe_view, name="edit_recipe"),
+    path("recipes/<int:pk>/edit-product/", edit_product_modal, name="recipes_edit_product"),
     path("recipes/<int:pk>/add-ingredient/", add_recipe_ingredient, name="add_recipe_ingredient"),
     path("recipes/<int:pk>/save-modifiers/", save_recipe_modifiers, name="save_recipe_modifiers"),
     path("recipes/<int:product_id>/delete-ingredient/<int:item_id>/", delete_recipe_ingredient, name="delete_recipe_ingredient"),
     path("recipes/table/", recipes_table_fragment, name="recipes_table_fragment"),
     path("recipes/<int:pk>/extend/", extend_recipe, name="extend_recipe"),
     path("recipes/item/<int:pk>/update/", update_recipe_item, name="update_recipe_item"),
+    path("recipes/products/new/", create_product_modal, name="recipes_create_product"),
     path("modifiers/rules/", modifier_rules_modal, name="modifier_rules_modal"),
     path("modifiers/create/", create_modifier, name="create_modifier"),
     path("modifiers/<int:modifier_id>/edit-extra/", edit_modifier_extra_view, name="edit_modifier_extra"),
+    path("modifiers/export/", export_modifiers_csv, name="export_modifiers_csv"),
+    path("modifiers/import/modal/", import_modifiers_modal, name="import_modifiers_modal"),
+    path("modifiers/import/", import_modifiers_csv, name="import_modifiers_csv"),
+    path("modifiers/import/confirm/", confirm_modifiers_import, name="confirm_modifiers_import"),
+    path("modifiers/import/template/", download_modifiers_template, name="download_modifiers_template"),
     path("recipes/export/", export_recipes_csv, name="export_recipes_csv"),
     path("recipes/import/modal/", import_recipes_modal, name="import_recipes_modal"),
     path("recipes/import/", import_recipes_csv, name="import_recipes_csv"),

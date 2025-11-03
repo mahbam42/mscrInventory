@@ -6,27 +6,29 @@
   <h2 class="mb-3">☕ Recipe Dashboard</h2>
   <hr />
   <!-- Edit Widgets -->
-  <div class="d-flex justify-content-end mb-3">
-    <button class="btn btn-sm btn-outline-success me-2"
+  <div class="d-flex justify-content-end flex-wrap gap-2 mb-3">
+    <button class="btn btn-sm btn-outline-success"
       hx-get="{% url 'modifier_rules_modal' %}"
       hx-target="#globalModal .modal-content"
       hx-swap="innerHTML">
       🛠️ Edit Modifier Rules
     </button>
-    <a href="{% url 'export_recipes_csv' %}" class="btn btn-sm btn-outline-secondary me-2">
-      📤 Export CSV
+    <a href="{% url 'export_recipes_csv' %}" class="btn btn-sm btn-outline-secondary">
+      📤 Export Recipes CSV
     </a>
     <button hx-get="{% url 'import_recipes_modal' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
       class="btn btn-sm btn-outline-primary">
       📥 Import Recipes CSV
     </button>
-  </div>
-  <div class="d-flex justify-content-end mb-3">
-    <button class="btn btn-warning" hx-get="{% url 'unmapped_ingredients_partial' %}" hx-target="#modal-body"
-      data-bs-toggle="modal" data-bs-target="#globalModal">
-      ⚠️ View Unmapped Ingredients
+    <button class="btn btn-sm btn-outline-secondary"
+      hx-get="{% url 'recipes_create_product' %}"
+      hx-target="#globalModal .modal-content"
+      hx-swap="innerHTML">
+      ➕ Create Product
     </button>
   </div>
+
+  {% include "partials/_tools.html" with show_inventory_tools=False %}
   <hr />
   <!-- Category Filter -->
 <div class="d-flex align-items-start flex-wrap gap-2 mb-3">
@@ -41,16 +43,32 @@
   </div>
 
   <!-- 📋 Show All -->
-  <button class="btn btn-sm btn-outline-primary" hx-get="/recipes/" hx-target="#recipes-table-wrap" hx-swap="innerHTML">
+  <button class="btn btn-sm {% if selected_category == "" %}btn-primary{% else %}btn-outline-primary{% endif %}"
+          hx-get="/recipes/" hx-target="#recipes-table-wrap" hx-swap="innerHTML">
     Show All
+  </button>
+
+  <button class="btn btn-sm {% if selected_category == "none" %}btn-primary{% else %}btn-outline-secondary{% endif %} category-btn"
+          hx-get="/recipes/"
+          hx-target="#recipes-table-wrap"
+          hx-swap="innerHTML"
+          hx-vals='{"category": "none"}'>
+    No Categories
   </button>
 
   <!-- 🗂 Category buttons -->
   {% for cat in categories %}
-  <button class="btn btn-sm btn-outline-secondary category-btn" hx-get="/recipes/" hx-target="#recipes-table-wrap"
-    hx-swap="innerHTML" hx-vals='{"category": "{{ cat.categories__id }}"}'>
+  {% if cat.categories__id %}
+  {% with cat.categories__id|stringformat:'s' as cat_id %}
+  <button class="btn btn-sm {% if selected_category == cat_id %}btn-primary{% else %}btn-outline-secondary{% endif %} category-btn"
+          hx-get="/recipes/"
+          hx-target="#recipes-table-wrap"
+          hx-swap="innerHTML"
+          hx-vals='{"category": "{{ cat.categories__id }}"}'>
     {{ cat.categories__name }}
   </button>
+  {% endwith %}
+  {% endif %}
   {% endfor %}
 </div>
 

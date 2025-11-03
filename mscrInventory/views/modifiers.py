@@ -1,15 +1,28 @@
+import csv
+import io
 import json
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.response import TemplateResponse
-
-from collections import defaultdict
+from django.views.decorators.http import require_POST
 
 from mscrInventory.models import Ingredient, IngredientType, RecipeModifier, UnitType
+
+
+REQUIRED_MODIFIER_COLUMNS = [
+    "name",
+    "type",
+    "ingredient",
+    "base quantity",
+    "unit",
+    "cost per unit",
+    "price per unit",
+]
 
 
 def _serialize_modifier(modifier, ingredient_type_lookup):
@@ -340,6 +353,291 @@ def create_modifier(request):
         context_overrides={"selected_modifier_id": modifier.id},
         trigger=trigger,
     )
+
+
+def import_modifiers_modal(request):
+    return render(request, "modifiers/_import_modifiers.html")
+
+
+@require_POST
+def import_modifiers_csv(request):
+    csv_file = request.FILES.get("file")
+    if not csv_file:
+        return render(
+            request,
+            "modifiers/_import_modifiers.html",
+            {"error": "Please upload a CSV file."},
+            status=400,
+        )
+
+    decoded = csv_file.read().decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(decoded))
+
+    if not reader.fieldnames:
+        return render(
+            request,
+            "modifiers/_import_modifiers.html",
+            {"error": "The uploaded CSV is missing a header row."},
+            status=400,
+        )
+
+    headers = [header.strip().lower() for header in reader.fieldnames if header]
+    missing = [column for column in REQUIRED_MODIFIER_COLUMNS if column not in headers]
+    if missing:
+        return render(
+            request,
+            "modifiers/_import_modifiers.html",
+            {
+                "error": "Missing required columns: " + ", ".join(missing),
+            },
+            status=400,
+        )
+
+    valid_rows: list[dict] = []
+    invalid_rows: list[dict] = []
+
+    for index, row in enumerate(reader, start=2):
+        normalized = {
+            (key or "").strip().lower(): (value or "").strip()
+            for key, value in row.items()
+        }
+
+        if not any(normalized.values()):
+            continue
+
+        name = normalized.get("name", "")
+        if not name:
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": normalized.get("type", ""),
+                    "ingredient": normalized.get("ingredient", ""),
+                    "error": "Name is required.",
+                }
+            )
+            continue
+
+        if name.startswith("#"):
+            continue
+
+        type_name = normalized.get("type", "")
+        ingredient_name = normalized.get("ingredient", "")
+        unit = normalized.get("unit", "")
+        base_quantity_raw = normalized.get("base quantity", "")
+        cost_raw = normalized.get("cost per unit", "")
+        price_raw = normalized.get("price per unit", "")
+
+        ingredient_type = IngredientType.objects.filter(name__iexact=type_name).first()
+        if not ingredient_type:
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": type_name,
+                    "ingredient": ingredient_name,
+                    "error": "Type not found.",
+                }
+            )
+            continue
+
+        ingredient = Ingredient.objects.filter(name__iexact=ingredient_name).first()
+        if not ingredient:
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": type_name,
+                    "ingredient": ingredient_name,
+                    "error": "Ingredient not found.",
+                }
+            )
+            continue
+
+        if not unit:
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": type_name,
+                    "ingredient": ingredient_name,
+                    "error": "Unit is required.",
+                }
+            )
+            continue
+
+        try:
+            base_quantity = Decimal(base_quantity_raw)
+        except (InvalidOperation, TypeError):
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": type_name,
+                    "ingredient": ingredient_name,
+                    "error": "Invalid base quantity.",
+                }
+            )
+            continue
+
+        try:
+            cost_per_unit = Decimal(cost_raw or "0")
+        except (InvalidOperation, TypeError):
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": type_name,
+                    "ingredient": ingredient_name,
+                    "error": "Invalid cost per unit.",
+                }
+            )
+            continue
+
+        try:
+            price_per_unit = Decimal(price_raw or "0")
+        except (InvalidOperation, TypeError):
+            invalid_rows.append(
+                {
+                    "row": index,
+                    "name": name,
+                    "type": type_name,
+                    "ingredient": ingredient_name,
+                    "error": "Invalid price per unit.",
+                }
+            )
+            continue
+
+        valid_rows.append(
+            {
+                "row": index,
+                "name": name,
+                "ingredient_type_id": ingredient_type.id,
+                "ingredient_type_name": ingredient_type.name,
+                "ingredient_id": ingredient.id,
+                "ingredient_name": ingredient.name,
+                "base_quantity": str(base_quantity),
+                "unit": unit,
+                "cost_per_unit": str(cost_per_unit),
+                "price_per_unit": str(price_per_unit),
+            }
+        )
+
+    context = {
+        "valid_rows": valid_rows,
+        "invalid_rows": invalid_rows,
+        "count_valid": len(valid_rows),
+        "count_invalid": len(invalid_rows),
+        "valid_rows_json": json.dumps(valid_rows),
+    }
+
+    return render(request, "modifiers/_import_modifiers_preview.html", context)
+
+
+@require_POST
+def confirm_modifiers_import(request):
+    data_json = request.POST.get("valid_rows") or request.body.decode("utf-8")
+
+    try:
+        rows = json.loads(data_json)
+        if isinstance(rows, str):
+            rows = json.loads(rows)
+    except json.JSONDecodeError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+
+    created, updated = 0, 0
+
+    with transaction.atomic():
+        for row in rows:
+            defaults = {
+                "ingredient_type_id": row["ingredient_type_id"],
+                "ingredient_id": row["ingredient_id"],
+                "base_quantity": Decimal(row["base_quantity"]),
+                "unit": row["unit"],
+                "cost_per_unit": Decimal(row["cost_per_unit"]),
+                "price_per_unit": Decimal(row["price_per_unit"]),
+            }
+
+            modifier, created_flag = RecipeModifier.objects.update_or_create(
+                name=row["name"],
+                defaults=defaults,
+            )
+
+            created += int(created_flag)
+            updated += int(not created_flag)
+
+    message = f"Imported {created} modifier(s); updated {updated}."
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps(
+        {
+            "recipes:refresh": True,
+            "showMessage": {"text": f"✅ {message}", "level": "success"},
+            "closeModal": True,
+        }
+    )
+    return response
+
+
+def export_modifiers_csv(request):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="modifiers_export.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Name",
+            "Type",
+            "Ingredient",
+            "Base Quantity",
+            "Unit",
+            "Cost per Unit",
+            "Price per Unit",
+        ]
+    )
+
+    for modifier in RecipeModifier.objects.select_related("ingredient", "ingredient_type").order_by("name"):
+        writer.writerow(
+            [
+                modifier.name,
+                modifier.ingredient_type.name if modifier.ingredient_type else "",
+                modifier.ingredient.name if modifier.ingredient else "",
+                modifier.base_quantity,
+                modifier.unit,
+                modifier.cost_per_unit,
+                modifier.price_per_unit,
+            ]
+        )
+
+    return response
+
+
+def download_modifiers_template(request):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="modifiers_template.csv"'
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Name",
+            "Type",
+            "Ingredient",
+            "Base Quantity",
+            "Unit",
+            "Cost per Unit",
+            "Price per Unit",
+        ]
+    )
+    writer.writerow(
+        [
+            "# Sample Modifier (remove)",
+            "Milk",
+            "Whole Milk",
+            "1.00",
+            "oz",
+            "0.25",
+            "0.75",
+        ]
+    )
+    return response
 
 def edit_modifier_extra_view(request, modifier_id):
     modifier = get_object_or_404(RecipeModifier, pk=modifier_id)

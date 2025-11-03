@@ -5,7 +5,7 @@
             <th>Product</th>
             <th>Categories</th>
             <th>Cost of Recipe ($)</th>
-            <th>Edit</th>
+            <th class="text-end">Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -21,11 +21,18 @@
                 {% endfor %}
             </td>
             <td>{{ product.calculated_cogs|floatformat:2 }}</td>
-            <td>
-                <button hx-get="{% url 'edit_recipe' product.id %}" hx-target="#globalModal .modal-content"
-                    hx-swap="innerHTML" class="btn btn-sm btn-outline-primary">
-                    Edit
-                </button>
+            <td class="text-end">
+                <div class="btn-group" role="group" aria-label="Recipe actions">
+                    <button hx-get="{% url 'edit_recipe' product.id %}" hx-target="#globalModal .modal-content"
+                        hx-swap="innerHTML" class="btn btn-sm btn-primary">
+                        Edit Recipe
+                    </button>
+                    <button hx-get="{% url 'recipes_edit_product' product.id %}"
+                        hx-target="#globalModal .modal-content" hx-swap="innerHTML"
+                        class="btn btn-sm btn-outline-secondary">
+                        Edit Product
+                    </button>
+                </div>
             </td>
         </tr>
         {% empty %}

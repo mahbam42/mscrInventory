@@ -10,6 +10,7 @@ from django.utils import timezone
 from pathlib import Path
 from decimal import Decimal
 import csv, io, json
+from ..forms import ProductForm
 from ..models import Product, Ingredient, RecipeItem, RecipeModifier
 
 LOG_DIR = Path("archive/logs")
@@ -24,22 +25,42 @@ def log_import(action: str, message: str):
         encoding="utf-8",
     )
 
+def _product_modal_response(message: str):
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({
+        "recipes:refresh": True,
+        "showMessage": {"text": message, "level": "success"},
+        "closeModal": True,
+    })
+    return response
+
+
+def _render_product_form_modal(request, form: ProductForm, *, title: str, submit_label: str):
+    return render(
+        request,
+        "recipes/_product_form_modal.html",
+        {
+            "form": form,
+            "title": title,
+            "submit_label": submit_label,
+        },
+    )
+
+
 def recipes_dashboard_view(request):
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
 
     products = Product.objects.all().order_by("name")
 
-    # Treat 'none' (or similar) as no filter
-    if category.lower() in ("none", "null"):
-        category = ""
-
     if category:
-        # Accept either ID or name
-        if category.isdigit():
+        if category.lower() in ("none", "null"):
+            products = products.filter(categories__isnull=True)
+        elif category.isdigit():
             products = products.filter(categories__id=int(category))
         else:
-            products = products.filter(categories__name=category)
+            products = products.filter(categories__name__iexact=category)
+        products = products.distinct()
 
     if query:
         products = products.filter(name__icontains=query)
@@ -58,10 +79,13 @@ def recipes_dashboard_view(request):
         .order_by("name")
     )
 
+    requested_category = request.GET.get("category", "").strip().lower()
+    selected_category = category or ("none" if requested_category in ("none", "null") else "")
+
     ctx = {
         "products": products,
         "categories": categories,
-        "selected_category": category,
+        "selected_category": selected_category,
         "base_items": base_items,
     }
 
@@ -158,6 +182,44 @@ def edit_recipe_view(request, pk):
     }
     return render(request, "recipes/_edit_modal.html", ctx)
 
+
+@require_http_methods(["GET", "POST"])
+def edit_product_modal(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+
+    if request.method == "POST":
+        form = ProductForm(request.POST, instance=product)
+        if form.is_valid():
+            updated = form.save()
+            return _product_modal_response(f"Updated product {updated.name}.")
+    else:
+        form = ProductForm(instance=product)
+
+    return _render_product_form_modal(
+        request,
+        form,
+        title="Edit Product",
+        submit_label="Save Changes",
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def create_product_modal(request):
+    if request.method == "POST":
+        form = ProductForm(request.POST)
+        if form.is_valid():
+            product = form.save()
+            return _product_modal_response(f"Created product {product.name}.")
+    else:
+        form = ProductForm()
+
+    return _render_product_form_modal(
+        request,
+        form,
+        title="Create Product",
+        submit_label="Create Product",
+    )
+
 def recipes_table_fragment(request):
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
@@ -165,10 +227,13 @@ def recipes_table_fragment(request):
     products = Product.objects.all().order_by("name")
 
     if category:
-        if category.isdigit():
+        if category.lower() in ("none", "null"):
+            products = products.filter(categories__isnull=True)
+        elif category.isdigit():
             products = products.filter(categories__id=int(category))
         else:
             products = products.filter(categories__name__icontains=category)
+        products = products.distinct()
 
     if query:
         products = products.filter(name__icontains=query)

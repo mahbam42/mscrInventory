@@ -5,12 +5,74 @@ from django.db import IntegrityError
 from django.utils.text import slugify
 
 from mscrInventory.models import (
+    Category,
     Ingredient,
     IngredientType,
     Product,
     RecipeModifier,
     SquareUnmappedItem,
 )
+
+
+class ProductForm(forms.ModelForm):
+    categories = forms.ModelMultipleChoiceField(
+        queryset=Category.objects.order_by("name"),
+        required=False,
+        widget=forms.SelectMultiple,
+        label="Categories",
+    )
+
+    class Meta:
+        model = Product
+        fields = [
+            "name",
+            "sku",
+            "shopify_id",
+            "square_id",
+            "categories",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        for field_name, field in self.fields.items():
+            if field_name == "categories":
+                field.widget = forms.SelectMultiple(attrs={"class": "form-select", "size": 6})
+            else:
+                existing = field.widget.attrs.get("class", "")
+                field.widget.attrs["class"] = (existing + " form-control").strip()
+            field.widget.attrs.setdefault("autocomplete", "off")
+
+            if self.is_bound and field_name in self.errors:
+                css = field.widget.attrs.get("class", "")
+                field.widget.attrs["class"] = f"{css} is-invalid".strip()
+
+        self.fields["shopify_id"].required = False
+        self.fields["square_id"].required = False
+
+    def clean_name(self):
+        return (self.cleaned_data.get("name") or "").strip()
+
+    def clean_sku(self):
+        sku = (self.cleaned_data.get("sku") or "").strip()
+        if not sku:
+            raise forms.ValidationError("SKU is required.")
+
+        qs = Product.objects.filter(sku__iexact=sku)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A product with this SKU already exists.")
+        return sku
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.name = (instance.name or "").strip()
+        instance.sku = (instance.sku or "").strip()
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class LinkUnmappedItemForm(forms.Form):
