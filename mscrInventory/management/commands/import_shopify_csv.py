@@ -1,10 +1,9 @@
-"""Management command to feed ShopifyImporter with CSV data (no API call)."""
+"""Load Shopify orders from a CSV and run the Shopify importer without the API."""
 
 from __future__ import annotations
 
 import csv
-from collections import defaultdict
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,8 +15,9 @@ from importers.shopify_importer import ShopifyImporter
 
 class Command(BaseCommand):
     help = (
-        "Load a CSV that mimics Shopify order exports and run ShopifyImporter "
-        "against it without hitting the API."
+        "Feed the Shopify importer with CSV rows (mock orders) instead of hitting the API. "
+        "CSV columns should include at least: order_id, created_at, sku, title, "
+        "variant_title, quantity, price."
     )
 
     def add_arguments(self, parser):
@@ -25,19 +25,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--date",
             type=str,
-            help="Cafe date (YYYY-MM-DD) for the import window; defaults to today's date.",
+            help="Cafe date (YYYY-MM-DD). Defaults to today when omitted.",
         )
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Run importer in dry-run mode (no DB writes).",
-        )
-        parser.add_argument(
-            "--verbosity",
-            type=int,
-            choices=[0, 1, 2],
-            default=1,
-            help="Logging verbosity for importer output.",
+            help="Run the importer in dry-run mode (no database writes).",
         )
 
     def handle(self, *args, **options):
@@ -50,23 +43,23 @@ class Command(BaseCommand):
             if options.get("date")
             else timezone.localdate()
         )
-        orders = self._parse_orders(csv_path, default_date=target_date)
 
+        orders = self._parse_orders(csv_path, default_date=target_date)
         if not orders:
-            self.stdout.write(self.style.WARNING("No order rows found in CSV; nothing to import."))
+            self.stdout.write(self.style.WARNING("No rows found in CSV; nothing to import."))
             return
 
         start_utc, end_utc = self._window_for_orders(orders, target_date)
 
         importer = ShopifyImporter(
             dry_run=options["dry_run"],
-            log_to_console=bool(options["verbosity"] and options["verbosity"] > 1),
+            log_to_console=int(options.get("verbosity", 1)) > 1,
         )
 
         self.stdout.write(
             self.style.NOTICE(
-                f"📄 Importing {len(orders)} mocked Shopify order(s) "
-                f"from {csv_path.name} ({start_utc.isoformat()} → {end_utc.isoformat()})."
+                f"📄 Importing {len(orders)} mocked Shopify order(s) from {csv_path.name} "
+                f"({start_utc.isoformat()} → {end_utc.isoformat()})."
             )
         )
 
@@ -77,14 +70,8 @@ class Command(BaseCommand):
     # Helpers
     # ------------------------------------------------------------------
     def _parse_orders(self, csv_path: Path, default_date: date) -> list[dict]:
-        """
-        Expected columns (case-insensitive):
-        - order_id (optional; auto-generated when missing)
-        - created_at (ISO or YYYY-MM-DD; defaults to `default_date` @ 10:00)
-        - sku, title, variant_title (strings)
-        - quantity (int)
-        - price (per-unit decimal)
-        """
+        """Group CSV rows into Shopify order payloads."""
+
         with csv_path.open(newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle)
             if not reader.fieldnames:
@@ -94,6 +81,7 @@ class Command(BaseCommand):
             line_index = 0
             for row in reader:
                 line_index += 1
+
                 order_id = (row.get("order_id") or row.get("Order ID") or "").strip()
                 if not order_id:
                     order_id = f"csv-{line_index:04d}"
@@ -117,7 +105,6 @@ class Command(BaseCommand):
                 qty = self._parse_int(row.get("quantity") or row.get("Qty") or "1")
                 price = Decimal(str(row.get("price") or row.get("Price") or "0") or "0")
                 total_line = price * qty
-
                 order["total_price"] = Decimal(order["total_price"]) + total_line
 
                 order["line_items"].append(
@@ -133,18 +120,26 @@ class Command(BaseCommand):
         return list(orders_map.values())
 
     def _window_for_orders(self, orders: list[dict], default_date: date) -> tuple[datetime, datetime]:
-        created_list = []
-        for order in orders:
-            created_list.append(datetime.fromisoformat(order["created_at"]))
+        """Return the UTC window covering the provided orders."""
 
-        if not created_list:
-            start_local = datetime.combine(default_date, time.min, tzinfo=timezone.get_current_timezone())
-            end_local = datetime.combine(default_date, time.max, tzinfo=timezone.get_current_timezone())
+        created_times: list[datetime] = [
+            datetime.fromisoformat(order["created_at"]) for order in orders
+        ]
+
+        tz = timezone.get_current_timezone()
+        if not created_times:
+            start_local = timezone.make_aware(datetime.combine(default_date, time.min), tz)
+            end_local = timezone.make_aware(datetime.combine(default_date, time.max), tz)
         else:
-            start_local = min(created_list)
-            end_local = max(created_list) + timedelta(seconds=1)
+            start_local = min(created_times)
+            if start_local.tzinfo is None:
+                start_local = timezone.make_aware(start_local, tz)
 
-        return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+            end_local = max(created_times) + timedelta(seconds=1)
+            if end_local.tzinfo is None:
+                end_local = timezone.make_aware(end_local, tz)
+
+        return start_local.astimezone(dt_timezone.utc), end_local.astimezone(dt_timezone.utc)
 
     @staticmethod
     def _parse_int(value: str | None) -> int:
@@ -156,13 +151,15 @@ class Command(BaseCommand):
     @staticmethod
     def _parse_datetime(value: str | None, fallback_date: date) -> datetime:
         tz = timezone.get_current_timezone()
-        if not value:
-            return datetime.combine(fallback_date, time(10, 0), tz)
-        try:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = tz.localize(dt)
-            return dt
-        except Exception:
-            return datetime.combine(fallback_date, time(10, 0), tz)
+        fallback = timezone.make_aware(datetime.combine(fallback_date, time(10, 0)), tz)
 
+        if not value:
+            return fallback
+
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = timezone.make_aware(parsed, tz)
+            return parsed
+        except ValueError:
+            return fallback
