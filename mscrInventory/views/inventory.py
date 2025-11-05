@@ -12,33 +12,69 @@ import json, csv, io
 from itertools import zip_longest
 from mscrInventory.models import Ingredient, StockEntry, IngredientType
 
+
+def _inventory_queryset():
+    """Base queryset for dashboard inventory (excludes 'extra' type)."""
+    return Ingredient.objects.exclude(type__name__iexact="extra")
+
+
+def _build_sort_context(sort_key: str, direction: str, *, sort_map: dict[str, str]):
+    """Return directions and indicators for sortable table headers."""
+    toggle = {
+        key: ("desc" if key == sort_key and direction == "asc" else "asc")
+        for key in sort_map.keys()
+    }
+    indicators = {
+        key: ("▲" if key == sort_key and direction == "asc" else "▼" if key == sort_key else "")
+        for key in sort_map.keys()
+    }
+    return toggle, indicators
+
 # -----------------------------
 # DASHBOARD
 # -----------------------------
 def inventory_dashboard_view(request):
     """Display inventory with low stock, totals, and editable table."""
-    low_stock_ingredients = Ingredient.objects.filter(
-        current_stock__lte=F("reorder_point")
-    ).order_by("name")
+    base_qs = _inventory_queryset()
 
-    all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("name")
+    low_stock_ingredients = base_qs.filter(current_stock__lte=F("reorder_point")).order_by("name")
+    all_ingredients_qs = (
+        base_qs.select_related("type", "unit_type")
+        .order_by("name")
+    )
 
-    total_ingredients = all_ingredients.count()
+    sort_map = {
+        "name": "name",
+        "category": "type__name",
+        "current_stock": "current_stock",
+        "case_size": "case_size",
+        "reorder_point": "reorder_point",
+        "avg_cost": "average_cost_per_unit",
+    }
+    toggle_directions, sort_indicators = _build_sort_context("name", "asc", sort_map=sort_map)
+
+    total_ingredients = all_ingredients_qs.count()
     total_low_stock = low_stock_ingredients.count()
     total_cost = (
-        Ingredient.objects.aggregate(
+        base_qs.aggregate(
             total=Sum(F("current_stock") * F("average_cost_per_unit"))
         )["total"]
         or 0
     )
-    ingredient_types = IngredientType.objects.order_by("name")
+    ingredient_types = IngredientType.objects.exclude(name__iexact="extra").order_by("name")
     
     context = {
         "total_ingredients": total_ingredients,
         "total_low_stock": total_low_stock,
         "total_cost": total_cost,
         "low_stock_ingredients": low_stock_ingredients,
-        "all_ingredients": all_ingredients,
+        "all_ingredients": all_ingredients_qs,
+        "current_sort": "name",
+        "current_direction": "asc",
+        "toggle_directions": toggle_directions,
+        "sort_indicators": sort_indicators,
+        "search_query": "",
+        "active_type": "",
         "ingredient_types": ingredient_types,
     }
     return render(request, "inventory/dashboard.html", context)
@@ -191,16 +227,17 @@ def ingredient_details(request, pk):
 # -----------------------------
 def inventory_low_stock_partial(request):
     """Return the low-stock table partial."""
-    low_stock_ingredients = Ingredient.objects.filter(
-        current_stock__lte=F("reorder_point")
-    ).order_by("name")
+    low_stock_ingredients = (
+        _inventory_queryset()
+        .filter(current_stock__lte=F("reorder_point"))
+        .order_by("name")
+    )
     return render(request, "inventory/_low_stock.html", {"low_stock_ingredients": low_stock_ingredients})
 
 
 def inventory_all_ingredients_partial(request):
     """Return the all-ingredients table partial."""
-    """Return the full All Ingredients table partial (with optional filters)."""
-    qs = Ingredient.objects.select_related("type").order_by("name")
+    qs = _inventory_queryset().select_related("type")
     type_id = request.GET.get("type")
     search = request.GET.get("q")
 
@@ -209,7 +246,42 @@ def inventory_all_ingredients_partial(request):
     if search:
         qs = qs.filter(name__icontains=search)
 
-    return render(request, "inventory/_all_ingredients.html", {"all_ingredients": qs})
+    sort_map = {
+        "name": "name",
+        "category": "type__name",
+        "current_stock": "current_stock",
+        "case_size": "case_size",
+        "reorder_point": "reorder_point",
+        "avg_cost": "average_cost_per_unit",
+    }
+
+    sort_key = request.GET.get("sort", "name")
+    if sort_key not in sort_map:
+        sort_key = "name"
+
+    direction = request.GET.get("direction", "asc").lower()
+    if direction not in {"asc", "desc"}:
+        direction = "asc"
+
+    order_expr = sort_map[sort_key]
+    if direction == "desc":
+        order_expr = f"-{order_expr}"
+
+    qs = qs.order_by(order_expr, "name")
+
+    toggle_directions, sort_indicators = _build_sort_context(sort_key, direction, sort_map=sort_map)
+
+    context = {
+        "all_ingredients": qs,
+        "current_sort": sort_key,
+        "current_direction": direction,
+        "toggle_directions": toggle_directions,
+        "sort_indicators": sort_indicators,
+        "search_query": search or "",
+        "active_type": type_id or "",
+    }
+
+    return render(request, "inventory/_all_ingredients.html", context)
 
 # -----------------------------
 # CSV Import/Export

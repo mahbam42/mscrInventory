@@ -2,12 +2,48 @@
     <table class="table table-hover align-middle">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Current Stock</th>
-                <th>Case Size</th>
-                <th>Reorder Point</th>
-                <th>Avg Cost</th>
+                <th>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none"
+                            hx-get="{% url 'inventory_all_ingredients_partial' %}?sort=name&direction={{ toggle_directions.name }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_type %}&type={{ active_type }}{% endif %}"
+                            hx-target="#all-ingredients-table" hx-swap="innerHTML">
+                        Name {% if sort_indicators.name %}<span>{{ sort_indicators.name }}</span>{% endif %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none"
+                            hx-get="{% url 'inventory_all_ingredients_partial' %}?sort=category&direction={{ toggle_directions.category }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_type %}&type={{ active_type }}{% endif %}"
+                            hx-target="#all-ingredients-table" hx-swap="innerHTML">
+                        Category {% if sort_indicators.category %}<span>{{ sort_indicators.category }}</span>{% endif %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none"
+                            hx-get="{% url 'inventory_all_ingredients_partial' %}?sort=current_stock&direction={{ toggle_directions.current_stock }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_type %}&type={{ active_type }}{% endif %}"
+                            hx-target="#all-ingredients-table" hx-swap="innerHTML">
+                        Current Stock {% if sort_indicators.current_stock %}<span>{{ sort_indicators.current_stock }}</span>{% endif %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none"
+                            hx-get="{% url 'inventory_all_ingredients_partial' %}?sort=case_size&direction={{ toggle_directions.case_size }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_type %}&type={{ active_type }}{% endif %}"
+                            hx-target="#all-ingredients-table" hx-swap="innerHTML">
+                        Case Size {% if sort_indicators.case_size %}<span>{{ sort_indicators.case_size }}</span>{% endif %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none"
+                            hx-get="{% url 'inventory_all_ingredients_partial' %}?sort=reorder_point&direction={{ toggle_directions.reorder_point }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_type %}&type={{ active_type }}{% endif %}"
+                            hx-target="#all-ingredients-table" hx-swap="innerHTML">
+                        Reorder Point {% if sort_indicators.reorder_point %}<span>{{ sort_indicators.reorder_point }}</span>{% endif %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none"
+                            hx-get="{% url 'inventory_all_ingredients_partial' %}?sort=avg_cost&direction={{ toggle_directions.avg_cost }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_type %}&type={{ active_type }}{% endif %}"
+                            hx-target="#all-ingredients-table" hx-swap="innerHTML">
+                        Avg Cost {% if sort_indicators.avg_cost %}<span>{{ sort_indicators.avg_cost }}</span>{% endif %}
+                    </button>
+                </th>
                 <th></th>
             </tr>
         </thead>
