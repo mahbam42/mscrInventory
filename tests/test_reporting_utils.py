@@ -121,6 +121,7 @@ def test_reporting_aggregations():
     trend = reports.cogs_trend_with_variance(report_date, report_date)
     assert trend[0]["cogs_total"] == Decimal("8.00")
     assert trend[0]["variance"] is None
+    assert trend[0]["date_obj"] == report_date
 
     usage_totals = reports.aggregate_usage_totals(report_date, report_date)
     assert usage_totals["Milk"] == Decimal("8.0")
@@ -130,9 +131,13 @@ def test_reporting_aggregations():
 
     top_products = reports.top_selling_products(report_date, report_date)
     assert top_products[0]["product_name"] == "Latte"
+    assert top_products[0]["variant_count"] == 1
     assert tuple(top_products[0]["modifiers"]) == ("oat milk", "pumpkin spice")
+    assert set(top_products[0]["suppressed_descriptors"]) == {"iced", "large"}
 
     top_mods = reports.top_modifiers(report_date, report_date)
     modifier_names = {row["modifier"] for row in top_mods}
     assert modifier_names == {"pumpkin spice", "oat milk", "extra shot"}
-    assert next(row for row in top_mods if row["modifier"] == "extra shot")["quantity"] == Decimal("2")
+    extra_shot = next(row for row in top_mods if row["modifier"] == "extra shot")
+    assert extra_shot["quantity"] == Decimal("2")
+    assert extra_shot["unit"] is None
