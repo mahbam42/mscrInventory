@@ -100,8 +100,18 @@
               <tr>
                 <td>
                   {{ row.product_name }}
-                  {% if row.variant_count and row.variant_count > 1 %}
-                    <div class="text-muted small">Includes {{ row.variant_count }} variants</div>
+                  {% if row.variant_count and row.variant_count > 0 %}
+                    {% with counter=forloop.counter0|stringformat:"s" %}
+                      {% with script_id="variant-details-"|add:counter %}
+                        <button type="button"
+                                class="btn btn-link btn-sm p-0 variant-details-trigger"
+                                data-variant-script-id="{{ script_id }}"
+                                data-product-name="{{ row.product_name }}">
+                          Includes {{ row.variant_count }} variant{% if row.variant_count|pluralize %}s{% endif %}
+                        </button>
+                        {{ row.variant_details|json_script:script_id }}
+                      {% endwith %}
+                    {% endwith %}
                   {% endif %}
                 </td>
                 <td>
@@ -154,7 +164,12 @@
             <tbody>
               {% for row in top_modifiers %}
               <tr>
-                <td>{{ row.modifier }}</td>
+                <td>
+                  {{ row.modifier }}
+                  {% if row.original_label and row.original_label|lower != row.modifier|lower %}
+                    <div class="text-muted small">Token: {{ row.original_label }}</div>
+                  {% endif %}
+                </td>
                 <td>{% if row.unit %}{{ row.unit }}{% else %}—{% endif %}</td>
                 <td class="text-end">{{ row.quantity|floatformat:0 }}</td>
                 <td class="text-end">${{ row.gross_sales|floatformat:2 }}</td>
@@ -294,7 +309,7 @@
           <tr>
             <td>{{ row.product_name }}</td>
             <td>{{ row.sku }}</td>
-            <td class="text-end">{{ row.quantity|floatformat:0 }}</td>
+            <td class="text-end">{{ row.quantity|floatformat:"-2" }}</td>
             <td class="text-end">${{ row.revenue|floatformat:2 }}</td>
             <td class="text-end">${{ row.cogs|floatformat:2 }}</td>
             <td class="text-end">${{ row.profit|floatformat:2 }}</td>
@@ -400,6 +415,20 @@
   </div>
 </div>
 
+<div class="modal fade" id="variantDetailsModal" tabindex="-1" aria-labelledby="variantDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="variantDetailsModalLabel">Variant Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="variant-details-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% if linkage.missing_cost_ingredients %}
 <div class="alert alert-warning">
   <strong>Cost data missing for:</strong>
@@ -411,6 +440,90 @@
 
 {% block extra_js %}
   {{ block.super }}
+  <script>
+    document.addEventListener('click', function (event) {
+      const trigger = event.target.closest('.variant-details-trigger');
+      if (!trigger) {
+        return;
+      }
+
+      const scriptId = trigger.getAttribute('data-variant-script-id');
+      const scriptEl = scriptId ? document.getElementById(scriptId) : null;
+      if (!scriptEl) {
+        return;
+      }
+
+      let variants;
+      try {
+        variants = JSON.parse(scriptEl.textContent || '[]');
+      } catch (err) {
+        console.error('Unable to parse variant payload', err);
+        variants = [];
+      }
+
+      const modalEl = document.getElementById('variantDetailsModal');
+      if (!modalEl) {
+        return;
+      }
+
+      const title = modalEl.querySelector('.modal-title');
+      if (title) {
+        const productName = trigger.getAttribute('data-product-name') || 'Variants';
+        title.textContent = `${productName} – Variants`;
+      }
+
+      const body = modalEl.querySelector('.variant-details-body');
+      if (body) {
+        if (!variants.length) {
+          body.innerHTML = '<p class="text-muted mb-0">No variant details recorded.</p>';
+        } else {
+          const rows = variants.map((variant) => {
+            const adjectives = Array.isArray(variant.adjectives) && variant.adjectives.length
+              ? variant.adjectives.join(', ')
+              : '—';
+            const modifiers = Array.isArray(variant.modifiers) && variant.modifiers.length
+              ? variant.modifiers.join(', ')
+              : '—';
+            const suppressed = Array.isArray(variant.suppressed_descriptors) && variant.suppressed_descriptors.length
+              ? `<div class="text-muted small">Also includes: ${variant.suppressed_descriptors.join(', ')}</div>`
+              : '';
+            const quantity = typeof variant.quantity === 'number' ? variant.quantity : parseFloat(variant.quantity || '0');
+            const gross = typeof variant.gross_sales === 'number' ? variant.gross_sales : parseFloat(variant.gross_sales || '0');
+
+            return `
+              <tr>
+                <td>
+                  <div><strong>Descriptors:</strong> ${adjectives}</div>
+                  <div><strong>Modifiers:</strong> ${modifiers}</div>
+                  ${suppressed}
+                </td>
+                <td class="text-end">${Number.isFinite(quantity) ? quantity.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</td>
+                <td class="text-end">${Number.isFinite(gross) ? '$' + gross.toFixed(2) : '—'}</td>
+              </tr>
+            `;
+          }).join('');
+
+          body.innerHTML = `
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Variant</th>
+                    <th scope="col" class="text-end">Quantity</th>
+                    <th scope="col" class="text-end">Gross Sales</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          `;
+        }
+      }
+
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+    });
+  </script>
   <script>
     (function () {
       function extractValue(cell, type) {

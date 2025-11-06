@@ -1,5 +1,11 @@
+import datetime
+from decimal import Decimal
+
 import pytest
 from django.urls import reverse
+from django.utils import timezone
+
+from mscrInventory.models import Order, OrderItem
 from tests.factories import (
     CategoryFactory,
     IngredientFactory,
@@ -29,6 +35,36 @@ def test_reporting_dashboard_view(client):
     response = client.get(reverse("reporting_dashboard"))
     assert response.status_code == 200
     assert b"Reporting Dashboard" in response.content
+
+
+@pytest.mark.django_db
+def test_reporting_dashboard_shows_variant_modal_trigger(client):
+    product = ProductFactory(name="Cookie Sampler")
+    order = Order.objects.create(
+        order_id="order-1",
+        platform="square",
+        order_date=timezone.make_aware(datetime.datetime(2024, 1, 5, 9, 0)),
+        total_amount=Decimal("0.00"),
+    )
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        quantity=2,
+        unit_price=Decimal("4.00"),
+        variant_info={"modifiers": ["oat milk"]},
+    )
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        quantity=3,
+        unit_price=Decimal("4.50"),
+        variant_info={"modifiers": ["almond milk"]},
+    )
+
+    response = client.get(reverse("reporting_dashboard"))
+    content = response.content.decode("utf-8")
+    assert "variant-details-" in content
+    assert "data-variant-script-id" in content
 
 
 @pytest.mark.django_db

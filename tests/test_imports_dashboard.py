@@ -1,9 +1,19 @@
+import datetime
+from decimal import Decimal
+
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from django.utils import timezone
 
 from importers import square_importer
-from mscrInventory.models import ImportLog, Ingredient, Product, SquareUnmappedItem
+from mscrInventory.models import (
+    ImportLog,
+    Ingredient,
+    IngredientUsageLog,
+    Product,
+    SquareUnmappedItem,
+)
 
 
 @pytest.mark.django_db
@@ -30,6 +40,54 @@ def test_upload_square_view_logs_output(client, monkeypatch):
     assert log.run_type == "dry-run"
     assert log.filename == "square.csv"
     assert "Test output" in (log.log_output or "")
+
+
+@pytest.mark.django_db
+def test_upload_square_view_records_usage_logs(client, monkeypatch):
+    ingredient = Ingredient.objects.create(name="Cold Brew", average_cost_per_unit=Decimal("0.50"), current_stock=Decimal("10"))
+    upload = SimpleUploadedFile("square.csv", b"Item,Qty\nCold Brew,2\n")
+
+    usage_totals = {ingredient.id: Decimal("2.5")}
+    usage_breakdown = {ingredient.name: {"square": Decimal("2.5")}}
+    started_at = timezone.now()
+    finished_at = started_at + datetime.timedelta(seconds=5)
+
+    def fake_run(self, path):
+        self.dry_run = getattr(self, "dry_run", False)
+        return ""
+
+    monkeypatch.setattr(square_importer.SquareImporter, "run_from_file", fake_run, raising=False)
+    monkeypatch.setattr(square_importer.SquareImporter, "get_output", lambda self: "", raising=False)
+    monkeypatch.setattr(square_importer.SquareImporter, "get_summary", lambda self: "Summary", raising=False)
+    monkeypatch.setattr(
+        square_importer.SquareImporter,
+        "get_run_metadata",
+        lambda self: {
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "duration_seconds": 5,
+            "stats": {
+                "rows_processed": 1,
+                "matched": 1,
+                "unmatched": 0,
+                "order_items_logged": 1,
+                "modifiers_applied": 0,
+                "errors": 0,
+            },
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(square_importer.SquareImporter, "get_usage_totals", lambda self: usage_totals, raising=False)
+    monkeypatch.setattr(square_importer.SquareImporter, "get_usage_breakdown", lambda self: usage_breakdown, raising=False)
+
+    response = client.post(reverse("upload_square"), {"square_csv": upload}, format="multipart")
+
+    assert response.status_code == 302
+    logs = IngredientUsageLog.objects.filter(ingredient=ingredient, source="square")
+    assert logs.count() == 1
+    log = logs.first()
+    assert log.quantity_used == Decimal("2.500")
+    assert log.date == timezone.localdate()
 
 
 @pytest.mark.django_db

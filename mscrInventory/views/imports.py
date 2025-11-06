@@ -2,6 +2,7 @@
 Import views for handling external data sources.
 """
 
+import datetime
 import json
 import tempfile
 from decimal import Decimal
@@ -22,6 +23,7 @@ from django.views.decorators.http import require_POST
 from importers.square_importer import SquareImporter
 from mscrInventory.forms import CreateFromUnmappedItemForm, LinkUnmappedItemForm
 from mscrInventory.models import ImportLog, Ingredient, Product, SquareUnmappedItem
+from mscrInventory.management.commands.sync_orders import write_usage_logs
 
 
 def _build_unmapped_context(
@@ -152,6 +154,48 @@ def upload_square_view(request):
                 summary,
             ),
         )
+
+        if not dry_run:
+            usage_totals = importer.get_usage_totals()
+            if usage_totals:
+                business_date_raw = request.POST.get("business_date")
+                target_date = timezone.localdate()
+                if business_date_raw:
+                    try:
+                        target_date = datetime.date.fromisoformat(business_date_raw)
+                    except ValueError:
+                        messages.warning(
+                            request,
+                            format_html(
+                                "⚠️ Invalid business date '{}'. Using {} instead.",
+                                business_date_raw,
+                                target_date.isoformat(),
+                            ),
+                        )
+
+                write_usage_logs(target_date, usage_totals, source="square")
+                breakdown = importer.get_usage_breakdown() or {}
+                detail_snippets: list[str] = []
+                for ingredient_name, per_source in sorted(breakdown.items()):
+                    total_qty = sum(per_source.values(), Decimal("0"))
+                    detail_snippets.append(
+                        f"{ingredient_name} × {total_qty.quantize(Decimal('0.001'))}"
+                    )
+                if detail_snippets:
+                    messages.success(
+                        request,
+                        "📊 Logged Square usage: " + "; ".join(detail_snippets),
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f"📊 Logged Square usage for {len(usage_totals)} ingredient(s).",
+                    )
+            else:
+                messages.warning(
+                    request,
+                    "⚠️ Square import completed, but no ingredient usage was detected to log.",
+                )
 
     except Exception as exc:  # pragma: no cover - defensive logging
         messages.error(request, f"❌ Error importing Square CSV: {exc}")
