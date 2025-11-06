@@ -5,7 +5,7 @@ import django
 import warnings
 import traceback
 from pathlib import Path
-from datetime import timezone
+from datetime import datetime
 from django.db import transaction, IntegrityError
 
 # ───────────────────────────────────────────────────────────────
