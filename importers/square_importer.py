@@ -10,6 +10,7 @@ Handles:
 """
 
 import csv
+from collections import defaultdict
 from contextlib import nullcontext
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -309,10 +310,71 @@ class SquareImporter:
         self._current_order: Order | None = None
         self._orders_by_transaction: dict[str, Order | None] = {}
         self._unmapped_seen_keys: set[tuple[str, str]] = set()
+        self.usage_totals: defaultdict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+        self.usage_breakdown: defaultdict[int, defaultdict[str, Decimal]] = defaultdict(
+            lambda: defaultdict(lambda: Decimal("0"))
+        )
+        self._ingredient_cache: dict[str, Ingredient | None] = {}
 
     # ------------------------------------------------------------------
     # 🧩 Single-row processing
     # ------------------------------------------------------------------
+    def _resolve_ingredient(self, name: str | None) -> Ingredient | None:
+        normalized = (name or "").strip().lower()
+        if not normalized:
+            return None
+        if normalized in self._ingredient_cache:
+            return self._ingredient_cache[normalized]
+        ingredient = Ingredient.objects.filter(name__iexact=name).first()
+        self._ingredient_cache[normalized] = ingredient
+        return ingredient
+
+    def _record_usage_totals(
+        self,
+        *,
+        product: Product | None,
+        fallback_name: str,
+        descriptors: list[str],
+        price_point: str,
+        usage_summary: dict,
+        quantity: Decimal,
+    ) -> None:
+        if not usage_summary or quantity <= 0:
+            return
+
+        base_label = (product.name if product else fallback_name) or "(unknown)"
+        descriptor_bits = [bit for bit in descriptors if bit]
+        label_base = base_label
+        if descriptor_bits:
+            label_base = f"{base_label} ({' '.join(descriptor_bits)})"
+        elif price_point:
+            label_base = f"{base_label} [{price_point}]"
+
+        for ingredient_name, data in usage_summary.items():
+            ingredient = self._resolve_ingredient(ingredient_name)
+            if not ingredient:
+                continue
+            raw_qty = data.get("qty", Decimal("0"))
+            try:
+                per_unit_qty = Decimal(raw_qty)
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+            ingredient_qty = per_unit_qty * quantity
+            if ingredient_qty <= 0:
+                continue
+
+            metadata_bits = [
+                str(bit)
+                for bit in (data.get("bag_size"), data.get("grind"))
+                if bit
+            ]
+            entry_label = label_base
+            if metadata_bits:
+                entry_label = f"{label_base} [{' | '.join(metadata_bits)}]"
+
+            self.usage_totals[ingredient.id] += ingredient_qty
+            self.usage_breakdown[ingredient.id][entry_label] += ingredient_qty
+
     def _process_row(self, row: dict, file_path: Path | None = None):
         """Parse and process a single CSV row."""
         change_logs = []
@@ -538,6 +600,7 @@ class SquareImporter:
             is_drink_context = product_is_drink or base_product_is_drink
 
             # --- Aggregate ingredient usage ---
+            usage_summary: dict[str, dict] = {}
             if product:
                 resolved_modifiers = []
                 for token in all_modifiers:
@@ -669,6 +732,15 @@ class SquareImporter:
                         else:
                             self.buffer.append(f"   {ing}: {qty} (from {sources})")
 
+                self._record_usage_totals(
+                    product=product,
+                    fallback_name=item_name,
+                    descriptors=list(descriptors),
+                    price_point=price_point,
+                    usage_summary=usage_summary,
+                    quantity=qty,
+                )
+
             # 🧮 Dry-run log
             if self.dry_run:
                 base_name = (product.name if product else item_name) or "(unnamed)"
@@ -745,6 +817,9 @@ class SquareImporter:
             "modifiers_applied": 0,
             "errors": 0,
         }
+        self.usage_totals = defaultdict(lambda: Decimal("0"))
+        self.usage_breakdown = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
+        self._ingredient_cache = {}
         start_time = timezone.now()
         self._last_run_started = start_time
         self._summary_added = False
@@ -831,6 +906,21 @@ class SquareImporter:
     def get_summary(self) -> str:
         """Return the formatted summary for display (without mutating twice)."""
         return self.summarize()
+
+    def get_usage_totals(self) -> dict[int, Decimal]:
+        return {
+            ingredient_id: qty
+            for ingredient_id, qty in self.usage_totals.items()
+            if qty > 0
+        }
+
+    def get_usage_breakdown(self) -> dict[str, dict[str, Decimal]]:
+        result: dict[str, dict[str, Decimal]] = {}
+        for ingredient_id, per_source in self.usage_breakdown.items():
+            ingredient = Ingredient.objects.filter(id=ingredient_id).first()
+            name = ingredient.name if ingredient else f"Ingredient #{ingredient_id}"
+            result[name] = dict(per_source)
+        return result
 
     # ------------------------------------------------------------------
     # ⚠️ Unmapped tracking helpers

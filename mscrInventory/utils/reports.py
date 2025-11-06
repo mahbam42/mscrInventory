@@ -13,8 +13,52 @@ from ..models import (
     IngredientUsageLog,
     OrderItem,
     Product,
+    RecipeModifier,
     StockEntry,
 )
+
+
+SIZE_DESCRIPTOR_TOKENS: set[str] = {
+    "kids",
+    "kid",
+    "small",
+    "medium",
+    "large",
+    "xl",
+    "xxl",
+    "short",
+    "tall",
+    "grande",
+    "venti",
+    "trenta",
+}
+TEMP_DESCRIPTOR_TOKENS: set[str] = {
+    "hot",
+    "iced",
+    "extra hot",
+    "cold",
+    "warm",
+    "room temperature",
+}
+SUPPRESSED_DESCRIPTOR_TOKENS: set[str] = SIZE_DESCRIPTOR_TOKENS | TEMP_DESCRIPTOR_TOKENS
+
+
+def _normalize_descriptor_token(token: str | None) -> str:
+    return (token or "").strip().lower()
+
+
+def _split_descriptor_tokens(tokens: Iterable[str] | None) -> tuple[list[str], list[str]]:
+    """Return (kept_tokens, suppressed_tokens) preserving first-seen casing."""
+
+    kept: dict[str, str] = {}
+    suppressed: dict[str, str] = {}
+    for token in tokens or []:
+        normalized = _normalize_descriptor_token(token)
+        if not normalized:
+            continue
+        bucket = suppressed if normalized in SUPPRESSED_DESCRIPTOR_TOKENS else kept
+        bucket.setdefault(normalized, token)
+    return list(kept.values()), list(suppressed.values())
 
 
 def daterange(start: datetime.date, end: datetime.date) -> Iterable[datetime.date]:
@@ -103,6 +147,7 @@ def cogs_by_day(start: datetime.date, end: datetime.date, tzname: str = "America
         day_data = cogs_for_day(cur, tzname)
         rows.append({
             "date": cur.isoformat(),
+            "date_obj": cur,
             "cogs_total": day_data["cogs_total"],
         })
         cur += datetime.timedelta(days=1)
@@ -267,6 +312,11 @@ def cogs_trend_with_variance(start: datetime.date, end: datetime.date, tzname: s
     trend = cogs_by_day(start, end, tzname=tzname)
     previous_total: Decimal | None = None
     for row in trend:
+        if "date_obj" not in row:
+            try:
+                row["date_obj"] = datetime.date.fromisoformat(row["date"])
+            except (TypeError, ValueError):
+                row["date_obj"] = None
         total = row["cogs_total"]
         if previous_total is None:
             row["variance"] = None
@@ -314,7 +364,7 @@ def validate_cogs_linkage(start: datetime.date, end: datetime.date) -> Dict[str,
 
 
 def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int = 10) -> List[Dict]:
-    """Return top-selling product variants including descriptor context."""
+    """Return top-selling product variants with normalized descriptor rollups."""
 
     items = (
         OrderItem.objects
@@ -322,37 +372,93 @@ def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int
         .filter(order__order_date__date__gte=start, order__order_date__date__lte=end)
     )
 
-    totals: Dict[Tuple[int | None, Tuple[str, ...], Tuple[str, ...]], Dict[str, Decimal | str]] = {}
+    totals: Dict[
+        Tuple[int | None, str, Tuple[str, ...], Tuple[str, ...]],
+        Dict[str, object],
+    ] = {}
+
+    def _ensure_bucket(key, display_name: str):
+        bucket = totals.get(key)
+        if bucket is None:
+            bucket = {
+                "product_name": display_name,
+                "adjectives": {},
+                "modifiers": {},
+                "suppressed_descriptors": {},
+                "quantity": Decimal("0"),
+                "gross_sales": Decimal("0"),
+                "variant_count": 0,
+            }
+            totals[key] = bucket
+        return bucket
+
     for item in items:
         product = item.product
         qty = Decimal(item.quantity or 0)
         revenue = (item.unit_price or Decimal("0")) * qty
         info = item.variant_info or {}
-        adjectives = tuple(sorted(set(info.get("adjectives") or [])))
-        modifiers = tuple(sorted(set(info.get("modifiers") or [])))
-        key = (getattr(product, "id", None), adjectives, modifiers)
 
-        display_name = product.name if product else info.get("name") or "Unmapped"
-        totals.setdefault(
-            key,
-            {
-                "product_name": display_name,
-                "adjectives": adjectives,
-                "modifiers": modifiers,
-                "quantity": Decimal("0"),
-                "gross_sales": Decimal("0"),
-            },
-        )
-        totals[key]["quantity"] += qty
-        totals[key]["gross_sales"] += revenue
+        adjectives_raw = info.get("adjectives") or []
+        modifiers_raw = info.get("modifiers") or []
 
-    rows = list(totals.values())
+        kept_adjectives, suppressed_adjectives = _split_descriptor_tokens(adjectives_raw)
+        kept_modifiers, suppressed_modifiers = _split_descriptor_tokens(modifiers_raw)
+
+        size_token = info.get("size")
+        temp_token = info.get("temp_type")
+        meta_suppressed = []
+        for token in (size_token, temp_token):
+            normalized = _normalize_descriptor_token(token)
+            if normalized:
+                if normalized in SUPPRESSED_DESCRIPTOR_TOKENS:
+                    meta_suppressed.append(token)
+                else:
+                    kept_adjectives.append(token)
+
+        canonical_product = (product.name if product else info.get("name") or "Unmapped").strip()
+        product_key = getattr(product, "id", None)
+        canonical_adjectives = tuple(sorted({_normalize_descriptor_token(t) for t in kept_adjectives if _normalize_descriptor_token(t)}))
+        canonical_modifiers = tuple(sorted({_normalize_descriptor_token(t) for t in kept_modifiers if _normalize_descriptor_token(t)}))
+        key = (product_key, canonical_product.lower(), canonical_adjectives, canonical_modifiers)
+
+        display_name = canonical_product or "Unmapped"
+        bucket = _ensure_bucket(key, display_name)
+
+        def _capture(tokens: Iterable[str], storage: dict[str, str]):
+            for token in tokens:
+                normalized = _normalize_descriptor_token(token)
+                if not normalized:
+                    continue
+                storage.setdefault(normalized, token)
+
+        _capture(kept_adjectives, bucket["adjectives"])
+        _capture(kept_modifiers, bucket["modifiers"])
+        _capture(suppressed_adjectives, bucket["suppressed_descriptors"])
+        _capture(suppressed_modifiers, bucket["suppressed_descriptors"])
+        _capture(meta_suppressed, bucket["suppressed_descriptors"])
+
+        bucket["quantity"] += qty
+        bucket["gross_sales"] += revenue
+        bucket["variant_count"] += 1
+
+    rows: List[Dict] = []
+    for payload in totals.values():
+        rows.append({
+            "product_name": payload["product_name"],
+            "adjectives": tuple(sorted(payload["adjectives"].values(), key=str.lower)),
+            "modifiers": tuple(sorted(payload["modifiers"].values(), key=str.lower)),
+            "suppressed_descriptors": tuple(sorted(payload["suppressed_descriptors"].values(), key=str.lower)),
+            "quantity": payload["quantity"],
+            "gross_sales": payload["gross_sales"],
+            "variant_count": payload["variant_count"],
+        })
+
     rows.sort(key=lambda row: (row["quantity"], row["gross_sales"]), reverse=True)
     return rows[:limit]
 
 
 def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int = 10) -> List[Dict]:
-    """Return the most frequently used modifiers within the date range."""
+    """Return the most frequently used modifiers (excluding size/temp descriptors)."""
 
     items = (
         OrderItem.objects
@@ -371,17 +477,40 @@ def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int = 10) 
         info = item.variant_info or {}
         modifiers = set(info.get("modifiers") or [])
         for modifier in modifiers:
+            normalized = _normalize_descriptor_token(modifier)
+            if not normalized or normalized in SUPPRESSED_DESCRIPTOR_TOKENS:
+                continue
             bucket = modifier_totals[modifier]
             bucket["quantity"] += qty
             bucket["gross_sales"] += revenue
 
-    rows = [
-        {
+    modifier_names = list(modifier_totals.keys())
+    resolved_modifiers = {
+        rm.name.lower(): rm
+        for rm in RecipeModifier.objects.filter(name__in=modifier_names)
+    }
+
+    def _resolve_modifier(name: str) -> RecipeModifier | None:
+        normalized = name.lower()
+        if normalized in resolved_modifiers:
+            return resolved_modifiers[normalized]
+        modifier_obj = RecipeModifier.objects.filter(name__iexact=name).first()
+        if modifier_obj:
+            resolved_modifiers[normalized] = modifier_obj
+        return modifier_obj
+
+    rows = []
+    for name, payload in modifier_totals.items():
+        modifier_obj = _resolve_modifier(name)
+        unit = None
+        if modifier_obj:
+            unit = modifier_obj.unit or (modifier_obj.ingredient.unit if hasattr(modifier_obj.ingredient, "unit") else None)
+        rows.append({
             "modifier": name,
+            "unit": unit,
             "quantity": payload["quantity"],
             "gross_sales": payload["gross_sales"],
-        }
-        for name, payload in modifier_totals.items()
-    ]
+        })
+
     rows.sort(key=lambda row: (row["quantity"], row["gross_sales"]), reverse=True)
     return rows[:limit]

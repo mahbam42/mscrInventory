@@ -136,10 +136,11 @@ class Command(BaseCommand):
 
             writer.writerow([])
             writer.writerow(["Top Modifiers"])
-            writer.writerow(["modifier", "quantity", "gross_sales"])
+            writer.writerow(["modifier", "unit", "quantity", "gross_sales"])
             for row in modifier_rows:
                 writer.writerow([
                     row["modifier"],
+                    row.get("unit", ""),
                     f"{row['quantity']:.0f}",
                     f"{row['gross_sales']:.2f}",
                 ])

@@ -1,5 +1,5 @@
-from io import StringIO
 from decimal import Decimal
+from io import StringIO
 
 import pytest
 from django.core.management import call_command
@@ -7,6 +7,8 @@ from django.core.management import call_command
 from importers import square_importer
 from importers.square_importer import SquareImporter
 from mscrInventory.models import (
+    Ingredient,
+    IngredientUsageLog,
     Order,
     OrderItem,
     Product,
@@ -76,6 +78,76 @@ def test_square_importer_live_creates_orders(tmp_path, monkeypatch):
     assert ProductVariantCache.objects.count() == 0
     assert importer.stats["matched"] == 1
     assert importer.stats["order_items_logged"] == 1
+
+
+@pytest.mark.django_db
+def test_square_importer_tracks_usage_totals(tmp_path, monkeypatch):
+    ingredient = Ingredient.objects.create(name="Latte Base")
+    product = Product.objects.create(name="Latte", sku="LATTE-1")
+
+    csv_path = tmp_path / "square_usage.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,2,10.00,,,txn-usage\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (product, "exact name"),
+    )
+    monkeypatch.setattr(square_importer, "handle_extras", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(square_importer, "resolve_modifier_tree", lambda *a, **k: [])
+
+    def fake_aggregate(*args, **kwargs):
+        return {"Latte Base": {"qty": Decimal("1"), "sources": ["base"]}}
+
+    monkeypatch.setattr(square_importer, "aggregate_ingredient_usage", fake_aggregate)
+    monkeypatch.setattr(square_importer, "infer_temp_and_size", lambda *a, **k: (None, None))
+
+    importer = SquareImporter(dry_run=False)
+    importer.run_from_file(csv_path)
+
+    assert importer.usage_totals[ingredient.id] == Decimal("2")
+    breakdown = importer.get_usage_breakdown()
+    assert "Latte Base" in breakdown
+    assert sum(breakdown["Latte Base"].values()) == Decimal("2")
+
+
+@pytest.mark.django_db
+def test_import_square_logs_usage(tmp_path, monkeypatch):
+    ingredient = Ingredient.objects.create(name="Latte Base")
+    product = Product.objects.create(name="Latte", sku="LATTE-1")
+
+    csv_path = tmp_path / "square_cmd_live.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,2,10.00,,,txn-cmd-live\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (product, "exact name"),
+    )
+    monkeypatch.setattr(square_importer, "handle_extras", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(square_importer, "resolve_modifier_tree", lambda *a, **k: [])
+
+    def fake_aggregate(*args, **kwargs):
+        return {"Latte Base": {"qty": Decimal("1"), "sources": ["base"]}}
+
+    monkeypatch.setattr(square_importer, "aggregate_ingredient_usage", fake_aggregate)
+    monkeypatch.setattr(square_importer, "infer_temp_and_size", lambda *a, **k: (None, None))
+
+    out = StringIO()
+    call_command("import_square", file=str(csv_path), date="2024-01-02", stdout=out)
+
+    log = IngredientUsageLog.objects.get()
+    assert log.ingredient == ingredient
+    assert log.date.isoformat() == "2024-01-02"
+    assert log.quantity_used == Decimal("2.000")
+    assert log.source == "square"
+    assert log.calculated_from_orders is True
 
 
 @pytest.mark.django_db
