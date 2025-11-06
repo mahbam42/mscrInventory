@@ -60,6 +60,8 @@ from mscrInventory.views.modifiers import (
     import_modifiers_csv,
     import_modifiers_modal,
     modifier_rules_modal,
+    modifier_explorer_view,
+    create_modifier_alias,
 )
 from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient, bulk_add_modal, inventory_low_stock_partial, inventory_all_ingredients_partial, ingredient_details, export_inventory_csv, import_inventory_csv, import_inventory_modal, confirm_inventory_import, download_inventory_csv_template
 
@@ -122,6 +124,8 @@ urlpatterns = [
     path("modifiers/import/", import_modifiers_csv, name="import_modifiers_csv"),
     path("modifiers/import/confirm/", confirm_modifiers_import, name="confirm_modifiers_import"),
     path("modifiers/import/template/", download_modifiers_template, name="download_modifiers_template"),
+    path("modifiers/explorer/", modifier_explorer_view, name="modifier_explorer"),
+    path("modifiers/aliases/create/", create_modifier_alias, name="modifier_alias_create"),
     path("recipes/export/", export_recipes_csv, name="export_recipes_csv"),
     path("recipes/import/modal/", import_recipes_modal, name="import_recipes_modal"),
     path("recipes/import/", import_recipes_csv, name="import_recipes_csv"),

@@ -4,14 +4,21 @@ import json
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
+from django.contrib import messages
 from django.db import IntegrityError, transaction
 
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from mscrInventory.models import Ingredient, IngredientType, RecipeModifier, UnitType
+from urllib.parse import urlencode
+
+
+from mscrInventory.models import Ingredient, IngredientType, RecipeModifier, RecipeModifierAlias, UnitType
+from mscrInventory.utils.modifier_explorer import ModifierExplorerAnalyzer
+from importers._handle_extras import normalize_modifier
 
 
 REQUIRED_MODIFIER_COLUMNS = [
@@ -658,3 +665,136 @@ def edit_modifier_extra_view(request, modifier_id):
 
     ingredients = Ingredient.objects.all().order_by("name")
     return render(request, "modifiers/edit_extra_modal.html", {"modifier": modifier, "ingredients": ingredients})
+
+
+def modifier_explorer_view(request):
+    analyzer = ModifierExplorerAnalyzer()
+    report = analyzer.analyze()
+
+    classification = (request.GET.get('classification') or 'all').lower()
+    search_term_raw = (request.GET.get('q') or '').strip()
+    search_term = search_term_raw.lower()
+    export_format = (request.GET.get('format') or '').lower()
+
+    insights = sorted(report.insights.values(), key=lambda insight: insight.total_count, reverse=True)
+    group_keys = ['known', 'alias', 'fuzzy', 'unknown']
+
+    totals_by_classification = {key: 0 for key in group_keys}
+    for insight in insights:
+        key = insight.classification if insight.classification in totals_by_classification else 'unknown'
+        totals_by_classification[key] += 1
+
+    def matches_filters(insight):
+        if classification in group_keys and insight.classification != classification:
+            return False
+        if search_term:
+            haystack = [
+                insight.normalized,
+                insight.modifier_name or '',
+                insight.alias_label or '',
+            ]
+            haystack.extend(insight.raw_labels.keys())
+            haystack.extend(insight.items.keys())
+            return any(search_term in (token or '').lower() for token in haystack if token)
+        return True
+
+    filtered = [insight for insight in insights if matches_filters(insight)]
+
+    if export_format == 'csv':
+        fieldnames = [
+            'normalized',
+            'total_count',
+            'classification',
+            'modifier_id',
+            'modifier_name',
+            'modifier_behavior',
+            'alias_label',
+            'top_raw_labels',
+            'top_items',
+        ]
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="modifier_explorer.csv"'
+        writer = csv.DictWriter(response, fieldnames=fieldnames)
+        writer.writeheader()
+        for insight in filtered:
+            writer.writerow(insight.to_csv_row())
+        return response
+
+    grouped = {key: [] for key in group_keys}
+    for insight in filtered:
+        key = insight.classification if insight.classification in grouped else 'unknown'
+        grouped[key].append(insight)
+
+    for bucket in grouped.values():
+        bucket.sort(key=lambda insight: insight.total_count, reverse=True)
+
+    co_occurrence_rows = [
+        {
+            'left': left,
+            'right': right,
+            'count': count,
+        }
+        for (left, right), count in sorted(
+            report.co_occurrence_pairs.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:25]
+    ]
+
+    recipe_modifiers = RecipeModifier.objects.order_by('name').only('id', 'name')
+
+    context = {
+        'classification': classification,
+        'search_term': search_term_raw,
+        'grouped': grouped,
+        'total_modifiers': len(filtered),
+        'total_available': len(insights),
+        'classification_totals': totals_by_classification,
+        'filtered_counts': {key: len(value) for key, value in grouped.items()},
+        'source_files': report.source_files,
+        'co_occurrence_rows': co_occurrence_rows,
+        'recipe_modifiers': recipe_modifiers,
+    }
+
+    return render(request, 'modifiers/explorer.html', context)
+
+
+@require_POST
+def create_modifier_alias(request):
+    modifier_id = request.POST.get('modifier_id')
+    raw_label = (request.POST.get('raw_label') or '').strip()
+    classification = request.POST.get('classification') or ''
+    search_term = request.POST.get('q') or ''
+
+    if not modifier_id or not raw_label:
+        messages.error(request, 'Select a RecipeModifier and provide an alias label.')
+        return redirect(_modifier_explorer_redirect(classification, search_term))
+
+    modifier = get_object_or_404(RecipeModifier, pk=modifier_id)
+    normalized = normalize_modifier(raw_label)
+
+    alias, created = RecipeModifierAlias.objects.update_or_create(
+        normalized_label=normalized,
+        defaults={'modifier': modifier, 'raw_label': raw_label},
+    )
+
+    if created:
+        messages.success(request, f'✅ Created alias "{raw_label}" for {modifier.name}.')
+    else:
+        messages.success(request, f'✅ Updated alias "{raw_label}" to {modifier.name}.')
+
+    return redirect(_modifier_explorer_redirect(classification, search_term))
+
+
+def _modifier_explorer_redirect(classification: str, search_term: str):
+    params = {}
+    classification = (classification or '').strip().lower()
+    if classification and classification != 'all':
+        params['classification'] = classification
+    if search_term:
+        params['q'] = search_term
+
+    url = reverse('modifier_explorer')
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    return url

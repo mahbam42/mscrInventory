@@ -12,6 +12,7 @@ from .models import (
     Ingredient,
     RecipeItem,
     RecipeModifier,
+    RecipeModifierAlias,
     Category,
     Order,
     OrderItem,
@@ -309,6 +310,14 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
         for item in queryset:
             item.reopen()
 
+
+
+class RecipeModifierAliasInline(admin.TabularInline):
+    model = RecipeModifierAlias
+    extra = 1
+    fields = ("raw_label", "normalized_label")
+    readonly_fields = ("normalized_label",)
+
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):
     """
@@ -321,6 +330,8 @@ class RecipeModifierAdmin(admin.ModelAdmin):
     search_fields = ("name", "ingredient__name")
 
     readonly_fields = ("updated_at", "created_at")
+
+    inlines = [RecipeModifierAliasInline]
 
     fieldsets = (
         ("Basic Info", {
