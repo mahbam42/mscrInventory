@@ -30,7 +30,7 @@ LATEST = (
     else sorted(BACKUP_DIR.glob("backup_*"))[-1] if BACKUP_DIR.exists() else None
 )
 DRY_RUN = "--dry-run" in sys.argv
-LOG_FILE = Path("archive") / f"import_log_{timezone.now():%Y%m%d_%H%M}.txt"
+LOG_FILE = Path("archive") / f"import_log_{datetime.now():%Y%m%d_%H%M}.txt"
 
 TABLE_ORDER = [
     "mscrInventory_unittype",
