@@ -7,11 +7,13 @@ from django.utils import timezone
 from mscrInventory.models import (
     Category,
     Ingredient,
+    IngredientType,
     IngredientUsageLog,
     Order,
     OrderItem,
     Product,
     RecipeItem,
+    RecipeModifier,
     StockEntry,
 )
 from mscrInventory.utils import reports
@@ -25,15 +27,67 @@ def test_reporting_aggregations():
     coffee_cat = Category.objects.create(name="Coffee")
     seasonal_cat = Category.objects.create(name="Seasonal")
 
+    milk_type = IngredientType.objects.create(name="Milk Base")
+    syrup_type = IngredientType.objects.create(name="Syrup")
+    espresso_type = IngredientType.objects.create(name="Espresso")
+
     milk = Ingredient.objects.create(
         name="Milk",
+        type=milk_type,
         average_cost_per_unit=Decimal("1.00"),
         current_stock=Decimal("100"),
     )
     syrup = Ingredient.objects.create(
         name="Pumpkin Syrup",
+        type=syrup_type,
         average_cost_per_unit=Decimal("0.00"),
         current_stock=Decimal("50"),
+    )
+    oat_milk = Ingredient.objects.create(
+        name="Oat Milk",
+        type=milk_type,
+        average_cost_per_unit=Decimal("1.20"),
+        current_stock=Decimal("40"),
+    )
+    pumpkin_spice_syrup = Ingredient.objects.create(
+        name="Pumpkin Spice Syrup",
+        type=syrup_type,
+        average_cost_per_unit=Decimal("0.50"),
+        current_stock=Decimal("30"),
+    )
+    dark_cold_brew = Ingredient.objects.create(
+        name="Dark Cold Brew",
+        type=espresso_type,
+        average_cost_per_unit=Decimal("0.60"),
+        current_stock=Decimal("25"),
+    )
+
+    RecipeModifier.objects.create(
+        name="oat milk",
+        ingredient_type=milk_type,
+        ingredient=oat_milk,
+        base_quantity=Decimal("8.00"),
+        unit="oz",
+        cost_per_unit=Decimal("0.00"),
+        price_per_unit=Decimal("0.00"),
+    )
+    RecipeModifier.objects.create(
+        name="pumpkin spice",
+        ingredient_type=syrup_type,
+        ingredient=pumpkin_spice_syrup,
+        base_quantity=Decimal("0.50"),
+        unit="pump",
+        cost_per_unit=Decimal("0.00"),
+        price_per_unit=Decimal("0.00"),
+    )
+    RecipeModifier.objects.create(
+        name="extra shot",
+        ingredient_type=espresso_type,
+        ingredient=dark_cold_brew,
+        base_quantity=Decimal("1.00"),
+        unit="shot",
+        cost_per_unit=Decimal("0.00"),
+        price_per_unit=Decimal("0.00"),
     )
 
     latte = Product.objects.create(name="Latte", sku="LATTE-12")
@@ -75,7 +129,7 @@ def test_reporting_aggregations():
         unit_price=Decimal("5.00"),
         variant_info={
             "adjectives": ["iced", "large"],
-            "modifiers": ["pumpkin spice", "oat milk"],
+            "modifiers": ["pumpkin spice", "oat milk", "regular"],
         },
     )
 
@@ -111,8 +165,12 @@ def test_reporting_aggregations():
 
     category_rows = reports.cogs_summary_by_category(report_date, report_date)
     categories = {row["category"]: row for row in category_rows}
-    assert categories["Coffee"]["quantity"] == Decimal("5")
-    assert categories["Coffee"]["revenue"] == Decimal("23.00")
+    assert categories["Coffee"]["quantity"] == Decimal("3.5")
+    assert categories["Coffee"]["revenue"] == Decimal("15.5")
+    assert categories["Coffee"]["cogs"] == Decimal("5")
+    assert categories["Seasonal"]["quantity"] == Decimal("1.5")
+    assert categories["Seasonal"]["revenue"] == Decimal("7.5")
+    assert categories["Seasonal"]["cogs"] == Decimal("3")
 
     profitability = reports.category_profitability(report_date, report_date)
     assert profitability["overall_revenue"] == Decimal("23.00")
@@ -134,10 +192,16 @@ def test_reporting_aggregations():
     assert top_products[0]["variant_count"] == 1
     assert tuple(top_products[0]["modifiers"]) == ("oat milk", "pumpkin spice")
     assert set(top_products[0]["suppressed_descriptors"]) == {"iced", "large"}
+    latte_variant = top_products[0]["variant_details"][0]
+    assert latte_variant["quantity"] == Decimal("3")
+    assert latte_variant["gross_sales"] == Decimal("15.00")
+    assert latte_variant["adjectives"] == tuple()
+    assert set(latte_variant["suppressed_descriptors"]) == {"iced", "large"}
 
     top_mods = reports.top_modifiers(report_date, report_date)
     modifier_names = {row["modifier"] for row in top_mods}
-    assert modifier_names == {"pumpkin spice", "oat milk", "extra shot"}
-    extra_shot = next(row for row in top_mods if row["modifier"] == "extra shot")
+    assert modifier_names == {"Pumpkin Spice Syrup", "Oat Milk", "Dark Cold Brew"}
+    extra_shot = next(row for row in top_mods if row["modifier"] == "Dark Cold Brew")
     assert extra_shot["quantity"] == Decimal("2")
-    assert extra_shot["unit"] is None
+    assert extra_shot["unit"] == "shot"
+    assert extra_shot["original_label"] == "extra shot"
