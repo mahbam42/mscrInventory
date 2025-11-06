@@ -63,75 +63,6 @@
 <div class="row g-4 mb-4">
   <div class="col-lg-6">
     <div class="card h-100">
-      <div class="card-header">COGS Trend ({{ tzname }})</div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm mb-0">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th class="text-end">COGS</th>
-                <th class="text-end">Variance</th>
-                <th class="text-end">Variance %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in trend %}
-              <tr>
-                <td>{{ row.date }}</td>
-                <td class="text-end">${{ row.cogs_total|floatformat:2 }}</td>
-                <td class="text-end">
-                  {% if row.variance is not None %}
-                    ${{ row.variance|floatformat:2 }}
-                  {% else %}—{% endif %}
-                </td>
-                <td class="text-end">
-                  {% if row.variance_pct is not None %}
-                    {{ row.variance_pct }}%
-                  {% else %}—{% endif %}
-                </td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="4" class="text-center text-muted">No data for selected range.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header">Ingredient Usage Totals</div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm mb-0">
-            <thead>
-              <tr>
-                <th>Ingredient</th>
-                <th class="text-end">Quantity Used</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for ingredient, qty in usage_totals %}
-              <tr>
-                <td>{{ ingredient }}</td>
-                <td class="text-end">{{ qty|floatformat:3 }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="2" class="text-center text-muted">No usage logged.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row g-4 mb-4">
-  <div class="col-lg-6">
-    <div class="card h-100">
       <div class="card-header">Top Selling Products</div>
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -193,6 +124,79 @@
               </tr>
               {% empty %}
               <tr><td colspan="3" class="text-center text-muted">No modifiers detected.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">COGS Trend</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th class="text-end">COGS</th>
+                <th class="text-end">Variance</th>
+                <th class="text-end">Variance %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in trend %}
+              <tr>
+                <td>{{ row.date }}</td>
+                <td class="text-end">${{ row.cogs_total|floatformat:2 }}</td>
+                <td class="text-end">
+                  {% if row.variance is not None %}
+                  ${{ row.variance|floatformat:2 }}
+                  {% else %}—{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if row.variance_pct is not None %}
+                  {{ row.variance_pct }}%
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted">No data for selected range.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Ingredient Usage Totals</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Ingredient</th>
+                <th class="text-end">Quantity Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ingredient, qty in usage_totals %}
+              <tr>
+                <td>{{ ingredient }}</td>
+                <td class="text-end">{{ qty|floatformat:3 }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="2" class="text-center text-muted">No usage logged.</td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
