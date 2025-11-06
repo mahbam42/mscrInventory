@@ -11,7 +11,7 @@ Goals:
 
 from decimal import Decimal
 from typing import Dict, List, Optional, Iterable, Tuple
-from mscrInventory.models import Ingredient, RecipeModifier, RecipeItem, ModifierBehavior, Product
+from mscrInventory.models import Ingredient, RecipeModifier, RecipeModifierAlias, RecipeItem, ModifierBehavior, Product
 import logging
 import re
 
@@ -87,6 +87,17 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
     if not name:
         return None
     name_norm = _normalize_token(name)
+    alias_norm = normalize_modifier(name)
+    alias_tokens = [alias_norm, name_norm]
+    for token in alias_tokens:
+        if not token:
+            continue
+        alias = RecipeModifierAlias.objects.select_related('modifier').filter(normalized_label=token).first()
+        if alias:
+            return alias.modifier
+    alias = RecipeModifierAlias.objects.select_related('modifier').filter(raw_label__iexact=name).first()
+    if alias:
+        return alias.modifier
     candidates = [name, name_norm]
     for token in candidates:
         mod = RecipeModifier.objects.filter(name__iexact=token).first()

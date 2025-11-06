@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Modifier Explorer{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4">
+  <div>
+    <h2 class="mb-1">🔍 Modifier Explorer</h2>
+    <p class="text-muted mb-0">Summaries of Square modifiers grouped by their match status with RecipeModifier records.</p>
+  </div>
+  <div class="mt-3 mt-lg-0">
+    <a class="btn btn-outline-secondary" href="{% url 'modifier_explorer' %}?format=csv{% if classification != 'all' %}&classification={{ classification }}{% endif %}{% if search_term %}&q={{ search_term|urlencode }}{% endif %}">
+      ⬇️ Download CSV
+    </a>
+  </div>
+</div>
+
+<form method="get" class="row g-3 align-items-end mb-4">
+  <div class="col-md-4">
+    <label for="id_q" class="form-label">Search</label>
+    <input type="text" name="q" id="id_q" class="form-control" value="{{ search_term }}" placeholder="oat milk, vanilla, syrup..." />
+  </div>
+  <div class="col-md-3">
+    <label for="id_classification" class="form-label">Status</label>
+    <select name="classification" id="id_classification" class="form-select">
+      <option value="all"{% if classification == 'all' %} selected{% endif %}>All ({{ total_available }})</option>
+      <option value="known"{% if classification == 'known' %} selected{% endif %}>Known ({{ classification_totals.known }})</option>
+      <option value="alias"{% if classification == 'alias' %} selected{% endif %}>Aliases ({{ classification_totals.alias }})</option>
+      <option value="fuzzy"{% if classification == 'fuzzy' %} selected{% endif %}>Fuzzy ({{ classification_totals.fuzzy }})</option>
+      <option value="unknown"{% if classification == 'unknown' %} selected{% endif %}>Unknown ({{ classification_totals.unknown }})</option>
+    </select>
+  </div>
+  <div class="col-md-3">
+    <button type="submit" class="btn btn-primary">Apply Filters</button>
+  </div>
+</form>
+
+{% if not total_modifiers %}
+  <div class="alert alert-info">No modifiers matched your filters. Try widening the search.</div>
+{% endif %}
+
+{% for key, rows in grouped.items %}
+  {% if rows %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3 class="h5 mb-0">
+        {% if key == 'known' %}✅ Known Modifiers{% elif key == 'alias' %}🔁 Aliased Modifiers{% elif key == 'fuzzy' %}⚠️ Fuzzy Matches{% else %}❓ Unknown Modifiers{% endif %}
+        <span class="badge bg-secondary ms-2">{{ rows|length }}</span>
+      </h3>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#section-{{ key }}" aria-expanded="true" aria-controls="section-{{ key }}">
+        Toggle
+      </button>
+    </div>
+    <div id="section-{{ key }}" class="collapse show">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Modifier</th>
+              <th scope="col" class="text-end">Count</th>
+              <th scope="col">Top Raw Labels</th>
+              <th scope="col">Typical Items</th>
+              <th scope="col">Match Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for insight in rows %}
+            <tr>
+              <td><code>{{ insight.normalized }}</code></td>
+              <td class="text-end">{{ insight.total_count }}</td>
+              <td>
+                {% for label, count in insight.top_raw_labels %}
+                  <span class="badge bg-light text-dark me-1 mb-1">{{ label }} <span class="text-muted">×{{ count }}</span></span>
+                {% empty %}
+                  <span class="text-muted">—</span>
+                {% endfor %}
+              </td>
+              <td>
+                {% for item, count in insight.top_items %}
+                  <div>{{ item }} <span class="text-muted">×{{ count }}</span></div>
+                {% empty %}
+                  <span class="text-muted">—</span>
+                {% endfor %}
+              </td>
+              <td>
+                {% if insight.classification == 'known' %}
+                  <div><strong>{{ insight.modifier_name }}</strong></div>
+                  <div class="text-muted small">Behavior: {{ insight.modifier_behavior|default:"—" }}</div>
+                {% elif insight.classification == 'alias' %}
+                  <div><strong>{{ insight.modifier_name }}</strong></div>
+                  <div class="text-muted small">Alias token: {{ insight.alias_label|default:insight.normalized }}</div>
+                {% elif insight.classification == 'fuzzy' %}
+                  {% if insight.fuzzy_matches %}
+                    <div class="mb-1 text-muted">Top suggestions:</div>
+                    <ul class="mb-0 small">
+                      {% for match in insight.fuzzy_matches %}
+                        <li>{{ match.name }} ({{ match.behavior }}) · score {{ match.score|floatformat:2 }}</li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <span class="text-muted">No suggestions</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">No RecipeModifier match</span>
+                {% endif %}
+                {% if insight.classification == 'fuzzy' or insight.classification == 'unknown' %}
+                  <form method="post" action="{% url 'modifier_alias_create' %}" class="mt-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="classification" value="{{ classification }}" />
+                    <input type="hidden" name="q" value="{{ search_term }}" />
+                    {% with primary_raw=insight.top_raw_labels|first %}
+                      {% if primary_raw %}
+                        <input type="hidden" name="raw_label" value="{{ primary_raw.0 }}" />
+                      {% else %}
+                        <input type="hidden" name="raw_label" value="{{ insight.normalized }}" />
+                      {% endif %}
+                    {% endwith %}
+                    <div class="input-group input-group-sm">
+                      <select name="modifier_id" class="form-select form-select-sm" required>
+                        <option value="">Map to RecipeModifier…</option>
+                        {% for modifier in recipe_modifiers %}
+                          <option value="{{ modifier.id }}">{{ modifier.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-outline-success">Add Alias</button>
+                    </div>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% endfor %}
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header">
+        <h3 class="h5 mb-0">🤝 Top Co-occurring Modifiers</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Pair</th>
+              <th scope="col" class="text-end">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in co_occurrence_rows %}
+            <tr>
+              <td><code>{{ row.left }}</code> + <code>{{ row.right }}</code></td>
+              <td class="text-end">{{ row.count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="2" class="text-center text-muted">No modifier pairs detected.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header">
+        <h3 class="h5 mb-0">📂 Source Files</h3>
+      </div>
+      <div class="card-body">
+        {% if source_files %}
+          <ul class="mb-0">
+            {% for file in source_files %}
+              <li><code>{{ file.name|default:file }}</code></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No Square CSV files detected in <code>squareCSVs/</code>. Upload one or pass a path to analyze.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

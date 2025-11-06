@@ -378,6 +378,33 @@ class RecipeModifier(models.Model):
         return f"{self.name} ({ingredient_type})"
 
 
+class RecipeModifierAlias(models.Model):
+    modifier = models.ForeignKey(
+        RecipeModifier,
+        on_delete=models.CASCADE,
+        related_name="aliases",
+    )
+    raw_label = models.CharField(max_length=150)
+    normalized_label = models.CharField(max_length=150, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["normalized_label"]
+        verbose_name = "Recipe Modifier Alias"
+        verbose_name_plural = "Recipe Modifier Aliases"
+
+    def save(self, *args, **kwargs):
+        from importers._handle_extras import normalize_modifier
+
+        if self.raw_label:
+            self.normalized_label = normalize_modifier(self.raw_label)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.raw_label} → {self.modifier.name}"
+
+
 class Order(models.Model):
     order_id = models.CharField(max_length=255, help_text="Platform-specific order id")
     platform = models.CharField(max_length=32, choices=PLATFORM_CHOICES)

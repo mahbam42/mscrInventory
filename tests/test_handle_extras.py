@@ -9,9 +9,10 @@ from mscrInventory.models import (
     Product,
     RecipeItem,
     RecipeModifier,
+    RecipeModifierAlias,
     ModifierBehavior,
 )
-from importers._handle_extras import handle_extras
+from importers._handle_extras import handle_extras, _lookup_modifier_or_recipe
 
 
 def _recipe_entry(qty: Decimal | float | str, ingredient_type: IngredientType | None):
@@ -250,3 +251,21 @@ def test_handle_extras_with_invalid_json(ingredient_types):
 
     assert isinstance(result, dict)
     assert isinstance(log, dict)
+
+
+@pytest.mark.django_db
+def test_lookup_uses_alias(ingredient_types):
+    milk_type = ingredient_types['MILK']
+    oat_milk = Ingredient.objects.create(name='Oat Milk', type=milk_type)
+    modifier = RecipeModifier.objects.create(
+        name='Oat Milk',
+        ingredient_type=milk_type,
+        behavior=ModifierBehavior.ADD,
+        ingredient=oat_milk,
+        base_quantity=1,
+        unit='oz',
+    )
+    RecipeModifierAlias.objects.create(modifier=modifier, raw_label='OatMilk Alt')
+
+    resolved = _lookup_modifier_or_recipe('OATMILK ALT')
+    assert resolved == modifier
