@@ -85,7 +85,10 @@ class LinkUnmappedItemForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         field_kwargs = {"required": True}
-        if item.item_type == "product":
+        if getattr(item, "is_known_recipe", False):
+            field_kwargs["queryset"] = Product.objects.order_by("name")
+            field_kwargs["label"] = "Product"
+        elif item.item_type == "product":
             field_kwargs["queryset"] = Product.objects.order_by("name")
             field_kwargs["label"] = "Product"
         elif item.item_type == "ingredient":
@@ -101,7 +104,12 @@ class LinkUnmappedItemForm(forms.Form):
 
     def save(self, user=None) -> SquareUnmappedItem:
         target = self.cleaned_data["target"]
-        if self.item.item_type == "product":
+        if getattr(self.item, "is_known_recipe", False):
+            if self.item.item_type != "product":
+                self.item.item_type = "product"
+                self.item.save(update_fields=["item_type"])
+            self.item.mark_resolved(user=user, product=target)
+        elif self.item.item_type == "product":
             self.item.mark_resolved(user=user, product=target)
         elif self.item.item_type == "ingredient":
             self.item.mark_resolved(user=user, ingredient=target)

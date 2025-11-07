@@ -20,6 +20,10 @@
 <form class="row g-3 align-items-end mb-4" method="post" action="{% url 'imports_unmapped_bulk' %}">
   {% csrf_token %}
   <input type="hidden" name="filter_type" value="{{ filter_type }}">
+  <input type="hidden" name="include_known" value="false">
+  {% if include_known %}
+    <input type="hidden" name="include_known" value="true">
+  {% endif %}
   <div class="col-sm-4 col-md-3">
     <label for="bulk-action" class="form-label">Bulk Action</label>
     <select id="bulk-action" name="action" class="form-select" required>
