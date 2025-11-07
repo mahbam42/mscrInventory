@@ -121,6 +121,37 @@ def test_unmapped_items_view_page(client):
 
 
 @pytest.mark.django_db
+def test_unmapped_items_hide_known_recipes_by_default(client):
+    Product.objects.create(name="Maple Latte", sku="MAPLE-001")
+    SquareUnmappedItem.objects.create(item_name="Maple Latte", price_point_name="")
+    SquareUnmappedItem.objects.create(item_name="Mystery Blend", price_point_name="")
+
+    response = client.get(reverse("imports_unmapped_items"))
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "Mystery Blend" in content
+    assert '<div class="fw-semibold">Maple Latte' not in content
+    assert "Show known recipes" in content
+    assert "Hiding 1 known recipe" in content
+
+
+@pytest.mark.django_db
+def test_unmapped_items_toggle_reveals_known_recipes(client):
+    product = Product.objects.create(name="Caramel Cold Brew", sku="CCB-123")
+    SquareUnmappedItem.objects.create(item_name="Caramel Cold Brew", price_point_name="")
+
+    response = client.get(reverse("imports_unmapped_items"), {"include_known": "true"})
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "Caramel Cold Brew" in content
+    assert "Known recipe" in content
+    assert "Showing 1 known recipe" in content
+    assert product.name in content
+
+
+@pytest.mark.django_db
 def test_bulk_unmapped_create_products(client, django_user_model):
     user = django_user_model.objects.create_user(username="staff", password="pw", is_staff=True)
     client.force_login(user)
