@@ -1,5 +1,7 @@
 import datetime
+import tempfile
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -41,6 +43,27 @@ def test_upload_square_view_logs_output(client, monkeypatch):
     assert log.run_type == "dry-run"
     assert log.filename == "square.csv"
     assert "Test output" in (log.log_output or "")
+
+
+@pytest.mark.django_db
+def test_upload_square_view_uses_secure_tempfile(client, monkeypatch):
+    captured_path: dict[str, Path] = {}
+
+    def fake_run(self, path):
+        captured_path["value"] = Path(path)
+        return ""
+
+    monkeypatch.setattr(square_importer.SquareImporter, "run_from_file", fake_run, raising=False)
+
+    upload = SimpleUploadedFile("../../evil.csv", b"Item,Qty\nLatte,1\n")
+    response = client.post(reverse("upload_square"), {"square_csv": upload}, format="multipart")
+
+    assert response.status_code == 302
+    secure_path = captured_path["value"]
+    assert secure_path.parent == Path(tempfile.gettempdir())
+    assert secure_path.name != "../../evil.csv"
+    assert ".." not in secure_path.name
+    assert not secure_path.exists()
 
 
 @pytest.mark.django_db
