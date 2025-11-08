@@ -41,6 +41,7 @@
               id="toggle-known-recipes"
               name="include_known"
               value="true"
+              onchange="var bulkInclude=document.getElementById('bulk-include-known'); if(bulkInclude){bulkInclude.value=this.checked ? 'true' : 'false';}"
               {% if include_known %}checked{% endif %}
             >
             <label class="form-check-label" for="toggle-known-recipes">Show known recipes</label>
@@ -127,9 +128,7 @@
                   >
                     {% csrf_token %}
                     <input type="hidden" name="filter_type" value="{{ filter_type }}">
-                    {% if include_known %}
-                      <input type="hidden" name="include_known" value="true">
-                    {% endif %}
+                    <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
                     {% if page_obj %}
                       <input type="hidden" name="paginate" value="1">
                       <input type="hidden" name="page" value="{{ page_obj.number }}">
@@ -151,9 +150,7 @@
                     >
                       {% csrf_token %}
                       {{ link_form.filter_type }}
-                      {% if include_known %}
-                        <input type="hidden" name="include_known" value="true">
-                      {% endif %}
+                      <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
                       {% if page_obj %}
                         <input type="hidden" name="paginate" value="1">
                         <input type="hidden" name="page" value="{{ page_obj.number }}">
@@ -188,9 +185,7 @@
                     >
                       {% csrf_token %}
                       {{ create_form.filter_type }}
-                      {% if include_known %}
-                        <input type="hidden" name="include_known" value="true">
-                      {% endif %}
+                      <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
                       {% if page_obj %}
                         <input type="hidden" name="paginate" value="1">
                         <input type="hidden" name="page" value="{{ page_obj.number }}">

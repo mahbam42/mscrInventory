@@ -13,7 +13,7 @@ from django import forms as django_forms
 from django.contrib import messages
 from django.core.management import call_command
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -53,13 +53,27 @@ def _build_unmapped_context(
     allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
     selected = filter_type if filter_type in allowed_types else "all"
 
-    product_name_list = list(Product.objects.values_list("name", flat=True))
-    product_name_set = {name for name in product_name_list}
+    product_match = Product.objects.filter(name__iexact=OuterRef("item_name"))
 
-    unresolved_qs = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).order_by(
-        "-last_seen", "item_name"
+    unresolved_qs = (
+        SquareUnmappedItem.objects.filter(resolved=False, ignored=False)
+        .annotate(is_known_recipe=Exists(product_match))
+        .order_by("-last_seen", "item_name")
     )
-    filtered_qs = unresolved_qs.filter(item_type=selected) if selected in allowed_types else unresolved_qs
+
+    type_filtered_qs = (
+        unresolved_qs.filter(item_type=selected) if selected in allowed_types else unresolved_qs
+    )
+
+    known_recipe_count = type_filtered_qs.filter(is_known_recipe=True).count()
+
+    filtered_qs = type_filtered_qs
+    if not include_known:
+        filtered_qs = filtered_qs.filter(is_known_recipe=False)
+
+    visible_unresolved_qs = (
+        unresolved_qs if include_known else unresolved_qs.filter(is_known_recipe=False)
+    )
 
     known_in_filtered_qs = filtered_qs.filter(item_name__in=product_name_list)
     known_recipe_count = known_in_filtered_qs.count()
@@ -83,7 +97,7 @@ def _build_unmapped_context(
         current_items = list(filtered_qs)
 
     for item in current_items:
-        item.is_known_recipe = item.item_name in product_name_set
+        item.is_known_recipe = bool(getattr(item, "is_known_recipe", False))
 
     counts = {
         entry["item_type"]: entry["total"]
@@ -289,7 +303,7 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
 def link_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
     filter_type = request.POST.get("filter_type") or None
-    item.is_known_recipe = Product.objects.filter(name=item.item_name).exists()
+    item.is_known_recipe = Product.objects.filter(name__iexact=item.item_name).exists()
 
     form = LinkUnmappedItemForm(request.POST, item=item)
     if form.is_valid():
@@ -309,7 +323,7 @@ def link_unmapped_item(request, pk: int):
 def create_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
     filter_type = request.POST.get("filter_type") or None
-    item.is_known_recipe = Product.objects.filter(name=item.item_name).exists()
+    item.is_known_recipe = Product.objects.filter(name__iexact=item.item_name).exists()
 
     form = CreateFromUnmappedItemForm(request.POST, item=item)
     try:
@@ -360,9 +374,8 @@ def bulk_unmapped_action(request):
         qs = qs.filter(item_type=filter_type)
 
     if not include_known:
-        product_names = list(Product.objects.values_list("name", flat=True))
-        if product_names:
-            qs = qs.exclude(item_name__in=product_names)
+        product_match = Product.objects.filter(name__iexact=OuterRef("item_name"))
+        qs = qs.annotate(_known_recipe=Exists(product_match)).filter(_known_recipe=False)
 
     user = request.user if request.user.is_authenticated else None
     processed = 0

@@ -47,6 +47,11 @@ class ModifierInsight:
     modifier_behavior: Optional[str] = None
     fuzzy_matches: List[FuzzyMatch] = field(default_factory=list)
     alias_label: Optional[str] = None
+    product_match_name: Optional[str] = None
+
+    @property
+    def matches_product(self) -> bool:
+        return bool(self.product_match_name)
 
     @property
     def top_raw_labels(self) -> List[tuple[str, int]]:

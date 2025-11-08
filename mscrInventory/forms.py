@@ -157,22 +157,25 @@ class CreateFromUnmappedItemForm(forms.Form):
         self.item = item
         super().__init__(*args, **kwargs)
 
+        self.is_known_recipe = bool(getattr(item, "is_known_recipe", False))
+        self.effective_item_type = "product" if self.is_known_recipe else item.item_type
+
         # Initialise defaults from the unmapped item
         self.fields["name"].initial = item.price_point_name or item.item_name
         self.fields["filter_type"].initial = kwargs.get("initial", {}).get("filter_type")
 
-        if item.item_type == "product":
+        if self.effective_item_type == "product":
             self.fields["sku"].required = False
             self.fields["sku"].initial = self._generate_default_sku(item)
         else:
             self.fields.pop("sku")
 
-        if item.item_type == "ingredient":
+        if self.effective_item_type == "ingredient":
             self.fields["ingredient_type"].required = False
         else:
             self.fields.pop("ingredient_type")
 
-        if item.item_type == "modifier":
+        if self.effective_item_type == "modifier":
             self.fields["modifier_ingredient"].required = True
             self.fields["behavior"].required = True
             self.fields["behavior"].initial = RecipeModifier.ModifierBehavior.ADD
@@ -197,7 +200,9 @@ class CreateFromUnmappedItemForm(forms.Form):
     def save(self, user=None) -> SquareUnmappedItem:
         name = self.cleaned_data["name"].strip()
 
-        if self.item.item_type == "product":
+        item_type = "product" if getattr(self.item, "is_known_recipe", False) else self.item.item_type
+
+        if item_type == "product":
             sku = self.cleaned_data.get("sku") or self._generate_default_sku(self.item, fallback=name)
             try:
                 product = Product.objects.create(name=name, sku=sku)
@@ -205,8 +210,11 @@ class CreateFromUnmappedItemForm(forms.Form):
                 raise forms.ValidationError(
                     "A product with this name or SKU already exists. Use 'Link to Existing' instead."
                 ) from exc
+            if getattr(self.item, "is_known_recipe", False) and self.item.item_type != "product":
+                self.item.item_type = "product"
+                self.item.save(update_fields=["item_type"])
             self.item.mark_resolved(user=user, product=product)
-        elif self.item.item_type == "ingredient":
+        elif item_type == "ingredient":
             try:
                 ingredient = Ingredient.objects.create(
                     name=name,

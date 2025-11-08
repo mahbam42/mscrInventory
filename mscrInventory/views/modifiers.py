@@ -3,6 +3,7 @@ import io
 import json
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
+from typing import Optional
 
 from django.contrib import messages
 from django.db import IntegrityError, transaction
@@ -16,7 +17,14 @@ from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
 
-from mscrInventory.models import Ingredient, IngredientType, RecipeModifier, RecipeModifierAlias, UnitType
+from mscrInventory.models import (
+    Ingredient,
+    IngredientType,
+    Product,
+    RecipeModifier,
+    RecipeModifierAlias,
+    UnitType,
+)
 from mscrInventory.utils.modifier_explorer import ModifierExplorerAnalyzer
 from importers._handle_extras import normalize_modifier
 
@@ -671,10 +679,22 @@ def modifier_explorer_view(request):
     analyzer = ModifierExplorerAnalyzer()
     report = analyzer.analyze()
 
+    include_known_products = (request.GET.get('include_known_products') or '').lower() == 'true'
     classification = (request.GET.get('classification') or 'all').lower()
     search_term_raw = (request.GET.get('q') or '').strip()
     search_term = search_term_raw.lower()
     export_format = (request.GET.get('format') or '').lower()
+
+    product_lookup = {
+        normalize_modifier(name): name
+        for name in Product.objects.values_list('name', flat=True)
+    }
+    matched_unknown_product_count = 0
+    for insight in report.insights.values():
+        match = product_lookup.get(insight.normalized)
+        insight.product_match_name = match
+        if match and insight.classification == 'unknown':
+            matched_unknown_product_count += 1
 
     insights = sorted(report.insights.values(), key=lambda insight: insight.total_count, reverse=True)
     group_keys = ['known', 'alias', 'fuzzy', 'unknown']
@@ -686,6 +706,13 @@ def modifier_explorer_view(request):
 
     def matches_filters(insight):
         if classification in group_keys and insight.classification != classification:
+            return False
+        if (
+            classification == 'unknown'
+            and not include_known_products
+            and insight.classification == 'unknown'
+            and insight.matches_product
+        ):
             return False
         if search_term:
             haystack = [
@@ -754,6 +781,8 @@ def modifier_explorer_view(request):
         'source_files': report.source_files,
         'co_occurrence_rows': co_occurrence_rows,
         'recipe_modifiers': recipe_modifiers,
+        'include_known_products': include_known_products,
+        'matched_unknown_product_count': matched_unknown_product_count,
     }
 
     return render(request, 'modifiers/explorer.html', context)
@@ -766,9 +795,18 @@ def create_modifier_alias(request):
     classification = request.POST.get('classification') or ''
     search_term = request.POST.get('q') or ''
 
+    include_known_products_raw = request.POST.get('include_known_products')
+    include_known_products = include_known_products_raw == 'true'
+
     if not modifier_id or not raw_label:
         messages.error(request, 'Select a RecipeModifier and provide an alias label.')
-        return redirect(_modifier_explorer_redirect(classification, search_term))
+        return redirect(
+            _modifier_explorer_redirect(
+                classification,
+                search_term,
+                include_known_products if include_known_products_raw is not None else None,
+            )
+        )
 
     modifier = get_object_or_404(RecipeModifier, pk=modifier_id)
     normalized = normalize_modifier(raw_label)
@@ -783,16 +821,28 @@ def create_modifier_alias(request):
     else:
         messages.success(request, f'✅ Updated alias "{raw_label}" to {modifier.name}.')
 
-    return redirect(_modifier_explorer_redirect(classification, search_term))
+    return redirect(
+        _modifier_explorer_redirect(
+            classification,
+            search_term,
+            include_known_products if include_known_products_raw is not None else None,
+        )
+    )
 
 
-def _modifier_explorer_redirect(classification: str, search_term: str):
+def _modifier_explorer_redirect(
+    classification: str,
+    search_term: str,
+    include_known_products: Optional[bool] = None,
+):
     params = {}
     classification = (classification or '').strip().lower()
     if classification and classification != 'all':
         params['classification'] = classification
     if search_term:
         params['q'] = search_term
+    if include_known_products:
+        params['include_known_products'] = 'true'
 
     url = reverse('modifier_explorer')
     if params:

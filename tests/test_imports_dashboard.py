@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from importers import square_importer
+from mscrInventory.forms import CreateFromUnmappedItemForm, LinkUnmappedItemForm
 from mscrInventory.models import (
     ImportLog,
     Ingredient,
@@ -149,6 +150,21 @@ def test_unmapped_items_toggle_reveals_known_recipes(client):
     assert "Known recipe" in content
     assert "Showing 1 known recipe" in content
     assert product.name in content
+
+
+@pytest.mark.django_db
+def test_known_recipe_forms_target_products():
+    product = Product.objects.create(name="Coconut Cream Pie", sku="CCP-001")
+    item = SquareUnmappedItem.objects.create(item_name="Coconut Cream Pie", item_type="ingredient")
+    item.is_known_recipe = True
+
+    link_form = LinkUnmappedItemForm(item=item)
+    assert link_form.fields["target"].label == "Product"
+    assert list(link_form.fields["target"].queryset) == [product]
+
+    create_form = CreateFromUnmappedItemForm(item=item)
+    assert "sku" in create_form.fields
+    assert create_form.fields["sku"].label == "SKU"
 
 
 @pytest.mark.django_db

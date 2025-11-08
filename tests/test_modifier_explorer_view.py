@@ -8,7 +8,7 @@ from mscrInventory.utils.modifier_explorer import (
     ModifierExplorerReport,
     ModifierInsight,
 )
-from tests.factories import RecipeModifierFactory
+from tests.factories import ProductFactory, RecipeModifierFactory
 
 
 def build_report():
@@ -68,3 +68,41 @@ def test_modifier_explorer_csv_export(mock_analyze, client):
     body = response.content.decode("utf-8")
     assert "oat milk" in body
     assert "alias_label" in body.splitlines()[0]
+
+
+@pytest.mark.django_db
+@patch.object(ModifierExplorerAnalyzer, "analyze")
+def test_unknown_modifiers_matching_products_hidden_by_default(mock_analyze, client):
+    ProductFactory(name="Pumpkin Dust")
+    mock_analyze.return_value = build_report()
+
+    response = client.get(
+        reverse("modifier_explorer"),
+        {"classification": "unknown"},
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "pumpkin dust" not in content
+    assert "Hiding 1 matching product" in content
+    assert response.context["matched_unknown_product_count"] == 1
+    assert response.context["include_known_products"] is False
+
+
+@pytest.mark.django_db
+@patch.object(ModifierExplorerAnalyzer, "analyze")
+def test_unknown_modifiers_matching_products_shown_when_requested(mock_analyze, client):
+    ProductFactory(name="Pumpkin Dust")
+    mock_analyze.return_value = build_report()
+
+    response = client.get(
+        reverse("modifier_explorer"),
+        {"classification": "unknown", "include_known_products": "true"},
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "pumpkin dust" in content
+    assert "Matches product: Pumpkin Dust" in content
+    assert "Showing 1 matching product" in content
+    assert response.context["include_known_products"] is True
