@@ -94,6 +94,7 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
 
     # --- Size inference ---------------------------------------------------
     size_map = {
+        "growler": ["growler", "64oz", "64 oz", "64-ounce", "64 ounce"],
         "xl": ["xl", "extra large", "x-large", "32oz", "32 oz"],
         "large": ["large", "20oz", "20 oz"],
         "medium": ["medium", "med"],
@@ -109,7 +110,18 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
     # --- Fallbacks --------------------------------------------------------
     # E.g., “Latte” without “iced” → assume hot/small
     # E.g., “Cold Brew” without size → assume cold/small
-    if "coldbrew" in name and size_label == "small":
+    normalized_name = re.sub(r"[\s-]", "", name)
+    normalized_desc = re.sub(r"[\s-]", "", desc_str)
+    if (
+        "growler" in name
+        or "growler" in desc_str
+        or "64oz" in normalized_name
+        or "64oz" in normalized_desc
+        or "64ounce" in normalized_name
+        or "64ounce" in normalized_desc
+    ):
+        size_label = "growler"
+    elif "coldbrew" in name and size_label == "small":
         size_label = "small"  # typical default for cold drinks
 
     return temp_type, size_label

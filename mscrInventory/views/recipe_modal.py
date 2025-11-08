@@ -1,17 +1,23 @@
-from django.shortcuts import get_object_or_404, redirect, render
-from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
+import csv
+import io
+import json
+import logging
 from decimal import Decimal, InvalidOperation
-from django.views.decorators.http import require_http_methods, require_POST
+from pathlib import Path
+
+from django.contrib import messages
 from django.db import transaction
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
-from django.contrib import messages
 from django.utils import timezone
-from pathlib import Path
-from decimal import Decimal
-import csv, io, json
+from django.views.decorators.http import require_POST, require_http_methods
 from ..forms import ProductForm
-from ..models import Product, Ingredient, RecipeItem, RecipeModifier, SquareUnmappedItem
+from ..models import Ingredient, Product, RecipeItem, RecipeModifier, SquareUnmappedItem
+
+
+logger = logging.getLogger(__name__)
 
 
 LOG_DIR = Path("archive/logs")
@@ -21,10 +27,9 @@ LOG_FILE = LOG_DIR / "import_recipes.log"
 def log_import(action: str, message: str):
     """Append an entry to the recipe import log."""
     timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
-    LOG_FILE.write_text(
-        f"[{timestamp}] {action}: {message}\n",
-        encoding="utf-8",
-    )
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(f"[{timestamp}] {action}: {message}\n")
 
 def _product_modal_response(message: str):
     response = HttpResponse(status=204)
@@ -291,8 +296,9 @@ def add_recipe_ingredient(request, pk):
         html = render_to_string("recipes/_edit_ingredient_row.html", ctx, request=request)
         return HttpResponse(html)
 
-    except Exception as e:
-        return JsonResponse({"error": f"Could not add ingredient: {e}"}, status=400)
+    except Exception:  # pragma: no cover - defensive catch for HTMX response
+        logger.exception("Failed to add ingredient to recipe %s", product.pk)
+        return JsonResponse({"error": "Unable to add ingredient right now."}, status=400)
 
 
 @require_http_methods(["DELETE"])
@@ -328,21 +334,6 @@ def update_recipe_item(request, pk):
 @require_http_methods(["POST"])
 @transaction.atomic
 def save_recipe_modifiers(request, pk):
-    # TODO: implement per-recipe modifier mapping later
-    """product = get_object_or_404(Product, pk=pk)
-    for rm in RecipeModifier.objects.filter(product=product):
-        key = f"modifier_qty_{rm.id}"
-        if key in request.POST:
-            raw = (request.POST.get(key) or "").strip()
-            try:
-                rm.quantity = Decimal(raw or "0")
-            except (InvalidOperation, TypeError):
-                rm.quantity = Decimal("0")
-            rm.save(update_fields=["quantity"])
-    return HttpResponse(status=204) """
-
-""" commenting out old version
-def save_recipe_modifiers(request, pk):
     product = get_object_or_404(Product, pk=pk)
     try:
         selected_ids = request.POST.getlist("modifiers")
@@ -350,8 +341,9 @@ def save_recipe_modifiers(request, pk):
         product.modifiers.set(modifiers)
         product.save(update_fields=["modified"])
         return HttpResponse(status=204)
-    except Exception as e:
-        return JsonResponse({"error": f"Could not save modifiers: {e}"}, status=400) """
+    except Exception:  # pragma: no cover - defensive catch for HTMX response
+        logger.exception("Failed to save modifiers for recipe %s", product.pk)
+        return JsonResponse({"error": "Unable to save modifiers right now."}, status=400)
 
 def export_recipes_csv(request):
     response = HttpResponse(content_type="text/csv")

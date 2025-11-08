@@ -149,10 +149,14 @@ def upload_square_view(request):
         messages.error(request, "No file uploaded.")
         return redirect("imports_dashboard")
 
-    tmp_path = Path(tempfile.gettempdir()) / uploaded_file.name
-    with open(tmp_path, "wb+") as f:
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    tmp_path = Path(temp_file.name)
+    try:
         for chunk in uploaded_file.chunks():
-            f.write(chunk)
+            temp_file.write(chunk)
+        temp_file.flush()
+    finally:
+        temp_file.close()
 
     try:
         importer = SquareImporter(dry_run=dry_run)
