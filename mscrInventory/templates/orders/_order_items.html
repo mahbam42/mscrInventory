@@ -1,3 +1,4 @@
+{% load recipe_extras %}
 <div class="p-3">
   <h6 class="fw-semibold mb-3">Items</h6>
   {% if order.items.all %}
@@ -9,6 +10,7 @@
           <th scope="col" class="text-end">Quantity</th>
           <th scope="col">Variant Info</th>
           <th scope="col" class="text-end">Unit Price</th>
+          <th scope="col" class="text-end">Line Total</th>
         </tr>
       </thead>
       <tbody>
@@ -52,6 +54,13 @@
             {% endwith %}
           </td>
           <td class="text-end">{% if item.unit_price is not None %}${{ item.unit_price|floatformat:2 }}{% else %}&mdash;{% endif %}</td>
+          <td class="text-end">
+            {% if item.unit_price is not None %}
+              ${{ item.unit_price|multiply:item.quantity|floatformat:2 }}
+            {% else %}
+              &mdash;
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static recipe_extras %}
 
 {% block title %}Orders Dashboard{% endblock %}
 
@@ -7,7 +7,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
   <h1 class="h3 mb-3 mb-md-0">Orders Dashboard</h1>
   <div>
-    <a class="btn btn-outline-secondary" href="?preset=14">Reset Filters</a>
+    <a class="btn btn-outline-secondary" href="{% url 'orders_dashboard' %}">Reset Filters</a>
   </div>
 </div>
 
@@ -36,11 +36,17 @@
     <label for="end" class="form-label">End Date</label>
     <input type="date" id="end" name="end" class="form-control" value="{{ end_date|date:'Y-m-d' }}">
   </div>
+  <div class="col-sm-12 col-md-3">
+    <label for="search" class="form-label">Search</label>
+    <input type="search" id="search" name="q" class="form-control" placeholder="Order, product, modifier, or total" value="{{ search_term }}">
+  </div>
   {% if show_custom_range %}
   <div class="col-12">
     <button type="submit" class="btn btn-primary">Apply Filters</button>
   </div>
   {% endif %}
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="direction" value="{{ direction }}">
 </form>
 
 {% if page_obj.object_list %}
@@ -48,12 +54,36 @@
   <table class="table table-striped align-middle">
     <thead class="table-light">
       <tr>
-        <th scope="col">Order</th>
-        <th scope="col">Platform</th>
-        <th scope="col">Order Date</th>
-        <th scope="col" class="text-end">Total</th>
-        <th scope="col" class="text-end">Total Items</th>
-        <th scope="col">Synced At</th>
+        <th scope="col">
+          <a href="{% sort_url 'order' %}" class="link-dark text-decoration-none d-inline-flex align-items-center">
+            Order{% sort_indicator sort direction 'order' %}
+          </a>
+        </th>
+        <th scope="col">
+          <a href="{% sort_url 'platform' %}" class="link-dark text-decoration-none d-inline-flex align-items-center">
+            Platform{% sort_indicator sort direction 'platform' %}
+          </a>
+        </th>
+        <th scope="col">
+          <a href="{% sort_url 'order_date' %}" class="link-dark text-decoration-none d-inline-flex align-items-center">
+            Order Date{% sort_indicator sort direction 'order_date' %}
+          </a>
+        </th>
+        <th scope="col" class="text-end">
+          <a href="{% sort_url 'total' %}" class="link-dark text-decoration-none d-inline-flex align-items-center justify-content-end w-100">
+            <span>Total</span>{% sort_indicator sort direction 'total' %}
+          </a>
+        </th>
+        <th scope="col" class="text-end">
+          <a href="{% sort_url 'total_items' %}" class="link-dark text-decoration-none d-inline-flex align-items-center justify-content-end w-100">
+            <span>Total Items</span>{% sort_indicator sort direction 'total_items' %}
+          </a>
+        </th>
+        <th scope="col">
+          <a href="{% sort_url 'synced_at' %}" class="link-dark text-decoration-none d-inline-flex align-items-center">
+            Synced At{% sort_indicator sort direction 'synced_at' %}
+          </a>
+        </th>
       </tr>
     </thead>
     <tbody>
@@ -72,7 +102,7 @@
         <td>{% if order.synced_at %}{{ order.synced_at|date:"M d, Y g:i A" }}{% else %}&mdash;{% endif %}</td>
       </tr>
       <tr class="collapse bg-body-tertiary" id="order-items-{{ order.id }}">
-        <td colspan="6" class="border-top-0">
+        <td colspan="6" class="border-top-0 p-0">
           {% include "orders/_order_items.html" with order=order %}
         </td>
       </tr>

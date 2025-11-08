@@ -117,3 +117,70 @@ def test_orders_dashboard_total_items_annotation(authenticated_client):
     response = authenticated_client.get(url)
     annotated_order = next(o for o in response.context["orders"] if o.pk == order.pk)
     assert annotated_order.total_items == 5
+
+
+@pytest.mark.django_db
+def test_orders_dashboard_search(authenticated_client):
+    url = reverse("orders_dashboard")
+    now = timezone.now()
+    product = Product.objects.create(name="Matcha", sku="MATCHA-1")
+
+    order_matcha = Order.objects.create(
+        order_id="order-1001",
+        platform="square",
+        order_date=now,
+        total_amount="12.50",
+    )
+    OrderItem.objects.create(
+        order=order_matcha,
+        product=product,
+        quantity=1,
+        unit_price="12.50",
+        variant_info={"modifiers": ["extra vanilla"]},
+    )
+
+    other_order = Order.objects.create(
+        order_id="order-1002",
+        platform="shopify",
+        order_date=now,
+        total_amount="9.00",
+    )
+
+    # Order ID search
+    response = authenticated_client.get(url, {"q": "1001"})
+    orders = list(response.context["orders"])
+    assert order_matcha in orders
+    assert other_order not in orders
+
+    # Product name search
+    response = authenticated_client.get(url, {"q": "Matcha"})
+    orders = list(response.context["orders"])
+    assert order_matcha in orders
+
+    # Modifier search
+    response = authenticated_client.get(url, {"q": "vanilla"})
+    orders = list(response.context["orders"])
+    assert order_matcha in orders
+
+    # Total search
+    response = authenticated_client.get(url, {"q": "12.50"})
+    orders = list(response.context["orders"])
+    assert order_matcha in orders
+
+
+@pytest.mark.django_db
+def test_orders_dashboard_sorting(authenticated_client):
+    url = reverse("orders_dashboard")
+    now = timezone.now()
+
+    low = Order.objects.create(order_id="a", platform="square", order_date=now, total_amount="5.00")
+    mid = Order.objects.create(order_id="b", platform="square", order_date=now - timedelta(hours=1), total_amount="10.00")
+    high = Order.objects.create(order_id="c", platform="square", order_date=now - timedelta(hours=2), total_amount="15.00")
+
+    response = authenticated_client.get(url, {"sort": "total", "direction": "asc"})
+    ordered_ids = [order.order_id for order in response.context["orders"][:3]]
+    assert ordered_ids[:3] == [low.order_id, mid.order_id, high.order_id]
+
+    response_desc = authenticated_client.get(url, {"sort": "total", "direction": "desc"})
+    ordered_ids_desc = [order.order_id for order in response_desc.context["orders"][:3]]
+    assert ordered_ids_desc[:3] == [high.order_id, mid.order_id, low.order_id]

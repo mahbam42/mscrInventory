@@ -39,6 +39,8 @@ def test_order_items_render_variants_and_modifiers(authenticated_client):
     assert b"Modifiers" in content
     assert b"iced" in content
     assert b"almond milk" in content
+    assert b"Line Total" in content
+    assert b"$9.00" in content
 
 
 @pytest.mark.django_db
