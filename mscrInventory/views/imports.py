@@ -54,6 +54,9 @@ def _build_unmapped_context(
     selected = filter_type if filter_type in allowed_types else "all"
 
     product_match = Product.objects.filter(name__iexact=OuterRef("item_name"))
+    product_name_list = list(
+        Product.objects.order_by("name").values_list("name", flat=True)
+    )
 
     unresolved_qs = (
         SquareUnmappedItem.objects.filter(resolved=False, ignored=False)
@@ -73,16 +76,6 @@ def _build_unmapped_context(
 
     visible_unresolved_qs = (
         unresolved_qs if include_known else unresolved_qs.filter(is_known_recipe=False)
-    )
-
-    known_in_filtered_qs = filtered_qs.filter(item_name__in=product_name_list)
-    known_recipe_count = known_in_filtered_qs.count()
-
-    if not include_known:
-        filtered_qs = filtered_qs.exclude(item_name__in=product_name_list)
-
-    visible_unresolved_qs = (
-        unresolved_qs if include_known else unresolved_qs.exclude(item_name__in=product_name_list)
     )
 
     page_obj = None
@@ -133,6 +126,7 @@ def _build_unmapped_context(
         "page_obj": page_obj,
         "include_known": include_known,
         "known_recipe_count": known_recipe_count,
+        "product_name_list": product_name_list,
         "ingredients": Ingredient.objects.filter(name__startswith="Unmapped:").order_by("name"),
     }
 
