@@ -375,6 +375,55 @@ class SquareImporter:
             self.usage_totals[ingredient.id] += ingredient_qty
             self.usage_breakdown[ingredient.id][entry_label] += ingredient_qty
 
+    def _parse_order_datetime(self, row: dict) -> datetime | None:
+        """Parse a Square CSV row into a timezone-aware datetime."""
+
+        date_raw = (row.get("Date") or "").strip()
+        time_raw = (row.get("Time") or "").strip()
+
+        if not date_raw:
+            return None
+
+        candidate_strings: list[str] = []
+
+        if time_raw:
+            candidate_strings.append(f"{date_raw} {time_raw}")
+            candidate_strings.append(f"{date_raw}T{time_raw}")
+        candidate_strings.append(date_raw)
+
+        formats = [
+            "%m/%d/%Y %I:%M:%S %p",
+            "%m/%d/%Y %I:%M %p",
+            "%m/%d/%Y %H:%M:%S",
+            "%m/%d/%Y %H:%M",
+            "%m/%d/%y %I:%M:%S %p",
+            "%m/%d/%y %I:%M %p",
+            "%m/%d/%y %H:%M:%S",
+            "%m/%d/%y %H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%d",
+            "%m/%d/%Y",
+            "%m/%d/%y",
+        ]
+
+        for candidate in candidate_strings:
+            for fmt in formats:
+                try:
+                    parsed = datetime.strptime(candidate, fmt)
+                except ValueError:
+                    continue
+
+                tz = timezone.get_current_timezone()
+                if timezone.is_naive(parsed):
+                    try:
+                        parsed = timezone.make_aware(parsed, tz)
+                    except Exception:  # pragma: no cover - fallback safety
+                        parsed = parsed.replace(tzinfo=tz)
+                return parsed
+
+        return None
+
     def _process_row(self, row: dict, file_path: Path | None = None):
         """Parse and process a single CSV row."""
         change_logs = []
@@ -486,6 +535,7 @@ class SquareImporter:
                     )
 
             transaction_id = self._extract_transaction_id(row, file_path)
+            order_dt = self._parse_order_datetime(row)
             order_obj = None
             if self.dry_run:
                 display_id = transaction_id or (file_path.stem if file_path else "test_row")
@@ -495,7 +545,11 @@ class SquareImporter:
                         f"🧪 Would ensure order square#{display_id} exists"
                     )
             else:
-                order_obj = self._ensure_order_for_transaction(transaction_id, file_path)
+                order_obj = self._ensure_order_for_transaction(
+                    transaction_id,
+                    file_path,
+                    order_dt=order_dt,
+                )
                 self._current_order = order_obj
 
             # --- Cache descriptors ---
@@ -781,23 +835,47 @@ class SquareImporter:
                     return value
         return file_path.stem if file_path else "square-order"
 
-    def _ensure_order_for_transaction(self, transaction_id: str, file_path: Path | None) -> Order:
+    def _ensure_order_for_transaction(
+        self,
+        transaction_id: str,
+        file_path: Path | None,
+        order_dt: datetime | None = None,
+    ) -> Order:
         key = transaction_id or (file_path.stem if file_path else "square-order")
         if key in self._orders_by_transaction:
-            return self._orders_by_transaction[key]
+            existing_order = self._orders_by_transaction[key]
+            if existing_order and order_dt:
+                current_dt = existing_order.order_date
+                if current_dt is None or order_dt < current_dt:
+                    existing_order.order_date = order_dt
+                    existing_order.save(update_fields=["order_date"])
+            return existing_order
 
+        order_date = order_dt or timezone.now()
         order_obj, created = Order.objects.get_or_create(
             platform="square",
             order_id=key,
             defaults={
-                "order_date": timezone.now(),
+                "order_date": order_date,
                 "total_amount": Decimal("0.00"),
             },
         )
         if not created:
             order_obj.items.all().delete()
+
+        updated_fields = ["total_amount"]
+
+        if created:
+            order_obj.order_date = order_date
+        elif order_dt:
+            current_dt = order_obj.order_date
+            effective_dt = order_dt
+            if current_dt is None or effective_dt < current_dt:
+                order_obj.order_date = effective_dt
+                updated_fields.append("order_date")
+
         order_obj.total_amount = Decimal("0.00")
-        order_obj.save(update_fields=["total_amount"])
+        order_obj.save(update_fields=updated_fields)
         self._orders_by_transaction[key] = order_obj
         action = "created" if created else "reset"
         self.buffer.append(f"🧾 Using order square#{key} ({action})")

@@ -1,0 +1,72 @@
+{% load recipe_extras %}
+<div class="p-3">
+  <h6 class="fw-semibold mb-3">Items</h6>
+  {% if order.items.all %}
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr>
+          <th scope="col">Product</th>
+          <th scope="col" class="text-end">Quantity</th>
+          <th scope="col">Variant Info</th>
+          <th scope="col" class="text-end">Unit Price</th>
+          <th scope="col" class="text-end">Line Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order.items.all %}
+        <tr>
+          <td>
+            {% if item.product %}
+              {{ item.product.name }}
+            {% else %}
+              Unmapped
+            {% endif %}
+          </td>
+          <td class="text-end">{{ item.quantity }}</td>
+          <td>
+            {% with info=item.variant_info %}
+              {% if info.adjectives %}
+              <div class="mb-2">
+                <span class="badge text-bg-secondary me-2">Variants</span>
+                {% for adjective in info.adjectives %}
+                <span class="badge bg-light text-dark border me-1">{{ adjective }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% if info.modifiers %}
+              <div>
+                <span class="badge text-bg-secondary me-2">Modifiers</span>
+                {% for modifier in info.modifiers %}
+                <span class="badge bg-light text-dark border me-1">{{ modifier }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% if not info.adjectives and not info.modifiers %}
+              <div class="small text-muted">
+                {% for key, value in info.items %}
+                <span class="badge bg-light text-dark border me-1">{{ key }}: {{ value }}</span>
+                {% empty %}
+                <span class="text-muted">&mdash;</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td class="text-end">{% if item.unit_price is not None %}${{ item.unit_price|floatformat:2 }}{% else %}&mdash;{% endif %}</td>
+          <td class="text-end">
+            {% if item.unit_price is not None %}
+              ${{ item.unit_price|multiply:item.quantity|floatformat:2 }}
+            {% else %}
+              &mdash;
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted mb-0">No items recorded for this order.</p>
+  {% endif %}
+</div>

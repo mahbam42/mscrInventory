@@ -235,6 +235,8 @@ class ShopifyImporter(BaseImporter):
         if not created_at:
             raise ValueError("Shopify order missing created_at")
         order_date = dt.datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        if timezone.is_naive(order_date):
+            order_date = timezone.make_aware(order_date)
 
         total_price = Decimal(str(raw_order.get("total_price", "0")))
         line_items = [
