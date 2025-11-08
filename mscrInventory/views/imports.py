@@ -13,7 +13,7 @@ from django import forms as django_forms
 from django.contrib import messages
 from django.core.management import call_command
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -26,6 +26,18 @@ from mscrInventory.models import ImportLog, Ingredient, Product, SquareUnmappedI
 from mscrInventory.management.commands.sync_orders import write_usage_logs
 
 
+def _should_include_known(values) -> bool:
+    """Determine whether known recipes should be included based on request params."""
+
+    truthy = {"1", "true", "on", "yes"}
+    for value in values or []:
+        if value is None:
+            continue
+        if str(value).strip().lower() in truthy:
+            return True
+    return False
+
+
 def _build_unmapped_context(
     filter_type: str | None = None,
     form_overrides: dict | None = None,
@@ -33,6 +45,7 @@ def _build_unmapped_context(
     page: int | str | None = None,
     paginate: bool = False,
     per_page: int = 15,
+    include_known: bool = False,
 ):
     """Assemble context for unmapped items modal and page views."""
 
@@ -40,10 +53,27 @@ def _build_unmapped_context(
     allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
     selected = filter_type if filter_type in allowed_types else "all"
 
-    unresolved_qs = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).order_by(
-        "-last_seen", "item_name"
+    product_match = Product.objects.filter(name__iexact=OuterRef("item_name"))
+
+    unresolved_qs = (
+        SquareUnmappedItem.objects.filter(resolved=False, ignored=False)
+        .annotate(is_known_recipe=Exists(product_match))
+        .order_by("-last_seen", "item_name")
     )
-    filtered_qs = unresolved_qs.filter(item_type=selected) if selected in allowed_types else unresolved_qs
+
+    type_filtered_qs = (
+        unresolved_qs.filter(item_type=selected) if selected in allowed_types else unresolved_qs
+    )
+
+    known_recipe_count = type_filtered_qs.filter(is_known_recipe=True).count()
+
+    filtered_qs = type_filtered_qs
+    if not include_known:
+        filtered_qs = filtered_qs.filter(is_known_recipe=False)
+
+    visible_unresolved_qs = (
+        unresolved_qs if include_known else unresolved_qs.filter(is_known_recipe=False)
+    )
 
     page_obj = None
     if paginate:
@@ -56,9 +86,12 @@ def _build_unmapped_context(
     else:
         current_items = list(filtered_qs)
 
+    for item in current_items:
+        item.is_known_recipe = bool(getattr(item, "is_known_recipe", False))
+
     counts = {
         entry["item_type"]: entry["total"]
-        for entry in unresolved_qs.values("item_type").annotate(total=Count("id"))
+        for entry in visible_unresolved_qs.values("item_type").annotate(total=Count("id"))
     }
 
     entries = []
@@ -74,7 +107,7 @@ def _build_unmapped_context(
         entries.append({"item": item, "link_form": link_form, "create_form": create_form})
 
     filter_options = [
-        ("all", "All", unresolved_qs.count()),
+        ("all", "All", visible_unresolved_qs.count()),
         *[
             (value, label, counts.get(value, 0))
             for value, label in SquareUnmappedItem.ITEM_TYPE_CHOICES
@@ -86,8 +119,10 @@ def _build_unmapped_context(
         "square_entries": entries,
         "filter_type": selected,
         "filter_options": filter_options,
-        "total_unresolved": unresolved_qs.count(),
+        "total_unresolved": visible_unresolved_qs.count(),
         "page_obj": page_obj,
+        "include_known": include_known,
+        "known_recipe_count": known_recipe_count,
         "ingredients": Ingredient.objects.filter(name__startswith="Unmapped:").order_by("name"),
     }
 
@@ -214,12 +249,14 @@ def unmapped_items_view(request):
 
     filter_type = request.GET.get("type")
     page_number = request.GET.get("page")
+    include_known = _should_include_known(request.GET.getlist("include_known"))
     is_modal_request = request.headers.get("HX-Request") == "true"
     paginate = not is_modal_request
     context = _build_unmapped_context(
         filter_type,
         page=page_number if paginate else None,
         paginate=paginate,
+        include_known=include_known,
     )
 
     hx_target = request.headers.get("HX-Target")
@@ -236,11 +273,13 @@ def unmapped_items_view(request):
 def _render_unmapped_table(request, filter_type: str | None, form_overrides=None, status=200):
     paginate_flag = request.POST.get("paginate") == "1"
     page_number = request.POST.get("page") if paginate_flag else None
+    include_known = _should_include_known(request.POST.getlist("include_known"))
     context = _build_unmapped_context(
         filter_type,
         form_overrides=form_overrides,
         page=page_number,
         paginate=paginate_flag,
+        include_known=include_known,
     )
     return render(
         request,
@@ -254,6 +293,7 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
 def link_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
     filter_type = request.POST.get("filter_type") or None
+    item.is_known_recipe = Product.objects.filter(name__iexact=item.item_name).exists()
 
     form = LinkUnmappedItemForm(request.POST, item=item)
     if form.is_valid():
@@ -273,6 +313,7 @@ def link_unmapped_item(request, pk: int):
 def create_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
     filter_type = request.POST.get("filter_type") or None
+    item.is_known_recipe = Product.objects.filter(name__iexact=item.item_name).exists()
 
     form = CreateFromUnmappedItemForm(request.POST, item=item)
     try:
@@ -316,10 +357,15 @@ def bulk_unmapped_action(request):
     action = request.POST.get("action")
     filter_type = request.POST.get("filter_type") or "all"
     allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
+    include_known = _should_include_known(request.POST.getlist("include_known"))
 
     qs = SquareUnmappedItem.objects.filter(resolved=False, ignored=False)
     if filter_type in allowed_types:
         qs = qs.filter(item_type=filter_type)
+
+    if not include_known:
+        product_match = Product.objects.filter(name__iexact=OuterRef("item_name"))
+        qs = qs.annotate(_known_recipe=Exists(product_match)).filter(_known_recipe=False)
 
     user = request.user if request.user.is_authenticated else None
     processed = 0
@@ -356,6 +402,8 @@ def bulk_unmapped_action(request):
         messages.error(request, "❌ Unknown bulk action.")
 
     redirect_url = f"{reverse('imports_unmapped_items')}?type={filter_type}"
+    if include_known:
+        redirect_url += "&include_known=true"
     return redirect(redirect_url)
 
 
