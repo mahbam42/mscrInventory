@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import TemplateView
 from mscrInventory.views.dashboard import dashboard_view
+from mscrInventory.views.orders import orders_dashboard_view
 from mscrInventory.views.reporting import reporting_dashboard_view
 # top level views.py
 from mscrInventory import app_views
@@ -75,6 +76,7 @@ urlpatterns = [
     # main dashboard
     path("dashboard/", dashboard_view, name="dashboard"),
     path("reports/", reporting_dashboard_view, name="reporting_dashboard"),
+    path("orders/", orders_dashboard_view, name="orders_dashboard"),
 
     # edit unmapped products and ingredients
     path("partials/unmapped-products/", app_views.unmapped_products_partial, name="unmapped_products_partial"),

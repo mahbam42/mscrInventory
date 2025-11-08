@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Orders Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-3 mb-md-0">Orders Dashboard</h1>
+  <div>
+    <a class="btn btn-outline-secondary" href="?preset=14">Reset Filters</a>
+  </div>
+</div>
+
+<form method="get" class="row g-3 align-items-end mb-4">
+  <div class="col-sm-6 col-md-3">
+    <label for="preset" class="form-label">Preset</label>
+    <select id="preset" name="preset" class="form-select" onchange="this.form.submit()">
+      {% for value, label in preset_options %}
+      <option value="{{ value }}" {% if selected_preset == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <label for="platform" class="form-label">Platform</label>
+    <select id="platform" name="platform" class="form-select" onchange="this.form.submit()">
+      {% for value, label in platform_options %}
+      <option value="{{ value }}" {% if selected_platform == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-sm-6 col-md-3 {% if not show_custom_range %}d-none{% endif %}">
+    <label for="start" class="form-label">Start Date</label>
+    <input type="date" id="start" name="start" class="form-control" value="{{ start_date|date:'Y-m-d' }}">
+  </div>
+  <div class="col-sm-6 col-md-3 {% if not show_custom_range %}d-none{% endif %}">
+    <label for="end" class="form-label">End Date</label>
+    <input type="date" id="end" name="end" class="form-control" value="{{ end_date|date:'Y-m-d' }}">
+  </div>
+  {% if show_custom_range %}
+  <div class="col-12">
+    <button type="submit" class="btn btn-primary">Apply Filters</button>
+  </div>
+  {% endif %}
+</form>
+
+{% if page_obj.object_list %}
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">Order</th>
+        <th scope="col">Platform</th>
+        <th scope="col">Order Date</th>
+        <th scope="col" class="text-end">Total</th>
+        <th scope="col" class="text-end">Total Items</th>
+        <th scope="col">Synced At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in page_obj %}
+      <tr>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary me-2" type="button" data-bs-toggle="collapse" data-bs-target="#order-items-{{ order.id }}" aria-expanded="false" aria-controls="order-items-{{ order.id }}">
+            Details
+          </button>
+          {{ order.order_id }}
+        </td>
+        <td class="text-capitalize">{{ order.platform }}</td>
+        <td>{{ order.order_date|date:"M d, Y g:i A" }}</td>
+        <td class="text-end">${{ order.total_amount|floatformat:2 }}</td>
+        <td class="text-end">{{ order.total_items }}</td>
+        <td>{% if order.synced_at %}{{ order.synced_at|date:"M d, Y g:i A" }}{% else %}&mdash;{% endif %}</td>
+      </tr>
+      <tr class="collapse bg-body-tertiary" id="order-items-{{ order.id }}">
+        <td colspan="6" class="border-top-0">
+          {% include "orders/_order_items.html" with order=order %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" class="text-center py-4">No orders found for the selected filters.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<nav aria-label="Orders pagination">
+  <ul class="pagination justify-content-end">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{{ querystring }}{% else %}#{% endif %}" tabindex="-1">Previous</a>
+    </li>
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{{ querystring }}{% else %}#{% endif %}">Next</a>
+    </li>
+  </ul>
+</nav>
+{% else %}
+<div class="alert alert-info">No orders found for the selected filters.</div>
+{% endif %}
+{% endblock %}
