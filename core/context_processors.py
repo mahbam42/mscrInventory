@@ -9,6 +9,7 @@ def navigation_links(request):
     nav_items = [
         {"name": "Dashboard", "url_name": "dashboard"},
         {"name": "Imports", "url_name": "imports_dashboard"},
+        {"name": "Orders", "url_name": "orders_dashboard"},
         {"name": "Recipes", "url_name": "recipes_dashboard"},
         {"name": "Inventory", "url_name": "inventory_dashboard"},
         {"name": "Reporting", "url_name": "reporting_dashboard"},
