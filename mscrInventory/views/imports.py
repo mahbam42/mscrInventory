@@ -75,6 +75,16 @@ def _build_unmapped_context(
         unresolved_qs if include_known else unresolved_qs.filter(is_known_recipe=False)
     )
 
+    known_in_filtered_qs = filtered_qs.filter(item_name__in=product_name_list)
+    known_recipe_count = known_in_filtered_qs.count()
+
+    if not include_known:
+        filtered_qs = filtered_qs.exclude(item_name__in=product_name_list)
+
+    visible_unresolved_qs = (
+        unresolved_qs if include_known else unresolved_qs.exclude(item_name__in=product_name_list)
+    )
+
     page_obj = None
     if paginate:
         paginator = Paginator(filtered_qs, per_page)
