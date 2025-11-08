@@ -8,7 +8,7 @@
     <p class="text-muted mb-0">Summaries of Square modifiers grouped by their match status with RecipeModifier records.</p>
   </div>
   <div class="mt-3 mt-lg-0">
-    <a class="btn btn-outline-secondary" href="{% url 'modifier_explorer' %}?format=csv{% if classification != 'all' %}&classification={{ classification }}{% endif %}{% if search_term %}&q={{ search_term|urlencode }}{% endif %}">
+    <a class="btn btn-outline-secondary" href="{% url 'modifier_explorer' %}?format=csv{% if classification != 'all' %}&classification={{ classification }}{% endif %}{% if search_term %}&q={{ search_term|urlencode }}{% endif %}{% if include_known_products %}&include_known_products=true{% endif %}">
       ⬇️ Download CSV
     </a>
   </div>
@@ -29,6 +29,27 @@
       <option value="unknown"{% if classification == 'unknown' %} selected{% endif %}>Unknown ({{ classification_totals.unknown }})</option>
     </select>
   </div>
+  {% if classification == 'unknown' %}
+  <div class="col-md-4">
+    <div class="form-check pt-2">
+      <input class="form-check-input" type="checkbox" value="true" id="id_include_known_products" name="include_known_products" {% if include_known_products %}checked{% endif %}>
+      <label class="form-check-label" for="id_include_known_products">
+        Show modifiers that match existing products
+      </label>
+    </div>
+    {% if matched_unknown_product_count %}
+      <div class="form-text text-muted">
+        {% if include_known_products %}
+          Showing {{ matched_unknown_product_count }} matching product{{ matched_unknown_product_count|pluralize }}.
+        {% else %}
+          Hiding {{ matched_unknown_product_count }} matching product{{ matched_unknown_product_count|pluralize }}.
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+  {% elif include_known_products %}
+    <input type="hidden" name="include_known_products" value="true">
+  {% endif %}
   <div class="col-md-3">
     <button type="submit" class="btn btn-primary">Apply Filters</button>
   </div>
@@ -101,12 +122,18 @@
                   {% endif %}
                 {% else %}
                   <span class="text-muted">No RecipeModifier match</span>
+                  {% if insight.matches_product %}
+                    <div class="mt-2">
+                      <span class="badge bg-info text-dark">Matches product: {{ insight.product_match_name }}</span>
+                    </div>
+                  {% endif %}
                 {% endif %}
                 {% if insight.classification == 'fuzzy' or insight.classification == 'unknown' %}
                   <form method="post" action="{% url 'modifier_alias_create' %}" class="mt-2">
                     {% csrf_token %}
                     <input type="hidden" name="classification" value="{{ classification }}" />
                     <input type="hidden" name="q" value="{{ search_term }}" />
+                    <input type="hidden" name="include_known_products" value="{{ include_known_products|yesno:'true,false' }}" />
                     {% with primary_raw=insight.top_raw_labels|first %}
                       {% if primary_raw %}
                         <input type="hidden" name="raw_label" value="{{ primary_raw.0 }}" />

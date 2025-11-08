@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from importers import square_importer
+from mscrInventory.forms import CreateFromUnmappedItemForm, LinkUnmappedItemForm
 from mscrInventory.models import (
     ImportLog,
     Ingredient,
@@ -118,6 +119,52 @@ def test_unmapped_items_view_page(client):
     assert b"Unmapped Square Items" in response.content
     assert b"Resolve All" in response.content
     assert b"Seasonal Special" in response.content
+
+
+@pytest.mark.django_db
+def test_unmapped_items_hide_known_recipes_by_default(client):
+    Product.objects.create(name="Maple Latte", sku="MAPLE-001")
+    SquareUnmappedItem.objects.create(item_name="Maple Latte", price_point_name="")
+    SquareUnmappedItem.objects.create(item_name="Mystery Blend", price_point_name="")
+
+    response = client.get(reverse("imports_unmapped_items"))
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "Mystery Blend" in content
+    assert '<div class="fw-semibold">Maple Latte' not in content
+    assert "Show known recipes" in content
+    assert "Hiding 1 known recipe" in content
+
+
+@pytest.mark.django_db
+def test_unmapped_items_toggle_reveals_known_recipes(client):
+    product = Product.objects.create(name="Caramel Cold Brew", sku="CCB-123")
+    SquareUnmappedItem.objects.create(item_name="Caramel Cold Brew", price_point_name="")
+
+    response = client.get(reverse("imports_unmapped_items"), {"include_known": "true"})
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "Caramel Cold Brew" in content
+    assert "Known recipe" in content
+    assert "Showing 1 known recipe" in content
+    assert product.name in content
+
+
+@pytest.mark.django_db
+def test_known_recipe_forms_target_products():
+    product = Product.objects.create(name="Coconut Cream Pie", sku="CCP-001")
+    item = SquareUnmappedItem.objects.create(item_name="Coconut Cream Pie", item_type="ingredient")
+    item.is_known_recipe = True
+
+    link_form = LinkUnmappedItemForm(item=item)
+    assert link_form.fields["target"].label == "Product"
+    assert list(link_form.fields["target"].queryset) == [product]
+
+    create_form = CreateFromUnmappedItemForm(item=item)
+    assert "sku" in create_form.fields
+    assert create_form.fields["sku"].label == "SKU"
 
 
 @pytest.mark.django_db

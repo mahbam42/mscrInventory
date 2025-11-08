@@ -5,7 +5,7 @@
         {% for value, label, count in filter_options %}
           {% if page_obj %}
             <a
-              href="?type={{ value }}"
+              href="?type={{ value }}{% if include_known %}&include_known=true{% endif %}"
               class="btn btn-sm {% if filter_type == value %}btn-primary{% else %}btn-outline-secondary{% endif %}"
             >
               {{ label }} <span class="badge bg-light text-dark ms-1">{{ count }}</span>
@@ -14,7 +14,7 @@
             <button
               type="button"
               class="btn btn-sm {% if filter_type == value %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-              hx-get="{% url 'imports_unmapped_items' %}?type={{ value }}"
+              hx-get="{% url 'imports_unmapped_items' %}?type={{ value }}{% if include_known %}&include_known=true{% endif %}"
               hx-target="#unmapped-items-table"
               hx-swap="outerHTML"
             >
@@ -22,6 +22,40 @@
             </button>
           {% endif %}
         {% endfor %}
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <form
+          hx-get="{% url 'imports_unmapped_items' %}"
+          hx-target="#unmapped-items-table"
+          hx-swap="outerHTML"
+          hx-trigger="change"
+          class="d-flex align-items-center gap-2"
+        >
+          <input type="hidden" name="type" value="{{ filter_type }}">
+          <input type="hidden" name="include_known" value="false">
+          <div class="form-check form-switch mb-0">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              role="switch"
+              id="toggle-known-recipes"
+              name="include_known"
+              value="true"
+              onchange="var bulkInclude=document.getElementById('bulk-include-known'); if(bulkInclude){bulkInclude.value=this.checked ? 'true' : 'false';}"
+              {% if include_known %}checked{% endif %}
+            >
+            <label class="form-check-label" for="toggle-known-recipes">Show known recipes</label>
+          </div>
+        </form>
+        {% if known_recipe_count %}
+          <small class="text-muted text-nowrap">
+            {% if include_known %}
+              Showing {{ known_recipe_count }} known recipe{{ known_recipe_count|pluralize }}
+            {% else %}
+              Hiding {{ known_recipe_count }} known recipe{{ known_recipe_count|pluralize }}
+            {% endif %}
+          </small>
+        {% endif %}
       </div>
       {% if total_unresolved %}
         <span class="badge bg-warning text-dark">{{ total_unresolved }} pending</span>
@@ -49,6 +83,9 @@
               <td>{{ item.get_item_type_display }}</td>
               <td>
                 <div class="fw-semibold">{{ item.display_label }}</div>
+                {% if item.is_known_recipe %}
+                  <span class="badge bg-info text-dark small">Known recipe</span>
+                {% endif %}
                 {% if item.last_reason %}
                   <div class="text-muted small">Reason: {{ item.last_reason|title }}</div>
                 {% endif %}
@@ -91,6 +128,7 @@
                   >
                     {% csrf_token %}
                     <input type="hidden" name="filter_type" value="{{ filter_type }}">
+                    <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
                     {% if page_obj %}
                       <input type="hidden" name="paginate" value="1">
                       <input type="hidden" name="page" value="{{ page_obj.number }}">
@@ -112,6 +150,7 @@
                     >
                       {% csrf_token %}
                       {{ link_form.filter_type }}
+                      <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
                       {% if page_obj %}
                         <input type="hidden" name="paginate" value="1">
                         <input type="hidden" name="page" value="{{ page_obj.number }}">
@@ -146,6 +185,7 @@
                     >
                       {% csrf_token %}
                       {{ create_form.filter_type }}
+                      <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
                       {% if page_obj %}
                         <input type="hidden" name="paginate" value="1">
                         <input type="hidden" name="page" value="{{ page_obj.number }}">
@@ -189,19 +229,19 @@
         <ul class="pagination pagination-sm mb-0">
           {% if page_obj.has_previous %}
             <li class="page-item">
-              <a class="page-link" href="?type={{ filter_type }}&page={{ page_obj.previous_page_number }}">Previous</a>
+              <a class="page-link" href="?type={{ filter_type }}&page={{ page_obj.previous_page_number }}{% if include_known %}&include_known=true{% endif %}">Previous</a>
             </li>
           {% else %}
             <li class="page-item disabled"><span class="page-link">Previous</span></li>
           {% endif %}
           {% for num in page_obj.paginator.page_range %}
             <li class="page-item {% if page_obj.number == num %}active{% endif %}">
-              <a class="page-link" href="?type={{ filter_type }}&page={{ num }}">{{ num }}</a>
+              <a class="page-link" href="?type={{ filter_type }}&page={{ num }}{% if include_known %}&include_known=true{% endif %}">{{ num }}</a>
             </li>
           {% endfor %}
           {% if page_obj.has_next %}
             <li class="page-item">
-              <a class="page-link" href="?type={{ filter_type }}&page={{ page_obj.next_page_number }}">Next</a>
+              <a class="page-link" href="?type={{ filter_type }}&page={{ page_obj.next_page_number }}{% if include_known %}&include_known=true{% endif %}">Next</a>
             </li>
           {% else %}
             <li class="page-item disabled"><span class="page-link">Next</span></li>
