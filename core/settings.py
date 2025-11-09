@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,12 +26,20 @@ load_dotenv(BASE_DIR / ".env", override=True)
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-_8sf_7o%@v4dr&l^=9oep2@j_f45h6=9kkd@a*shi4o$#7=t(!'
+SECRET_KEY = os.getenv("SECRET_KEY", get_random_secret_key()) #'django-insecure-_8sf_7o%@v4dr&l^=9oep2@j_f45h6=9kkd@a*shi4o$#7=t(!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# Parse comma-separated hosts from .env
+env_allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+if DEBUG:
+    # In debug mode, use what's in .env, or default to localhost
+    ALLOWED_HOSTS = env_allowed_hosts
+else:
+    # In production, lock it down
+    ALLOWED_HOSTS = os.getenv("PROD_ALLOWED_HOSTS", "").split(",") or ["yourdomain.com"]
 
 
 # Application definition
