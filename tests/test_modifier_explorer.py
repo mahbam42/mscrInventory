@@ -1,7 +1,10 @@
 import pytest
 
 from mscrInventory.models import RecipeModifier, RecipeModifierAlias
-from mscrInventory.utils.modifier_explorer import ModifierExplorerAnalyzer
+from mscrInventory.utils.modifier_explorer import (
+    ModifierExplorerAnalyzer,
+    ModifierInsight,
+)
 from tests.factories import RecipeModifierFactory
 
 
@@ -86,3 +89,12 @@ Latte,"SweetCRM"
     assert entry.classification == "alias"
     assert entry.modifier_id == modifier.id
     assert entry.alias_label == "SweetCRM"
+
+
+def test_top_raw_labels_collapse_variations():
+    insight = ModifierInsight(normalized="whole milk")
+    insight.raw_labels.update({"Whole Milk": 203, "-Whole Milk": 3, "whole milk": 4})
+
+    labels = insight.top_raw_labels
+
+    assert labels == [("Whole Milk", 210)]

@@ -11,7 +11,7 @@ from mscrInventory.utils.modifier_explorer import (
 from tests.factories import ProductFactory, RecipeModifierFactory
 
 
-def build_report():
+def build_report(alias_modifier=None):
     known = ModifierInsight(normalized="oat milk", classification="known", total_count=5)
     known.modifier_name = "Oat Milk"
     known.modifier_behavior = "add"
@@ -24,10 +24,14 @@ def build_report():
     unknown = ModifierInsight(normalized="pumpkin dust", classification="unknown", total_count=1)
 
     alias = ModifierInsight(normalized="sweetcrm", classification="alias", total_count=4)
-    alias.modifier_name = "Sweet Cream"
+    if alias_modifier is not None:
+        alias.modifier_id = alias_modifier.id
+        alias.modifier_name = alias_modifier.name
+    else:
+        alias.modifier_name = "Sweet Cream"
     alias.modifier_behavior = "add"
     alias.alias_label = "SweetCRM"
-    alias.raw_labels.update({"SweetCRM": 4})
+    alias.raw_labels.update({"SweetCRM": 4, "sweet crm": 1})
 
     insights = {
         known.normalized: known,
@@ -41,8 +45,8 @@ def build_report():
 @pytest.mark.django_db
 @patch.object(ModifierExplorerAnalyzer, "analyze")
 def test_modifier_explorer_view_renders(mock_analyze, client):
-    RecipeModifierFactory(name="Sweet Cream")
-    mock_analyze.return_value = build_report()
+    modifier = RecipeModifierFactory(name="Sweet Cream")
+    mock_analyze.return_value = build_report(alias_modifier=modifier)
 
     response = client.get(reverse("modifier_explorer"))
 
@@ -51,7 +55,8 @@ def test_modifier_explorer_view_renders(mock_analyze, client):
     assert "Modifier Explorer" in content
     assert "Oat Milk" in content
     assert "Alias token" in content
-    assert "Add Alias" in content
+    assert "Update Alias" in content
+    assert f'value="{modifier.id}" selected' in content
     assert "pumpkin dust" in content
 
 
@@ -87,6 +92,7 @@ def test_unknown_modifiers_matching_products_hidden_by_default(mock_analyze, cli
     assert "Hiding 1 matching product" in content
     assert response.context["matched_unknown_product_count"] == 1
     assert response.context["include_known_products"] is False
+    assert response.context["classification_totals"]["unknown"] == 0
 
 
 @pytest.mark.django_db
