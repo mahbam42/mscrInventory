@@ -4,6 +4,7 @@ from django import forms
 from django.db import IntegrityError
 from django.utils.text import slugify
 
+from mscrInventory.management.commands.import_products_csv import generate_auto_sku
 from mscrInventory.models import (
     Category,
     Ingredient,
@@ -21,6 +22,7 @@ class ProductForm(forms.ModelForm):
         widget=forms.SelectMultiple,
         label="Categories",
     )
+    sku = forms.CharField(max_length=128, required=False, label="SKU")
 
     class Meta:
         model = Product
@@ -47,6 +49,7 @@ class ProductForm(forms.ModelForm):
                 css = field.widget.attrs.get("class", "")
                 field.widget.attrs["class"] = f"{css} is-invalid".strip()
 
+        self.fields["sku"].required = False
         self.fields["shopify_id"].required = False
         self.fields["square_id"].required = False
 
@@ -55,20 +58,29 @@ class ProductForm(forms.ModelForm):
 
     def clean_sku(self):
         sku = (self.cleaned_data.get("sku") or "").strip()
-        if not sku:
-            raise forms.ValidationError("SKU is required.")
 
-        qs = Product.objects.filter(sku__iexact=sku)
+        qs = Product.objects.all()
         if self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise forms.ValidationError("A product with this SKU already exists.")
+
+        if not sku:
+            base_name = self.cleaned_data.get("name") or getattr(self.instance, "name", "")
+            base_name = (base_name or "product").strip()
+
+            while True:
+                sku = generate_auto_sku(base_name)
+                if not qs.filter(sku__iexact=sku).exists():
+                    break
+        else:
+            if qs.filter(sku__iexact=sku).exists():
+                raise forms.ValidationError("A product with this SKU already exists.")
+
         return sku
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        instance.name = (instance.name or "").strip()
-        instance.sku = (instance.sku or "").strip()
+        instance.name = (self.cleaned_data.get("name") or "").strip()
+        instance.sku = (self.cleaned_data.get("sku") or "").strip()
         if commit:
             instance.save()
             self.save_m2m()
