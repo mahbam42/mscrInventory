@@ -44,7 +44,7 @@ def resolve_modifier_tree(modifier, depth=0, seen=None):
 """
 SIZE_SCALE = {
     "hot":  {"small": 1.0, "large": 1.67},
-    "cold": {"small": 1.34, "xl": 2.0, "growler": 4.0},
+    "cold": {"small": 1.34, "xl": 2.0, "growler": 4.0, "keg": 54.0},
 }
 
 # ---------------------------------------------------------------------
@@ -62,7 +62,8 @@ CUP_MAP = {
         "medium": "24oz Cup",
         "large": "24oz Cup",
         "xl": "32oz Cup",
-        "growler": "64oz Growler"
+        "growler": "64oz Growler",
+        "keg": "5gal Retail Keg"
     },
 }
 
@@ -94,6 +95,7 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
 
     # --- Size inference ---------------------------------------------------
     size_map = {
+        "keg": ["keg", "retail keg", "kegs", "5 gallon", "5gal", "5-gallon"],
         "growler": ["growler", "64oz", "64 oz", "64-ounce", "64 ounce"],
         "xl": ["xl", "extra large", "x-large", "32oz", "32 oz"],
         "large": ["large", "20oz", "20 oz"],
