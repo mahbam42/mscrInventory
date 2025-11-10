@@ -7,6 +7,10 @@
   <hr />
   <!-- Edit Widgets -->
   <div class="d-flex justify-content-end flex-wrap gap-2 mb-3">
+    <button class="btn btn-sm btn-outline-secondary" hx-get="{% url 'recipes_create_product' %}"
+      hx-target="#globalModal .modal-content" hx-swap="innerHTML">
+      ➕ Create Product
+    </button>
     <button class="btn btn-sm btn-outline-success"
       hx-get="{% url 'modifier_rules_modal' %}"
       hx-target="#globalModal .modal-content"
@@ -19,12 +23,6 @@
     <button hx-get="{% url 'import_recipes_modal' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
       class="btn btn-sm btn-outline-primary">
       📥 Import Recipes CSV
-    </button>
-    <button class="btn btn-sm btn-outline-secondary"
-      hx-get="{% url 'recipes_create_product' %}"
-      hx-target="#globalModal .modal-content"
-      hx-swap="innerHTML">
-      ➕ Create Product
     </button>
   </div>
 

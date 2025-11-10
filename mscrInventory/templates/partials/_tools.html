@@ -26,6 +26,8 @@
   </a>
   {% endif %}
 
+  <!-- Modifier Explorer-->
+  <a class="btn btn-outline-primary mt-3 mt-lg-0" href="{% url 'modifier_explorer' %}">Open Modifier Explorer</a>
   {% if unresolved_count %}
     <button class="btn btn-warning"
             hx-get="{% url 'imports_unmapped_items' %}"

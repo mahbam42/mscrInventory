@@ -28,6 +28,11 @@
       {% endfor %}
     </select>
   </div>
+  <div class="col-sm-12 col-md-3">
+    <label for="search" class="form-label">Search</label>
+    <input type="search" id="search" name="q" class="form-control" placeholder="Order, product, modifier, or total" value="{{ search_term }}">
+  </div>
+<div class="row g-3 align-items-end mb-4">
   <div class="col-sm-6 col-md-3 {% if not show_custom_range %}d-none{% endif %}">
     <label for="start" class="form-label">Start Date</label>
     <input type="date" id="start" name="start" class="form-control" value="{{ start_date|date:'Y-m-d' }}">
@@ -36,10 +41,6 @@
     <label for="end" class="form-label">End Date</label>
     <input type="date" id="end" name="end" class="form-control" value="{{ end_date|date:'Y-m-d' }}">
   </div>
-  <div class="col-sm-12 col-md-3">
-    <label for="search" class="form-label">Search</label>
-    <input type="search" id="search" name="q" class="form-control" placeholder="Order, product, modifier, or total" value="{{ search_term }}">
-  </div>
   {% if show_custom_range %}
   <div class="col-12">
     <button type="submit" class="btn btn-primary">Apply Filters</button>
@@ -47,6 +48,7 @@
   {% endif %}
   <input type="hidden" name="sort" value="{{ sort }}">
   <input type="hidden" name="direction" value="{{ direction }}">
+</div>
 </form>
 
 {% if page_obj.object_list %}

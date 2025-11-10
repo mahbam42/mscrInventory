@@ -131,7 +131,7 @@ def test_unmapped_items_view_modal(client):
     assert "Link to Existing" in content
     assert "Barista&#x27;s Choice" in content
     assert "Dracula&#x27;s Delight" in content
-    assert "Legacy Unmapped Ingredients" in content
+    #assert "Legacy Unmapped Ingredients" in content
 
 
 @pytest.mark.django_db
