@@ -53,9 +53,36 @@ class ModifierInsight:
     def matches_product(self) -> bool:
         return bool(self.product_match_name)
 
+    def _clean_display_label(self, label: str) -> str:
+        cleaned = (label or "").strip()
+        cleaned = cleaned.lstrip("-–—•· ")
+        return cleaned or (label or "").strip() or label
+
+    def aggregated_raw_labels(self, limit: Optional[int] = None) -> List[tuple[str, int]]:
+        aggregated: dict[str, int] = {}
+        display_labels: dict[str, str] = {}
+
+        for raw_label, count in self.raw_labels.items():
+            if not raw_label:
+                continue
+            normalized = normalize_modifier(raw_label)
+            key = normalized or raw_label.strip().lower() or raw_label
+            aggregated[key] = aggregated.get(key, 0) + count
+            display_labels.setdefault(key, self._clean_display_label(raw_label))
+
+        rows = sorted(
+            aggregated.items(),
+            key=lambda item: (-item[1], display_labels[item[0]].lower()),
+        )
+
+        results = [(display_labels[key], count) for key, count in rows]
+        if limit is not None:
+            return results[:limit]
+        return results
+
     @property
     def top_raw_labels(self) -> List[tuple[str, int]]:
-        return self.raw_labels.most_common(5)
+        return self.aggregated_raw_labels(limit=5)
 
     @property
     def top_items(self) -> List[tuple[str, int]]:
@@ -78,7 +105,7 @@ class ModifierInsight:
         return {
             "normalized": self.normalized,
             "total_count": self.total_count,
-            "raw_labels": dict(self.raw_labels.most_common()),
+            "raw_labels": dict(self.aggregated_raw_labels()),
             "top_items": dict(self.items.most_common(10)),
             "classification": self.classification,
             "modifier": (
@@ -106,7 +133,7 @@ class ModifierInsight:
     def to_csv_row(self) -> Dict[str, object]:
         """Provide a flat row suitable for CSV export."""
         top_raw = ", ".join(
-            f"{label} ({count})" for label, count in self.raw_labels.most_common(5)
+            f"{label} ({count})" for label, count in self.aggregated_raw_labels(limit=5)
         )
         top_items = ", ".join(
             f"{item} ({count})" for item, count in self.items.most_common(5)

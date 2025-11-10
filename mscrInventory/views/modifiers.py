@@ -702,6 +702,12 @@ def modifier_explorer_view(request):
     totals_by_classification = {key: 0 for key in group_keys}
     for insight in insights:
         key = insight.classification if insight.classification in totals_by_classification else 'unknown'
+        if (
+            key == 'unknown'
+            and not include_known_products
+            and insight.matches_product
+        ):
+            continue
         totals_by_classification[key] += 1
 
     def matches_filters(insight):

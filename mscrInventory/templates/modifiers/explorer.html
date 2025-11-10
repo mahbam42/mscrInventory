@@ -128,27 +128,37 @@
                     </div>
                   {% endif %}
                 {% endif %}
-                {% if insight.classification == 'fuzzy' or insight.classification == 'unknown' %}
+                {% if insight.classification == 'fuzzy' or insight.classification == 'unknown' or insight.classification == 'alias' %}
                   <form method="post" action="{% url 'modifier_alias_create' %}" class="mt-2">
                     {% csrf_token %}
                     <input type="hidden" name="classification" value="{{ classification }}" />
                     <input type="hidden" name="q" value="{{ search_term }}" />
                     <input type="hidden" name="include_known_products" value="{{ include_known_products|yesno:'true,false' }}" />
-                    {% with primary_raw=insight.top_raw_labels|first %}
-                      {% if primary_raw %}
-                        <input type="hidden" name="raw_label" value="{{ primary_raw.0 }}" />
-                      {% else %}
-                        <input type="hidden" name="raw_label" value="{{ insight.normalized }}" />
-                      {% endif %}
-                    {% endwith %}
+                    {% if insight.classification == 'alias' %}
+                      <input type="hidden" name="raw_label" value="{{ insight.alias_label|default:insight.normalized }}" />
+                    {% else %}
+                      {% with primary_raw=insight.top_raw_labels|first %}
+                        {% if primary_raw %}
+                          <input type="hidden" name="raw_label" value="{{ primary_raw.0 }}" />
+                        {% else %}
+                          <input type="hidden" name="raw_label" value="{{ insight.normalized }}" />
+                        {% endif %}
+                      {% endwith %}
+                    {% endif %}
                     <div class="input-group input-group-sm">
                       <select name="modifier_id" class="form-select form-select-sm" required>
                         <option value="">Map to RecipeModifier…</option>
                         {% for modifier in recipe_modifiers %}
-                          <option value="{{ modifier.id }}">{{ modifier.name }}</option>
+                          <option value="{{ modifier.id }}"{% if insight.modifier_id == modifier.id %} selected{% endif %}>{{ modifier.name }}</option>
                         {% endfor %}
                       </select>
-                      <button type="submit" class="btn btn-outline-success">Add Alias</button>
+                      <button type="submit" class="btn btn-outline-success">
+                        {% if insight.classification == 'alias' %}
+                          Update Alias
+                        {% else %}
+                          Add Alias
+                        {% endif %}
+                      </button>
                     </div>
                   </form>
                 {% endif %}
