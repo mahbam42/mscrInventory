@@ -196,6 +196,83 @@ class RoastProfile(Ingredient):
         verbose_name = "Roast Profile"
         verbose_name_plural = "Roast Profiles"
 
+class ContainerType(models.Model):
+    """ Class for Packaging Containers"""
+    name = models.CharField(max_length=50, unique=True)
+    description = models.CharField(max_length=10, blank=True)
+    capacity = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("0.0"))
+    unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Container Type"
+        verbose_name_plural = "Container Types"
+
+    def __str__(self):
+        return f"{self.name} ({self.capacity} {self.unit_type})"
+
+class PackagingSizeScale(models.Model):
+    temperature = models.CharField(
+        max_length=10,
+        choices=[
+            ("hot", "Hot"),
+            ("cold", "Cold"),
+            ("both", "Both"),
+            ("n/a", "N/A")
+        ],
+        default="hot"
+    )
+    size_label = models.CharField(max_length=20)  # e.g., "small", "large", "xl"
+    multiplier = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.0"))
+
+    class Meta:
+        unique_together = ("temperature", "size_label")
+        verbose_name = "Packaging Size Scale"
+        verbose_name_plural = "Packaging Size Scales"
+
+    def __str__(self):
+        return f"{self.temperature} - {self.size_label} ({self.multiplier}x)"
+
+class packaging(Ingredient):
+    """Subclass for Packaging mostly to handle cups"""
+
+    temps = [
+        ("hot", "hot"),
+        ("cold", "iced"),
+        ("both", "both"),
+        ("n/a", "n/a")
+    ]
+
+    """ container_size = [
+        ("Dairy to go", "10oz Bottle")
+        ("small 12oz", "12oz Cup"),
+        ("large", "20oz Cup"),
+        ("xl 20oz", "20oz Cup"),
+        ("small", "16oz Cup"),
+        ("medium", "24oz Cup"),
+        ("large", "24oz Cup"),
+        ("xl", "32oz Cup"),
+        ("growler", "64oz Growler"),
+        ("keg", "5gal Retail Keg"),
+        ("Catering Box 96fl oz", "Catering Box")
+    ] """
+
+    name = models.CharField(max_length=50, unique=True)
+    container = models.ForeignKey(ContainerType, on_delete=models.SET_NULL, null=True, blank=True)
+    temp = models.CharField(max_length=10, choices=temps, default="hot")
+
+    class Meta:
+        verbose_name = "Packaging"
+        verbose_name_plural = "Packaging"
+    
+    def __str__(self):
+        return self.name
+
+    def get_scale(self):
+        """Fetch size multipliers for this packaging temperature."""
+        from mscrInventory.models import PackagingSizeScale
+        return PackagingSizeScale.objects.filter(
+            models.Q(temperature=self.temp) | models.Q(temperature="both")
+        ).order_by("multiplier")
 
 class StockEntry(models.Model):
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="stock_entries")
