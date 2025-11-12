@@ -6,6 +6,9 @@ import zipfile
 from decimal import Decimal
 from django.http import HttpResponse
 from django.contrib import admin
+from django import forms
+from django.forms.models import inlineformset_factory
+
 
 from .models import (
     Product,
@@ -24,6 +27,9 @@ from .models import (
     RoastProfile,
     get_or_create_roast_profile,
     SquareUnmappedItem,
+    ContainerType, 
+    Packaging, 
+    PackagingSizeScale
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -130,6 +136,49 @@ class RoastProfileInline(admin.StackedInline):
     verbose_name_plural = "Roast Properties"
     fields = ["bag_size", "grind"]
 
+# --- SizeScale Inline Formset ---
+PackagingSizeScaleFormSet = inlineformset_factory(
+    Packaging,
+    PackagingSizeScale,
+    fields=("temperature", "size_label", "multiplier"),
+    extra=1,
+    can_delete=True
+)
+
+
+# --- Packaging Inline (for Ingredient) ---
+class PackagingInlineForm(forms.ModelForm):
+    class Meta:
+        model = Packaging
+        fields = ("temp", "container")
+
+class PackagingInline(admin.StackedInline):
+    model = Packaging
+    form = PackagingInlineForm
+    extra = 1
+    autocomplete_fields = ("container",)
+    verbose_name_plural = "Packaging Options"
+
+    # Attach the scale formset
+    def get_inline_formsets(self, request, formsets, inline_instances, obj=None):
+        formsets = super().get_inline_formsets(request, formsets, inline_instances, obj)
+        if obj:
+            # create the nested scale formset
+            for inline_formset in formsets:
+                if isinstance(inline_formset.model, Packaging):
+                    inline_formset.size_scale_formset = PackagingSizeScaleFormSet(
+                        instance=inline_formset.instance, data=request.POST or None
+                    )
+        return formsets
+
+# --- Admin for ContainerType ---
+@admin.register(ContainerType)
+class ContainerTypeAdmin(admin.ModelAdmin):
+    list_display = ("name", "capacity", "unit_type", "description")
+    search_fields = ("name", "description")
+    list_filter = ("unit_type",)
+    ordering = ("name",)
+
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
     list_display = (
@@ -138,13 +187,14 @@ class IngredientAdmin(admin.ModelAdmin):
     )
     list_filter = ("type", "unit_type",)
     search_fields = ("name",)
-    inlines = [StockEntryInline]
+    inlines = [StockEntryInline, PackagingInline]
 
     def get_inline_instances(self, request, obj=None):
         inline_instances = super().get_inline_instances(request, obj)
         if not obj:
             return inline_instances
 
+        # --- Add Roast inline if ingredient type is a coffee roast
         roast_type = IngredientType.objects.filter(name__iexact="roasts").first()
         is_roast = bool(roast_type and obj.type_id == roast_type.id)
         try:
@@ -154,11 +204,18 @@ class IngredientAdmin(admin.ModelAdmin):
 
         if is_roast:
             profile = profile or get_or_create_roast_profile(obj)
+            if profile is not None:
+                inline_instances.insert(0, RoastProfileInline(self.model, self.admin_site))
 
-        if profile is not None:
-            inline_instances.insert(0, RoastProfileInline(self.model, self.admin_site))
+        # --- Add Packaging inline if ingredient type is packaging-related
+        packaging_type = IngredientType.objects.filter(name__iexact="packaging").first()
+        is_packaging = bool(packaging_type and obj.type_id == packaging_type.id)
+        if is_packaging:
+            inline_instances.append(PackagingInline(self.model, self.admin_site))
 
         return inline_instances
+    
+
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem

@@ -211,6 +211,9 @@ class ContainerType(models.Model):
         return f"{self.name} ({self.capacity} {self.unit_type})"
 
 class PackagingSizeScale(models.Model):
+    packaging = models.ForeignKey(
+        "Packaging", on_delete=models.CASCADE, related_name="size_scales"
+    )
     temperature = models.CharField(
         max_length=10,
         choices=[
@@ -232,7 +235,7 @@ class PackagingSizeScale(models.Model):
     def __str__(self):
         return f"{self.temperature} - {self.size_label} ({self.multiplier}x)"
 
-class packaging(Ingredient):
+class Packaging(Ingredient):
     """Subclass for Packaging mostly to handle cups"""
 
     temps = [
@@ -256,7 +259,6 @@ class packaging(Ingredient):
         ("Catering Box 96fl oz", "Catering Box")
     ] """
 
-    name = models.CharField(max_length=50, unique=True)
     container = models.ForeignKey(ContainerType, on_delete=models.SET_NULL, null=True, blank=True)
     temp = models.CharField(max_length=10, choices=temps, default="hot")
 
