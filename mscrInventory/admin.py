@@ -147,7 +147,9 @@ class SizeLabelAdmin(admin.ModelAdmin):
 # --- Packaging Inline (for Ingredient) ---
 class PackagingInline(admin.StackedInline):
     model = Packaging
-    extra = 1
+    extra = 0
+    can_delete = False
+    max_num = 1
     fields = ("container", "temp", "size_labels", "multiplier")
     autocomplete_fields = ("container",)
     verbose_name_plural = "Packaging Options"
@@ -169,7 +171,7 @@ class IngredientAdmin(admin.ModelAdmin):
     )
     list_filter = ("type", "unit_type",)
     search_fields = ("name",)
-    inlines = [StockEntryInline, PackagingInline]
+    inlines = [StockEntryInline]
 
     def get_inline_instances(self, request, obj=None):
         inline_instances = super().get_inline_instances(request, obj)
