@@ -250,6 +250,12 @@ class SizeLabel(models.Model):
     ]
     label = models.CharField(choices=sizes, blank=False, default="Hot")
 
+    class Meta:
+        ordering = ("label",)
+
+    def __str__(self):
+        return self.get_label_display() or self.label
+
 class Packaging(Ingredient):
     """Subclass for Packaging mostly to handle cups"""
 
@@ -271,7 +277,9 @@ class Packaging(Ingredient):
         verbose_name_plural = "Packaging"
     
     def __str__(self):
-        labels = ", ".join(l.name for l in self.size_labels.all())
+        labels = ", ".join(
+            l.get_label_display() or l.label for l in self.size_labels.all()
+        )
         return f"{self.container} ({labels or 'no size'})"
 
     """ def get_scale(self):

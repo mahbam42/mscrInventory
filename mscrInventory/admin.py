@@ -148,7 +148,8 @@ class SizeLabelAdmin(admin.ModelAdmin):
 class PackagingInline(admin.StackedInline):
     model = Packaging
     extra = 1
-    autocomplete_fields = ("container", "size_labels")
+    fields = ("container", "temp", "size_labels", "multiplier")
+    autocomplete_fields = ("container",)
     verbose_name_plural = "Packaging Options"
 
 
