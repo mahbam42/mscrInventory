@@ -9,9 +9,16 @@ This version:
 - Prepares for integration with handle_extras() + future DB scaling
 """
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import re
-from mscrInventory.models import Ingredient, RecipeModifier, ModifierBehavior
+from django.db.models import Prefetch
+from mscrInventory.models import (
+    Ingredient,
+    ModifierBehavior,
+    Packaging,
+    RecipeModifier,
+    SizeLabel,
+)
 
 def resolve_modifier_tree(modifier, depth=0, seen=None):
     """
@@ -34,38 +41,166 @@ def resolve_modifier_tree(modifier, depth=0, seen=None):
         resolved += resolve_modifier_tree(child, depth + 1, seen)
     return resolved
 
-# ---------------------------------------------------------------------
-# Prototype scaling config (temporary, later DB-backed)
-# ---------------------------------------------------------------------
-"""Size and temperature scaling factors:
-    - Hot Drinks come in 12oz (small) and 20oz (large)
-    - Cold Drinks come in 16oz (small), 32oz (xl)
-    - All Recipes are based on 12oz base. 
-"""
-SIZE_SCALE = {
-    "hot":  {"small": 1.0, "large": 1.67},
-    "cold": {"small": 1.34, "xl": 2.0, "growler": 4.0, "keg": 54.0},
-}
+DEFAULT_SIZE_FALLBACK = "small"
 
-# ---------------------------------------------------------------------
-# Default cups by temperature & size
-# ---------------------------------------------------------------------
-CUP_MAP = {
-    "hot": {
-        "small": "12oz Cup",
-        "medium": "16oz Cup",
-        "large": "20oz Cup",
-        "xl": "20oz Cup",
-    },
-    "cold": {
-        "small": "16oz Cup",
-        "medium": "24oz Cup",
-        "large": "24oz Cup",
-        "xl": "32oz Cup",
-        "growler": "64oz Growler",
-        "keg": "5gal Retail Keg"
-    },
-}
+
+def _normalize_label(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _normalize_capacity_value(value) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        dec_value = Decimal(str(value))
+    except (InvalidOperation, TypeError):
+        return None
+    return dec_value.quantize(Decimal("0.1"))
+
+
+def _discrete_unit_from_field(unit_field) -> str | None:
+    if not unit_field:
+        return None
+    token = (
+        getattr(unit_field, "abbreviation", None)
+        or getattr(unit_field, "name", None)
+        or ""
+    ).strip().lower()
+    if token in {"ea", "each", "unit", "units"}:
+        return "unit"
+    return None
+
+
+def _infer_unit_type_from_instance(instance, fallback: str = "fluid_oz") -> str:
+    if instance is None:
+        return fallback
+    discrete = _discrete_unit_from_field(getattr(instance, "unit_type", None))
+    if discrete:
+        return discrete
+    type_field = getattr(instance, "type", None)
+    if type_field and hasattr(type_field, "unit_type"):
+        type_unit = getattr(type_field, "unit_type", None)
+        if isinstance(type_unit, str) and type_unit:
+            return type_unit
+    return fallback
+
+
+def _load_packaging_index():
+    label_aliases: dict[str, str] = {}
+    canonical_labels: set[str] = set()
+    for label in SizeLabel.objects.all():
+        canonical = _normalize_label(label.label)
+        if not canonical:
+            continue
+        canonical_labels.add(canonical)
+        label_aliases[canonical] = canonical
+        display = _normalize_label(label.get_label_display())
+        if display:
+            label_aliases.setdefault(display, canonical)
+
+    packaging_lookup: dict[tuple[str, str], dict] = {}
+    capacity_lookup: dict[Decimal, str] = {}
+    min_capacity = None
+    min_capacity_label = None
+
+    packaging_qs = (
+        Packaging.objects.select_related("container", "type", "unit_type")
+        .prefetch_related(
+            "size_labels",
+            Prefetch(
+                "expands_to",
+                queryset=Ingredient.objects.select_related("type", "unit_type"),
+            ),
+        )
+    )
+
+    for packaging in packaging_qs:
+        size_labels = list(packaging.size_labels.all())
+        if not size_labels:
+            continue
+        capacity = _normalize_capacity_value(
+            getattr(getattr(packaging, "container", None), "capacity", None)
+        )
+        multiplier = Decimal(str(packaging.multiplier or 1.0))
+        temps: list[str] = []
+        if packaging.temp == "both":
+            temps = ["hot", "cold"]
+        elif packaging.temp in {"hot", "cold"}:
+            temps = [packaging.temp]
+        elif packaging.temp == "n/a":
+            temps = []
+
+        entry = {
+            "packaging": packaging,
+            "capacity": capacity,
+            "multiplier": multiplier,
+            "expands_to": list(packaging.expands_to.all()),
+        }
+
+        for size_label in size_labels:
+            canonical = _normalize_label(size_label.label)
+            if not canonical:
+                continue
+            canonical_labels.add(canonical)
+            label_aliases.setdefault(canonical, canonical)
+            display = _normalize_label(size_label.get_label_display())
+            if display:
+                label_aliases.setdefault(display, canonical)
+            if capacity is not None:
+                capacity_lookup.setdefault(capacity, canonical)
+                if min_capacity is None or capacity < min_capacity:
+                    min_capacity = capacity
+                    min_capacity_label = canonical
+            for temp in temps:
+                packaging_lookup[(temp, canonical)] = entry
+
+    if min_capacity_label:
+        default_label = min_capacity_label
+    elif DEFAULT_SIZE_FALLBACK in canonical_labels:
+        default_label = DEFAULT_SIZE_FALLBACK
+    elif canonical_labels:
+        default_label = sorted(canonical_labels)[0]
+    else:
+        default_label = DEFAULT_SIZE_FALLBACK
+
+    return {
+        "label_aliases": label_aliases,
+        "capacity_lookup": capacity_lookup,
+        "default_label": default_label,
+        "packaging_lookup": packaging_lookup,
+    }
+
+
+def _extract_numeric_volume(text: str) -> Decimal | None:
+    if not text:
+        return None
+    text = text.lower()
+    patterns = [
+        (re.compile(r"(\d+(?:\.\d+)?)\s*[-\s]*(?:oz|ounce|ounces)"), Decimal("1")),
+        (re.compile(r"(\d+(?:\.\d+)?)\s*[-\s]*(?:gal|gallon|gallons)"), Decimal("128")),
+    ]
+    for pattern, multiplier in patterns:
+        match = pattern.search(text)
+        if not match:
+            continue
+        try:
+            value = Decimal(match.group(1))
+        except InvalidOperation:
+            continue
+        volume = value * multiplier
+        normalized = _normalize_capacity_value(volume)
+        if normalized is not None:
+            return normalized
+    return None
+
+
+def _match_label_from_aliases(text: str, aliases: dict[str, str]) -> str | None:
+    for token, canonical in aliases.items():
+        if not token:
+            continue
+        if re.search(rf"\b{re.escape(token)}\b", text):
+            return canonical
+    return None
 
 def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None):
     """
@@ -93,47 +228,22 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
         if "iced" not in desc_str and "cold" not in desc_str and "coldbrew" not in name:
             temp_type = "hot"
 
-    # --- Size inference ---------------------------------------------------
-    size_map = {
-        "keg": ["keg", "retail keg", "kegs", "5 gallon", "5gal", "5-gallon"],
-        "growler": ["growler", "64oz", "64 oz", "64-ounce", "64 ounce"],
-        "xl": ["xl", "extra large", "x-large", "32oz", "32 oz"],
-        "large": ["large", "20oz", "20 oz"],
-        "medium": ["medium", "med"],
-        "small": ["small", "short", "12oz", "12 oz", "16oz", "16 oz", "10oz"],
-    }
+    packaging_index = _load_packaging_index()
+    aliases = packaging_index["label_aliases"]
+    capacity_lookup = packaging_index["capacity_lookup"]
+    size_label = packaging_index["default_label"] or DEFAULT_SIZE_FALLBACK
 
-    size_label = "small"  # default
-    for label, patterns in size_map.items():
-        if any(re.search(rf"\b{p}\b", desc_str) or re.search(rf"\b{p}\b", name) for p in patterns):
-            size_label = label
-            break
-
-    # --- Fallbacks --------------------------------------------------------
-    # E.g., “Latte” without “iced” → assume hot/small
-    # E.g., “Cold Brew” without size → assume cold/small
-    normalized_name = re.sub(r"[\s-]", "", name)
-    normalized_desc = re.sub(r"[\s-]", "", desc_str)
-    if (
-        "growler" in name
-        or "growler" in desc_str
-        or "64oz" in normalized_name
-        or "64oz" in normalized_desc
-        or "64ounce" in normalized_name
-        or "64ounce" in normalized_desc
-    ):
-        size_label = "growler"
-    elif "coldbrew" in name and size_label == "small":
-        size_label = "small"  # typical default for cold drinks
+    label_match = _match_label_from_aliases(name, aliases) or _match_label_from_aliases(
+        desc_str, aliases
+    )
+    if label_match:
+        size_label = label_match
+    else:
+        volume = _extract_numeric_volume(name) or _extract_numeric_volume(desc_str)
+        if volume is not None and volume in capacity_lookup:
+            size_label = capacity_lookup[volume]
 
     return temp_type, size_label
-
-def get_default_cup(temp_type: str, size: str) -> str | None:
-    return CUP_MAP.get(temp_type, {}).get(size)
-
-def get_scale(temp_type: str, size: str) -> Decimal:
-    """Get scaling factor for given temperature + size."""
-    return Decimal(str(SIZE_SCALE.get(temp_type, {}).get(size, 1.0)))
 
 def round_qty(value: Decimal, unit_type: str) -> Decimal:
     """Round quantities to avoid trailing digits."""
@@ -158,7 +268,7 @@ def aggregate_ingredient_usage(
     """
     Aggregate all ingredient usage for a given product, scaled to size.
 
-    - Base recipe quantities are scaled by get_scale() when is_drink is True.
+    - Base recipe quantities are scaled by Packaging.multiplier when is_drink is True.
     - Modifiers are added with estimated or defined quantities.
     - Optional overrides_map lets callers provide the resolved recipe map after
       handle_extras(), ensuring Barista's Choice expansions adjust the base
@@ -169,7 +279,23 @@ def aggregate_ingredient_usage(
     Returns:
         usage_summary: {ingredient_name: {"qty": Decimal, "sources": [str]}}
     """
-    scale_factor = get_scale(temp_type or "cold", size or "small") if is_drink else Decimal("1.0")
+    packaging_index = _load_packaging_index()
+    default_size = packaging_index["default_label"] or DEFAULT_SIZE_FALLBACK
+    resolved_temp = _normalize_label(temp_type or "cold") or "cold"
+    resolved_size = _normalize_label(size) or default_size
+    packaging_lookup = packaging_index["packaging_lookup"]
+    packaging_entry = packaging_lookup.get((resolved_temp, resolved_size))
+    if not packaging_entry and resolved_size != default_size:
+        packaging_entry = packaging_lookup.get((resolved_temp, default_size))
+
+    scale_factor = Decimal("1.0")
+    cup_capacity = None
+    if is_drink and packaging_entry:
+        scale_factor = packaging_entry["multiplier"]
+        cup_capacity = packaging_entry.get("capacity")
+    elif is_drink:
+        scale_factor = Decimal("1.0")
+
     usage_summary = {}
     primary_liquid_key: str | None = None
     overrides_map = overrides_map or {}
@@ -183,23 +309,37 @@ def aggregate_ingredient_usage(
         else:
             ing = (
                 Ingredient.objects.filter(name__iexact=name)
-                .select_related("type")
+                .select_related("type", "unit_type")
                 .first()
             )
             ingredient_cache[name] = ing
-        if ing and getattr(ing, "type", None) and getattr(ing.type, "unit_type", None):
-            return ing.type.unit_type
+        if ing:
+            return _infer_unit_type_from_instance(ing, fallback)
         return fallback
 
-    # --- Add cup as inventory item automatically -------------------------
-    # I call this auto_cup() a lot
-    cup_name = get_default_cup(temp_type, size) if (is_drink and include_cup) else None
-    if cup_name:
-        usage_summary[cup_name] = {
-            "qty": Decimal("1.0"),  # one per drink
-            "sources": ["auto_cup"],
-            "unit_type": "unit",
-        }
+    def _add_packaging_usage(entry: dict):
+        if not entry:
+            return
+        packaging_obj = entry.get("packaging")
+        expands = entry.get("expands_to") or []
+
+        def _add_item(ingredient, source_label: str):
+            if not ingredient:
+                return
+            name = ingredient.name
+            usage_summary[name] = {
+                "qty": Decimal("1.0"),
+                "sources": [source_label],
+                "unit_type": _infer_unit_type_from_instance(ingredient, "unit"),
+            }
+            ingredient_cache[name] = ingredient
+
+        _add_item(packaging_obj, "packaging")
+        for extra in expands:
+            _add_item(extra, "packaging_expands")
+
+    if is_drink and include_cup and packaging_entry:
+        _add_packaging_usage(packaging_entry)
 
     # --- Base recipe scaling -----------------------------------------------
     for ri in recipe_items:
@@ -210,7 +350,7 @@ def aggregate_ingredient_usage(
         else:
             scaled_qty = base_qty * scale_factor
 
-        unit_type = getattr(ing.type, "unit_type", "fluid_oz")
+        unit_type = _infer_unit_type_from_instance(ing)
         scaled_qty = round_qty(scaled_qty, unit_type)
 
         usage_summary[ing.name] = {
@@ -261,18 +401,6 @@ def aggregate_ingredient_usage(
             }
 
     # --- Track total liquid capacity (estimated) ----------------------------
-    cup_size_map = {
-        ("hot", "small"): 12,
-        ("hot", "medium"): 16,
-        ("hot", "large"): 20,
-        ("hot", "xl"): 20,
-        ("cold", "small"): 16,
-        ("cold", "medium"): 24,
-        ("cold", "large"): 24,
-        ("cold", "xl"): 32,
-    }
-    cup_capacity = Decimal(str(cup_size_map.get((temp_type, size), 16))) if is_drink else None
-
     # --- Apply modifiers ----------------------------------------------------
     # resolved modifiers may continue adjusting liquid totals
     if resolved_modifiers:
@@ -336,7 +464,12 @@ def aggregate_ingredient_usage(
     if not main_liquid_key:
         main_liquid_key = primary_liquid_key
 
-    if is_drink and cup_capacity and main_liquid_key and main_liquid_key in usage_summary:
+    if (
+        is_drink
+        and cup_capacity is not None
+        and main_liquid_key
+        and main_liquid_key in usage_summary
+    ):
         other_volume = Decimal("0.0")
         for key, meta in usage_summary.items():
             if key == main_liquid_key:
