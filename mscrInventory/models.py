@@ -210,7 +210,7 @@ class ContainerType(models.Model):
     def __str__(self):
         return f"{self.name} ({self.capacity} {self.unit_type})"
 
-class PackagingSizeScale(models.Model):
+""" class PackagingSizeScale(models.Model):
     packaging = models.ForeignKey(
         "Packaging", on_delete=models.CASCADE, related_name="size_scales"
     )
@@ -225,7 +225,7 @@ class PackagingSizeScale(models.Model):
         default="hot"
     )
     size_label = models.CharField(max_length=20)  # e.g., "small", "large", "xl"
-    multiplier = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.0"))
+    multiplier = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.0")) 
 
     class Meta:
         unique_together = ("temperature", "size_label")
@@ -234,47 +234,52 @@ class PackagingSizeScale(models.Model):
 
     def __str__(self):
         return f"{self.temperature} - {self.size_label} ({self.multiplier}x)"
+    """
+
+class SizeLabel(models.Model):
+    # Labels of currently offered drink sizes
+    sizes = [                           # Capacity is Picked up from ContainerType() Class
+        ("taster", "Taster"),               # Not Currently Used
+        ("small", "Small"),                 # 12oz Hot, 16oz Cold
+        ("medium", "Medium"),               # Not Currently Used
+        ("Large", "Large"),                 # 20oz Hot
+        ("XL", "XL"),                       # 32oz Cold (Sometimes also refers to 20oz Hot)
+        ("growler", "Growler"),             # 64oz Cold brew (primarily)
+        ("catering box", "Catering Box"),   # 96oz Hot/Cold
+        ("keg", "Keg")                      # 5gal (96oz Primarily cold brew)
+    ]
+    label = models.CharField(choices=sizes, blank=False, default="Hot")
 
 class Packaging(Ingredient):
     """Subclass for Packaging mostly to handle cups"""
 
-    temps = [
-        ("hot", "hot"),
-        ("cold", "iced"),
-        ("both", "both"),
-        ("n/a", "n/a")
+    Temps = [
+        ("hot", "Hot"),
+        ("cold", "Iced"),
+        ("both", "Both"),
+        ("n/a", "N/A")
     ]
 
-    """ container_size = [
-        ("Dairy to go", "10oz Bottle")
-        ("small 12oz", "12oz Cup"),
-        ("large", "20oz Cup"),
-        ("xl 20oz", "20oz Cup"),
-        ("small", "16oz Cup"),
-        ("medium", "24oz Cup"),
-        ("large", "24oz Cup"),
-        ("xl", "32oz Cup"),
-        ("growler", "64oz Growler"),
-        ("keg", "5gal Retail Keg"),
-        ("Catering Box 96fl oz", "Catering Box")
-    ] """
 
     container = models.ForeignKey(ContainerType, on_delete=models.SET_NULL, null=True, blank=True)
-    temp = models.CharField(max_length=10, choices=temps, default="hot")
+    temp = models.CharField(choices=Temps, blank=False, default="Hot")
+    size_labels = models.ManyToManyField(SizeLabel, blank=True, related_name="packagings")
+    multiplier = models.FloatField(default=1.0)
 
     class Meta:
         verbose_name = "Packaging"
         verbose_name_plural = "Packaging"
     
     def __str__(self):
-        return self.name
+        labels = ", ".join(l.name for l in self.size_labels.all())
+        return f"{self.container} ({labels or 'no size'})"
 
-    def get_scale(self):
-        """Fetch size multipliers for this packaging temperature."""
+    """ def get_scale(self):
+        Fetch size multipliers for this packaging temperature.
         from mscrInventory.models import PackagingSizeScale
         return PackagingSizeScale.objects.filter(
             models.Q(temperature=self.temp) | models.Q(temperature="both")
-        ).order_by("multiplier")
+        ).order_by("multiplier") """
 
 class StockEntry(models.Model):
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="stock_entries")

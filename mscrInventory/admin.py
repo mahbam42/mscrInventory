@@ -29,7 +29,7 @@ from .models import (
     SquareUnmappedItem,
     ContainerType, 
     Packaging, 
-    PackagingSizeScale
+    SizeLabel,
 )
 from .utils.reports import cogs_by_day, usage_detail_by_day
 
@@ -136,40 +136,21 @@ class RoastProfileInline(admin.StackedInline):
     verbose_name_plural = "Roast Properties"
     fields = ["bag_size", "grind"]
 
-# --- SizeScale Inline Formset ---
-PackagingSizeScaleFormSet = inlineformset_factory(
-    Packaging,
-    PackagingSizeScale,
-    fields=("temperature", "size_label", "multiplier"),
-    extra=1,
-    can_delete=True
-)
+# --- SizeLabel Admin ---
+@admin.register(SizeLabel)
+class SizeLabelAdmin(admin.ModelAdmin):
+    list_display = ("label",)
+    search_fields = ("label",)
+    ordering = ("label",)
 
 
 # --- Packaging Inline (for Ingredient) ---
-class PackagingInlineForm(forms.ModelForm):
-    class Meta:
-        model = Packaging
-        fields = ("temp", "container")
-
 class PackagingInline(admin.StackedInline):
     model = Packaging
-    form = PackagingInlineForm
     extra = 1
-    autocomplete_fields = ("container",)
+    autocomplete_fields = ("container", "size_labels")
     verbose_name_plural = "Packaging Options"
 
-    # Attach the scale formset
-    def get_inline_formsets(self, request, formsets, inline_instances, obj=None):
-        formsets = super().get_inline_formsets(request, formsets, inline_instances, obj)
-        if obj:
-            # create the nested scale formset
-            for inline_formset in formsets:
-                if isinstance(inline_formset.model, Packaging):
-                    inline_formset.size_scale_formset = PackagingSizeScaleFormSet(
-                        instance=inline_formset.instance, data=request.POST or None
-                    )
-        return formsets
 
 # --- Admin for ContainerType ---
 @admin.register(ContainerType)
