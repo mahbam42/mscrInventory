@@ -101,6 +101,10 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+    
+    class Meta:
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
 
 class IngredientType(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -281,13 +285,12 @@ class Packaging(Ingredient):
             l.get_label_display() or l.label for l in self.size_labels.all()
         )
         return f"{self.container} ({labels or 'no size'})"
+    
+    def save(self, *args, **kwargs):
+        if not self.pk and hasattr(self, "ingredient_ptr_id") and self.ingredient_ptr_id:
+            self.pk = self.ingredient_ptr_id
+        super().save(*args, **kwargs)
 
-    """ def get_scale(self):
-        Fetch size multipliers for this packaging temperature.
-        from mscrInventory.models import PackagingSizeScale
-        return PackagingSizeScale.objects.filter(
-            models.Q(temperature=self.temp) | models.Q(temperature="both")
-        ).order_by("multiplier") """
 
 class StockEntry(models.Model):
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="stock_entries")
@@ -316,6 +319,10 @@ class StockEntry(models.Model):
             if is_create and self.quantity_added and self.cost_per_unit is not None:
                 # Update Ingredient aggregate fields
                 self.ingredient.increment_stock(self.quantity_added, self.cost_per_unit)
+    
+    class Meta:
+        verbose_name = "Stock Entry"
+        verbose_name_plural = "Stock Entries"
     
 class RecipeItem(models.Model):
     """
