@@ -287,8 +287,30 @@ class Packaging(Ingredient):
         return f"{self.container} ({labels or 'no size'})"
     
     def save(self, *args, **kwargs):
-        if not self.pk and hasattr(self, "ingredient_ptr_id") and self.ingredient_ptr_id:
-            self.pk = self.ingredient_ptr_id
+        parent_pk = self.pk or getattr(self, "ingredient_ptr_id", None)
+        parent = None
+        if parent_pk:
+            # Keep the implicit OneToOne pointer in sync with the Ingredient row.
+            self.pk = parent_pk
+            self.ingredient_ptr_id = parent_pk
+            parent = Ingredient.objects.filter(pk=parent_pk).first()
+
+        packaging_exists = parent_pk and Packaging.objects.filter(pk=parent_pk).exists()
+
+        if parent is not None:
+            # Copy all Ingredient fields so we never clobber parent values when
+            # saving the subclass inline.
+            for field in Ingredient._meta.local_concrete_fields:
+                if field.primary_key:
+                    continue
+                setattr(self, field.attname, getattr(parent, field.attname))
+
+        # When adding inline data to an existing Ingredient (no Packaging row yet),
+        # force Django to treat the parent row as already saved so it updates
+        # instead of inserting a duplicate Ingredient.
+        if parent is not None and not packaging_exists:
+            self._state.adding = False
+
         super().save(*args, **kwargs)
 
 
