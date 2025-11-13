@@ -49,3 +49,17 @@ class TestIngredientAdminPackagingInline:
             not isinstance(inline, admin_module.PackagingInline)
             for inline in inline_instances
         )
+
+    def test_packaging_inline_ensures_subclass_exists_for_existing_ingredient(self):
+        packaging_type = IngredientType.objects.create(name="Packaging")
+        base_only = Ingredient.objects.create(name="Base Packaging", type=packaging_type)
+
+        assert not Packaging.objects.filter(pk=base_only.pk).exists()
+
+        inline_instances = self.ingredient_admin.get_inline_instances(self.request, base_only)
+
+        assert any(
+            isinstance(inline, admin_module.PackagingInline)
+            for inline in inline_instances
+        )
+        assert Packaging.objects.filter(pk=base_only.pk).exists()

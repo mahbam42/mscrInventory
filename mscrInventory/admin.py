@@ -195,6 +195,7 @@ class IngredientAdmin(admin.ModelAdmin):
         packaging_type = IngredientType.objects.filter(name__iexact="packaging").first()
         is_packaging = bool(packaging_type and obj.type_id == packaging_type.id)
         if is_packaging:
+            Packaging.objects.get_or_create(pk=obj.pk)
             inline_instances.append(PackagingInline(self.model, self.admin_site))
 
         return inline_instances
