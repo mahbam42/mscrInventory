@@ -49,3 +49,31 @@ class TestIngredientAdminPackagingInline:
             not isinstance(inline, admin_module.PackagingInline)
             for inline in inline_instances
         )
+
+    def test_packaging_inline_expands_to_queryset_filters_packaging(self):
+        packaging_type, _ = IngredientType.objects.get_or_create(name="Packaging")
+        other_type = IngredientType.objects.create(name="Coffee")
+        unit_type, _ = UnitType.objects.get_or_create(name="Each", defaults={"abbreviation": "ea"})
+
+        cup = Packaging.objects.create(
+            name="Paper Cup",
+            type=packaging_type,
+            unit_type=unit_type,
+        )
+        lid = Packaging.objects.create(
+            name="Cup Lid",
+            type=packaging_type,
+            unit_type=unit_type,
+        )
+        other = Ingredient.objects.create(name="Espresso Beans", type=other_type)
+
+        inline = admin_module.PackagingInline(Ingredient, admin.site)
+        field = inline.formfield_for_manytomany(
+            Packaging._meta.get_field("expands_to"),
+            self.request,
+        )
+
+        queryset = field.queryset
+        assert queryset.filter(pk=cup.pk).exists()
+        assert queryset.filter(pk=lid.pk).exists()
+        assert not queryset.filter(pk=other.pk).exists()

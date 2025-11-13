@@ -39,3 +39,18 @@ class TestPackagingModel:
         assert ingredient.name == "Packaging Parent"
         assert ingredient.notes == "keep me"
 
+    def test_expands_to_links_other_packaging_ingredients(self):
+        cup = Packaging.objects.create(
+            name="Cup",
+            type=self.packaging_type,
+            unit_type=self.unit_type,
+        )
+        lid = Packaging.objects.create(
+            name="Lid",
+            type=self.packaging_type,
+            unit_type=self.unit_type,
+        )
+
+        cup.expands_to.add(lid)
+
+        assert list(cup.expands_to.values_list("name", flat=True)) == ["Lid"]

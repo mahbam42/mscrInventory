@@ -150,7 +150,19 @@ class PackagingInline(admin.StackedInline):
     extra = 0
     can_delete = False
     max_num = 1
-    fields = ("container", "temp", "size_labels", "multiplier")
+    fields = ("container", "temp", "size_labels", "multiplier", "expands_to")
+    filter_horizontal = ("expands_to",)
+
+    """     def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "expands_to":
+            kwargs["queryset"] = Packaging.objects.all()
+        return super().formfield_for_manytomany(db_field, request, **kwargs)"""
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "expands_to":
+            kwargs["queryset"] = Ingredient.objects.filter(
+                type__name__iexact="packaging"
+            ).order_by("name")
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
     autocomplete_fields = ("container",)
     verbose_name_plural = "Packaging Options"
 

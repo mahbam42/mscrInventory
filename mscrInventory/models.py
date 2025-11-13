@@ -214,32 +214,6 @@ class ContainerType(models.Model):
     def __str__(self):
         return f"{self.name} ({self.capacity} {self.unit_type})"
 
-""" class PackagingSizeScale(models.Model):
-    packaging = models.ForeignKey(
-        "Packaging", on_delete=models.CASCADE, related_name="size_scales"
-    )
-    temperature = models.CharField(
-        max_length=10,
-        choices=[
-            ("hot", "Hot"),
-            ("cold", "Cold"),
-            ("both", "Both"),
-            ("n/a", "N/A")
-        ],
-        default="hot"
-    )
-    size_label = models.CharField(max_length=20)  # e.g., "small", "large", "xl"
-    multiplier = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.0")) 
-
-    class Meta:
-        unique_together = ("temperature", "size_label")
-        verbose_name = "Packaging Size Scale"
-        verbose_name_plural = "Packaging Size Scales"
-
-    def __str__(self):
-        return f"{self.temperature} - {self.size_label} ({self.multiplier}x)"
-    """
-
 class SizeLabel(models.Model):
     # Labels of currently offered drink sizes
     sizes = [                           # Capacity is Picked up from ContainerType() Class
@@ -275,6 +249,13 @@ class Packaging(Ingredient):
     temp = models.CharField(choices=Temps, blank=False, default="Hot")
     size_labels = models.ManyToManyField(SizeLabel, blank=True, related_name="packagings")
     multiplier = models.FloatField(default=1.0)
+    expands_to = models.ManyToManyField(
+        "mscrInventory.Ingredient",
+        symmetrical=False,
+        blank=True,
+        related_name="packaging_expanded_by",
+        limit_choices_to={"type__name__iexact": "packaging"},
+    )
 
     class Meta:
         verbose_name = "Packaging"
