@@ -3,11 +3,14 @@ from types import SimpleNamespace
 
 import pytest
 
+from django.utils import timezone
+
 from importers._aggregate_usage import aggregate_ingredient_usage, infer_temp_and_size
 from mscrInventory.models import (
     ContainerType,
     Ingredient,
     IngredientType,
+    IngredientUsageLog,
     Packaging,
     SizeLabel,
     UnitType,
@@ -153,6 +156,50 @@ def test_aggregate_usage_uses_packaging_multiplier_and_capacity():
     assert usage["Espresso Shot"]["qty"] == Decimal("2")
     assert usage["Whole Milk"]["qty"] == Decimal("8")
     assert usage["Cold Brew Base"]["qty"] == Decimal("24")
+
+
+@pytest.mark.django_db
+def test_catering_platter_uses_recent_popular_variants():
+    each = UnitType.objects.create(name="Each", abbreviation="ea")
+    baked_type = IngredientType.objects.create(name="Baked Good")
+
+    corn = Ingredient.objects.create(name="Corn Muffin", type=baked_type, unit_type=each)
+    blueberry = Ingredient.objects.create(name="Blueberry Muffin", type=baked_type, unit_type=each)
+    banana = Ingredient.objects.create(name="Banana Nut Muffin", type=baked_type, unit_type=each)
+
+    today = timezone.now().date()
+    IngredientUsageLog.objects.create(
+        ingredient=corn,
+        date=today,
+        quantity_used=Decimal("30"),
+        source="square",
+    )
+    IngredientUsageLog.objects.create(
+        ingredient=blueberry,
+        date=today,
+        quantity_used=Decimal("20"),
+        source="square",
+    )
+    IngredientUsageLog.objects.create(
+        ingredient=banana,
+        date=today,
+        quantity_used=Decimal("10"),
+        source="square",
+    )
+
+    usage = aggregate_ingredient_usage(
+        [],
+        temp_type=None,
+        size=None,
+        is_drink=False,
+        include_cup=False,
+        modifier_tokens=["6 muffins platter", "catering platter"],
+    )
+
+    assert usage["Corn Muffin"]["qty"] == Decimal("3")
+    assert usage["Blueberry Muffin"]["qty"] == Decimal("2")
+    assert usage["Banana Nut Muffin"]["qty"] == Decimal("1")
+    assert usage["Corn Muffin"]["sources"] == ["catering_platter"]
 
 
 @pytest.mark.django_db

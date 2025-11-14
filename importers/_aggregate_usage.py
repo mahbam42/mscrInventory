@@ -9,11 +9,15 @@ This version:
 - Prepares for integration with handle_extras() + future DB scaling
 """
 
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import re
-from django.db.models import Prefetch
+
+from django.db.models import Prefetch, Q, Sum
+from django.utils import timezone
 from mscrInventory.models import (
     Ingredient,
+    IngredientUsageLog,
     ModifierBehavior,
     Packaging,
     RecipeModifier,
@@ -83,6 +87,223 @@ def _infer_unit_type_from_instance(instance, fallback: str = "fluid_oz") -> str:
         if isinstance(type_unit, str) and type_unit:
             return type_unit
     return fallback
+
+
+# ---------------------------------------------------------------------------
+# Catering platter helpers (baked goods expansion)
+# ---------------------------------------------------------------------------
+
+BAKED_PLATTER_KEYWORDS = {
+    "muffin": {
+        "aliases": ("muffin", "muffins"),
+        "name_patterns": ("muffin",),
+        "type_tokens": ("muffin", "baked"),
+        "default_quantity": 6,
+    },
+    "cookie": {
+        "aliases": ("cookie", "cookies"),
+        "name_patterns": ("cookie",),
+        "type_tokens": ("cookie", "baked"),
+        "default_quantity": 6,
+    },
+    "brownie": {
+        "aliases": ("brownie", "brownies"),
+        "name_patterns": ("brownie",),
+        "type_tokens": ("brownie", "baked"),
+        "default_quantity": 6,
+    },
+    "cinnamon bun": {
+        "aliases": (
+            "cinnamon bun",
+            "cinnamon buns",
+            "cinnamon roll",
+            "cinnamon rolls",
+        ),
+        "name_patterns": ("cinnamon", "bun"),
+        "type_tokens": ("cinnamon", "baked"),
+        "default_quantity": 6,
+    },
+}
+
+BAKED_PLATTER_INDICATORS = {"catering", "platter"}
+BAKED_PLATTER_WEIGHTS = (3, 2, 1)
+BAKED_PLATTER_USAGE_WINDOW_DAYS = 30
+
+
+def _normalize_platter_tokens(tokens: list[str] | None) -> list[str]:
+    normalized = []
+    for token in tokens or []:
+        cleaned = _normalize_label(token)
+        if cleaned:
+            normalized.append(cleaned)
+    return normalized
+
+
+def _extract_platter_quantity(text: str, aliases: tuple[str, ...], default: int) -> int:
+    for alias in aliases:
+        pattern = rf"(\d+)\s*(?:x\s*)?(?:{re.escape(alias)})"
+        match = re.search(pattern, text)
+        if match:
+            try:
+                return int(match.group(1))
+            except (TypeError, ValueError):
+                continue
+    fallback = re.search(r"(\d+)", text)
+    if fallback:
+        try:
+            return int(fallback.group(1))
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
+def _build_baked_filters(keyword: str, *, prefix: str = "ingredient__") -> tuple[Q, Q]:
+    meta = BAKED_PLATTER_KEYWORDS.get(keyword, {})
+    type_tokens = meta.get("type_tokens", ())
+    name_patterns = meta.get("name_patterns", (keyword,))
+
+    type_q = Q()
+    for token in type_tokens:
+        type_q |= Q(**{f"{prefix}type__name__icontains": token})
+    if not type_q:
+        type_q = Q(**{f"{prefix}type__name__icontains": "baked"})
+
+    name_q = Q()
+    for pattern in name_patterns:
+        name_q |= Q(**{f"{prefix}name__icontains": pattern})
+    if not name_q:
+        name_q = Q(**{f"{prefix}name__icontains": keyword})
+
+    return type_q, name_q
+
+
+def _popular_baked_variant_ids(keyword: str, window_days: int, limit: int) -> tuple[int, ...]:
+    keyword_norm = _normalize_label(keyword)
+    if not keyword_norm:
+        return tuple()
+
+    cutoff = timezone.now().date() - timedelta(days=window_days)
+    type_q, name_q = _build_baked_filters(keyword_norm)
+    rows = (
+        IngredientUsageLog.objects.filter(date__gte=cutoff)
+        .filter(type_q & name_q)
+        .values("ingredient_id")
+        .annotate(total=Sum("quantity_used"))
+        .order_by("-total")
+    )[:limit]
+    return tuple(row["ingredient_id"] for row in rows if row.get("ingredient_id"))
+
+
+def _resolve_popular_baked_variants(keyword: str, *, limit: int = 3, window_days: int = 30):
+    keyword_norm = _normalize_label(keyword)
+    if not keyword_norm:
+        return []
+
+    ranked_ids = list(_popular_baked_variant_ids(keyword_norm, window_days, limit))
+    ingredients: list[Ingredient] = []
+    resolved_ids: set[int] = set()
+    if ranked_ids:
+        resolved = {
+            ing.id: ing
+            for ing in Ingredient.objects.filter(id__in=ranked_ids).select_related("type", "unit_type")
+        }
+        for iid in ranked_ids:
+            if iid in resolved:
+                ingredients.append(resolved[iid])
+                resolved_ids.add(iid)
+
+    if len(ingredients) >= limit:
+        return ingredients[:limit]
+
+    type_q, name_q = _build_baked_filters(keyword_norm, prefix="")
+    filler_qs = (
+        Ingredient.objects.filter(type_q & name_q)
+        .exclude(id__in=resolved_ids)
+        .order_by("name")
+    )
+    for ing in filler_qs:
+        ingredients.append(ing)
+        if len(ingredients) >= limit:
+            break
+    return ingredients
+
+
+def _detect_baked_platter_request(tokens: list[str] | None):
+    normalized_tokens = _normalize_platter_tokens(tokens)
+    if not normalized_tokens:
+        return None
+
+    combined = " ".join(normalized_tokens)
+    if not any(indicator in combined for indicator in BAKED_PLATTER_INDICATORS):
+        return None
+
+    for keyword, meta in BAKED_PLATTER_KEYWORDS.items():
+        aliases = meta.get("aliases", (keyword,))
+        if any(alias in combined for alias in aliases):
+            quantity = _extract_platter_quantity(
+                combined,
+                aliases,
+                meta.get("default_quantity", 6),
+            )
+            return {
+                "keyword": keyword,
+                "quantity": max(quantity, 0),
+            }
+    return None
+
+
+def _calculate_platter_distribution(total_quantity: int, slots: int) -> list[int]:
+    if total_quantity <= 0 or slots <= 0:
+        return [0] * slots
+
+    weights = list(BAKED_PLATTER_WEIGHTS[:slots])
+    if not weights:
+        weights = [1] * slots
+
+    weight_sum = sum(weights)
+    base_cycles = total_quantity // weight_sum
+    remainder = total_quantity % weight_sum
+
+    allocations = [w * base_cycles for w in weights]
+    index = 0
+    while remainder > 0 and slots > 0:
+        allocations[index % slots] += 1
+        remainder -= 1
+        index += 1
+    return allocations
+
+
+def _apply_baked_platter_usage(
+    usage_summary: dict,
+    modifier_tokens: list[str] | None,
+    ingredient_cache: dict,
+):
+    request = _detect_baked_platter_request(modifier_tokens)
+    if not request:
+        return
+
+    variants = _resolve_popular_baked_variants(
+        request["keyword"],
+        limit=3,
+        window_days=BAKED_PLATTER_USAGE_WINDOW_DAYS,
+    )
+    if not variants:
+        return
+
+    allocations = _calculate_platter_distribution(request["quantity"], len(variants))
+    for ingredient, units in zip(variants, allocations):
+        if not ingredient or units <= 0:
+            continue
+        name = ingredient.name
+        ingredient_cache[name] = ingredient
+        unit_type = _infer_unit_type_from_instance(ingredient, "unit")
+        entry = usage_summary.setdefault(
+            name,
+            {"qty": Decimal("0"), "sources": [], "unit_type": unit_type},
+        )
+        entry["qty"] += Decimal(units)
+        if "catering_platter" not in entry["sources"]:
+            entry["sources"].append("catering_platter")
 
 
 def _load_packaging_index():
@@ -264,6 +485,7 @@ def aggregate_ingredient_usage(
     overrides_map: dict[str, dict] | None = None,
     is_drink: bool = True,
     include_cup: bool = True,
+    modifier_tokens: list[str] | None = None,
 ):
     """
     Aggregate all ingredient usage for a given product, scaled to size.
@@ -275,6 +497,8 @@ def aggregate_ingredient_usage(
       ingredient totals before rebalancing.
     - Total drink volume is normalized to cup size (so the main liquid fills the rest)
       when the product represents a drink.
+    - modifier_tokens (typically normalized modifiers + price point) let us
+      detect catering platters and map baked goods to specific variants.
 
     Returns:
         usage_summary: {ingredient_name: {"qty": Decimal, "sources": [str]}}
@@ -455,6 +679,9 @@ def aggregate_ingredient_usage(
             )
             usage_summary[name]["qty"] += qty
             usage_summary[name]["sources"].append("modifier_add")
+
+    # --- Catering platters (baked goods) ------------------------------------
+    _apply_baked_platter_usage(usage_summary, modifier_tokens, ingredient_cache)
 
     # --- Rebalance main liquid (if any) -------------------------------------
     # Find main base liquid (typically something like 'Cold Brew', 'Espresso', 'Tea')

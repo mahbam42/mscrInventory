@@ -705,6 +705,7 @@ class SquareImporter:
                     size=size,
                     overrides_map=final_recipe_map,
                     is_drink=is_drink_context,
+                    modifier_tokens=all_modifiers,
                 )
 
                 is_retail_bag = False
