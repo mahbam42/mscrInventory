@@ -452,6 +452,7 @@ class SquareImporter:
                 or ""
             ).strip()
             event_type_normalized = event_type.lower()
+            is_voided_item = "(voided)" in item_name.lower()
 
             # --- Collect modifiers (Square-provided or price-point) ---
             modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
@@ -515,6 +516,10 @@ class SquareImporter:
             self.buffer.append(f"  🔧 Modifiers: {modifier_display}")
             if event_type:
                 self.buffer.append(f"  🛈 Event Type: {event_type}")
+
+            if is_voided_item:
+                self.buffer.append("  ⚠️ Skipping row because the item was voided.")
+                return
 
             if qty <= 0:
                 self.buffer.append(f"  ⚠️ Skipping row due to non-positive quantity ({qty}).")

@@ -50,6 +50,29 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
 
 
 @pytest.mark.django_db
+def test_square_importer_skips_voided_items(tmp_path, monkeypatch):
+    csv_path = tmp_path / "square_voided.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte (Voided),1,5.00,,,txn-void\n"
+    )
+
+    def should_not_run(*args, **kwargs):
+        raise AssertionError("_find_best_product_match should not be called for voided items")
+
+    monkeypatch.setattr(square_importer, "_find_best_product_match", should_not_run)
+
+    importer = SquareImporter(dry_run=True)
+    output = importer.run_from_file(csv_path)
+
+    assert "voided" in output.lower()
+    assert importer.stats["matched"] == 0
+    assert importer.stats["unmatched"] == 0
+    assert importer.stats["order_items_logged"] == 0
+    assert SquareUnmappedItem.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_square_importer_live_creates_orders(tmp_path, monkeypatch):
     product = Product.objects.create(name="Latte", sku="LATTE-1")
 
