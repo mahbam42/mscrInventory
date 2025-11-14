@@ -153,3 +153,62 @@ def test_aggregate_usage_uses_packaging_multiplier_and_capacity():
     assert usage["Espresso Shot"]["qty"] == Decimal("2")
     assert usage["Whole Milk"]["qty"] == Decimal("8")
     assert usage["Cold Brew Base"]["qty"] == Decimal("24")
+
+
+@pytest.mark.django_db
+def test_aggregate_usage_includes_packaging_expands_items():
+    fluid_oz = UnitType.objects.create(name="Fluid Ounce", abbreviation="fl oz")
+    each = UnitType.objects.create(name="Each", abbreviation="ea")
+    packaging_type = IngredientType.objects.create(name="Packaging")
+    size_label = SizeLabel.objects.create(label="catering box")
+
+    container = ContainerType.objects.create(
+        name="Catering Hot and Cold Box 96oz",
+        capacity=Decimal("96.0"),
+        unit_type=fluid_oz,
+    )
+    packaging = Packaging.objects.create(
+        name="Catering Hot and Cold Box",
+        type=packaging_type,
+        unit_type=each,
+        container=container,
+        temp="both",
+        multiplier=Decimal("8.0"),
+    )
+    packaging.size_labels.add(size_label)
+
+    milk_whole = Ingredient.objects.create(
+        name="10oz Whole Milk Container",
+        type=packaging_type,
+        unit_type=each,
+    )
+    milk_oat = Ingredient.objects.create(
+        name="10oz Oat Milk Container",
+        type=packaging_type,
+        unit_type=each,
+    )
+    milk_almond = Ingredient.objects.create(
+        name="10oz Almond Milk Container",
+        type=packaging_type,
+        unit_type=each,
+    )
+    packaging.expands_to.add(milk_whole, milk_oat, milk_almond)
+
+    usage = aggregate_ingredient_usage(
+        [],
+        temp_type="hot",
+        size="catering box",
+        is_drink=True,
+        include_cup=True,
+    )
+
+    assert usage["Catering Hot and Cold Box"]["qty"] == Decimal("1")
+    assert usage["Catering Hot and Cold Box"]["sources"] == ["packaging"]
+
+    for milk_name in (
+        "10oz Whole Milk Container",
+        "10oz Oat Milk Container",
+        "10oz Almond Milk Container",
+    ):
+        assert usage[milk_name]["qty"] == Decimal("1")
+        assert usage[milk_name]["sources"] == ["packaging_expands"]
