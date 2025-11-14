@@ -65,6 +65,12 @@ from mscrInventory.views.modifiers import (
     create_modifier_alias,
 )
 from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bulk_add_stock, update_ingredient, bulk_add_modal, inventory_low_stock_partial, inventory_all_ingredients_partial, ingredient_details, export_inventory_csv, import_inventory_csv, import_inventory_modal, confirm_inventory_import, download_inventory_csv_template
+from mscrInventory.views.ingredients import (
+    ingredient_create_modal,
+    ingredient_edit_modal,
+    ingredients_dashboard_view,
+    ingredients_table_partial,
+)
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
@@ -133,6 +139,12 @@ urlpatterns = [
     path("recipes/import/", import_recipes_csv, name="import_recipes_csv"),
     path("recipes/import/confirm/", confirm_recipes_import, name="confirm_recipes_import"),
     path("recipes/import/template/", download_recipes_template, name="download_recipes_template"),
+
+    # ingredients
+    path("ingredients/", ingredients_dashboard_view, name="ingredients_dashboard"),
+    path("ingredients/table/", ingredients_table_partial, name="ingredients_table_partial"),
+    path("ingredients/create/", ingredient_create_modal, name="ingredient_create_modal"),
+    path("ingredients/<int:pk>/edit/", ingredient_edit_modal, name="ingredient_edit_modal"),
 
     #inventory
     path("inventory/", inventory_dashboard_view, name="inventory_dashboard"),
