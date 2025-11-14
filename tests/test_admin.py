@@ -77,4 +77,4 @@ class TestIngredientAdminPackagingInline:
         assert queryset.filter(pk=cup.pk).exists()
         assert queryset.filter(pk=lid.pk).exists()
         assert not queryset.filter(pk=other.pk).exists()
->>>>>>>>> Temporary merge branch 2
+
