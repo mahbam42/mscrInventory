@@ -50,6 +50,29 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
 
 
 @pytest.mark.django_db
+def test_square_importer_skips_voided_items(tmp_path, monkeypatch):
+    csv_path = tmp_path / "square_voided.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte (Voided),1,5.00,,,txn-void\n"
+    )
+
+    def should_not_run(*args, **kwargs):
+        raise AssertionError("_find_best_product_match should not be called for voided items")
+
+    monkeypatch.setattr(square_importer, "_find_best_product_match", should_not_run)
+
+    importer = SquareImporter(dry_run=True)
+    output = importer.run_from_file(csv_path)
+
+    assert "voided" in output.lower()
+    assert importer.stats["matched"] == 0
+    assert importer.stats["unmatched"] == 0
+    assert importer.stats["order_items_logged"] == 0
+    assert SquareUnmappedItem.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_square_importer_live_creates_orders(tmp_path, monkeypatch):
     product = Product.objects.create(name="Latte", sku="LATTE-1")
 
@@ -327,3 +350,35 @@ def test_square_importer_live_creates_orders_per_transaction(tmp_path, monkeypat
     for order in orders:
         assert order.items.count() == 1
         assert order.total_amount == Decimal("5.00")
+
+
+@pytest.mark.django_db
+def test_price_point_size_tokens_feed_handle_extras(tmp_path, monkeypatch):
+    product = Product.objects.create(name="Catering To Go Box", sku="CAT-BOX")
+    csv_path = tmp_path / "catering.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "\"Catering Hot and Cold Box 96oz -\",1,31.00,,\"Cold Brew Coffee- Medium\",txn-cold-hot\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (product, "exact"),
+    )
+    monkeypatch.setattr(square_importer, "resolve_modifier_tree", lambda *a, **k: [])
+    monkeypatch.setattr(square_importer, "aggregate_ingredient_usage", lambda *a, **k: {})
+
+    captured_tokens = []
+
+    def fake_handle_extras(modifier_name, recipe_map, normalized_modifiers, **kwargs):
+        captured_tokens.append(modifier_name)
+        return recipe_map, {"added": [], "replaced": [], "behavior": None}
+
+    monkeypatch.setattr(square_importer, "handle_extras", fake_handle_extras)
+
+    importer = SquareImporter(dry_run=True)
+    importer.run_from_file(csv_path)
+
+    assert "medium" in captured_tokens
+    assert "hot" not in captured_tokens

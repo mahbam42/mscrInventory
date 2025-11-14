@@ -101,6 +101,10 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+    
+    class Meta:
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
 
 class IngredientType(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -210,32 +214,6 @@ class ContainerType(models.Model):
     def __str__(self):
         return f"{self.name} ({self.capacity} {self.unit_type})"
 
-""" class PackagingSizeScale(models.Model):
-    packaging = models.ForeignKey(
-        "Packaging", on_delete=models.CASCADE, related_name="size_scales"
-    )
-    temperature = models.CharField(
-        max_length=10,
-        choices=[
-            ("hot", "Hot"),
-            ("cold", "Cold"),
-            ("both", "Both"),
-            ("n/a", "N/A")
-        ],
-        default="hot"
-    )
-    size_label = models.CharField(max_length=20)  # e.g., "small", "large", "xl"
-    multiplier = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.0")) 
-
-    class Meta:
-        unique_together = ("temperature", "size_label")
-        verbose_name = "Packaging Size Scale"
-        verbose_name_plural = "Packaging Size Scales"
-
-    def __str__(self):
-        return f"{self.temperature} - {self.size_label} ({self.multiplier}x)"
-    """
-
 class SizeLabel(models.Model):
     # Labels of currently offered drink sizes
     sizes = [                           # Capacity is Picked up from ContainerType() Class
@@ -271,6 +249,13 @@ class Packaging(Ingredient):
     temp = models.CharField(choices=Temps, blank=False, default="Hot")
     size_labels = models.ManyToManyField(SizeLabel, blank=True, related_name="packagings")
     multiplier = models.FloatField(default=1.0)
+    expands_to = models.ManyToManyField(
+        "mscrInventory.Ingredient",
+        symmetrical=False,
+        blank=True,
+        related_name="packaging_expanded_by",
+        limit_choices_to={"type__name__iexact": "packaging"},
+    )
 
     class Meta:
         verbose_name = "Packaging"
@@ -281,13 +266,34 @@ class Packaging(Ingredient):
             l.get_label_display() or l.label for l in self.size_labels.all()
         )
         return f"{self.container} ({labels or 'no size'})"
+    
+    def save(self, *args, **kwargs):
+        parent_pk = self.pk or getattr(self, "ingredient_ptr_id", None)
+        parent = None
+        if parent_pk:
+            # Keep the implicit OneToOne pointer in sync with the Ingredient row.
+            self.pk = parent_pk
+            self.ingredient_ptr_id = parent_pk
+            parent = Ingredient.objects.filter(pk=parent_pk).first()
 
-    """ def get_scale(self):
-        Fetch size multipliers for this packaging temperature.
-        from mscrInventory.models import PackagingSizeScale
-        return PackagingSizeScale.objects.filter(
-            models.Q(temperature=self.temp) | models.Q(temperature="both")
-        ).order_by("multiplier") """
+        packaging_exists = parent_pk and Packaging.objects.filter(pk=parent_pk).exists()
+
+        if parent is not None:
+            # Copy all Ingredient fields so we never clobber parent values when
+            # saving the subclass inline.
+            for field in Ingredient._meta.local_concrete_fields:
+                if field.primary_key:
+                    continue
+                setattr(self, field.attname, getattr(parent, field.attname))
+
+        # When adding inline data to an existing Ingredient (no Packaging row yet),
+        # force Django to treat the parent row as already saved so it updates
+        # instead of inserting a duplicate Ingredient.
+        if parent is not None and not packaging_exists:
+            self._state.adding = False
+
+        super().save(*args, **kwargs)
+
 
 class StockEntry(models.Model):
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="stock_entries")
@@ -316,6 +322,10 @@ class StockEntry(models.Model):
             if is_create and self.quantity_added and self.cost_per_unit is not None:
                 # Update Ingredient aggregate fields
                 self.ingredient.increment_stock(self.quantity_added, self.cost_per_unit)
+    
+    class Meta:
+        verbose_name = "Stock Entry"
+        verbose_name_plural = "Stock Entries"
     
 class RecipeItem(models.Model):
     """

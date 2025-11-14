@@ -569,6 +569,7 @@ class ShopifyImporter(BaseImporter):
             size=size,
             is_drink=is_drink_context,
             include_cup=include_cup,
+            modifier_tokens=descriptors,
         )
 
         for ingredient_name, data in usage_summary.items():

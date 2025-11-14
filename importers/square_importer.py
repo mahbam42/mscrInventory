@@ -31,7 +31,12 @@ from mscrInventory.models import (
     SquareUnmappedItem,
     get_or_create_roast_profile,
 )
-from importers._match_product import _find_best_product_match, _normalize_name, _extract_descriptors
+from importers._match_product import (
+    _find_best_product_match,
+    _normalize_name,
+    _extract_descriptors,
+    SIZE_DESCRIPTOR_WORDS,
+)
 from importers._handle_extras import handle_extras, normalize_modifier
 from importers._aggregate_usage import (
     resolve_modifier_tree,
@@ -118,6 +123,7 @@ def _product_is_drink(product: Product | None) -> bool:
         "drink",
         "beverage",
         "base",
+        "catering",
     }
     for name in category_names:
         for token in drink_tokens:
@@ -446,6 +452,7 @@ class SquareImporter:
                 or ""
             ).strip()
             event_type_normalized = event_type.lower()
+            is_voided_item = "(voided)" in item_name.lower()
 
             # --- Collect modifiers (Square-provided or price-point) ---
             modifiers = [m.strip() for m in modifiers_raw.split(",") if m.strip()]
@@ -460,17 +467,44 @@ class SquareImporter:
             # --- Extract descriptors (size/temp adjectives) ---
             normalized_item = _normalize_name(item_name)
             normalized_price = _normalize_name(price_point)
-            core_name, descriptors = _extract_descriptors(normalized_item)
+            core_name, item_descriptors = _extract_descriptors(normalized_item)
+            _, price_descriptors = _extract_descriptors(normalized_price)
+
+            descriptors = list(item_descriptors)
+            for token in price_descriptors:
+                if token and token not in descriptors:
+                    descriptors.append(token)
+
             descriptor_tokens = list(descriptors)
             for token in normalized_modifiers:
                 if token and token not in descriptor_tokens:
                     descriptor_tokens.append(token)
 
-            # Combine modifiers + descriptors (preserve order while de-duping)
+            modifier_descriptor_tokens: list[str] = []
+            for token in normalized_modifiers:
+                _, token_descriptors = _extract_descriptors(token)
+                for desc in token_descriptors:
+                    if desc and desc not in modifier_descriptor_tokens:
+                        modifier_descriptor_tokens.append(desc)
+
+            if not any(t in SIZE_DESCRIPTOR_WORDS for t in modifier_descriptor_tokens):
+                for token in item_descriptors:
+                    if (
+                        token in SIZE_DESCRIPTOR_WORDS
+                        and token not in modifier_descriptor_tokens
+                    ):
+                        modifier_descriptor_tokens.append(token)
+
+            for token in price_descriptors:
+                if token and token not in modifier_descriptor_tokens:
+                    modifier_descriptor_tokens.append(token)
+
+            # Combine modifiers + derived size/temp tokens (preserve order)
             seen = set()
             all_modifiers = []
-            for token in normalized_modifiers + descriptors:
-                if token not in seen:
+            combined_tokens = normalized_modifiers + modifier_descriptor_tokens
+            for token in combined_tokens:
+                if token and token not in seen:
                     seen.add(token)
                     all_modifiers.append(token)
 
@@ -482,6 +516,10 @@ class SquareImporter:
             self.buffer.append(f"  🔧 Modifiers: {modifier_display}")
             if event_type:
                 self.buffer.append(f"  🛈 Event Type: {event_type}")
+
+            if is_voided_item:
+                self.buffer.append("  ⚠️ Skipping row because the item was voided.")
+                return
 
             if qty <= 0:
                 self.buffer.append(f"  ⚠️ Skipping row due to non-positive quantity ({qty}).")
@@ -672,6 +710,7 @@ class SquareImporter:
                     size=size,
                     overrides_map=final_recipe_map,
                     is_drink=is_drink_context,
+                    modifier_tokens=all_modifiers,
                 )
 
                 is_retail_bag = False

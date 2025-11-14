@@ -11,6 +11,7 @@ from mscrInventory.models import (
     RecipeModifier,
     RecipeModifierAlias,
     ModifierBehavior,
+    UnitType,
 )
 from importers._handle_extras import handle_extras, _lookup_modifier_or_recipe
 
@@ -227,6 +228,37 @@ def test_baristas_choice_modifier_expands_recipe(ingredient_types):
     assert result["Vanilla Bean"]["type_id"] == flavor_type.id
     assert log["behavior"] == "expand_baristas_choice"
     assert log["source_recipe"] == "Maple Cookie Latte"
+
+
+@pytest.mark.django_db
+def test_catering_package_modifier_adds_bottles_and_milks(ingredient_types):
+    milk_type = ingredient_types["MILK"]
+    packaging_type, _ = IngredientType.objects.get_or_create(name="Packaging Component")
+    fl_oz, _ = UnitType.objects.get_or_create(
+        name="Fluid Ounce",
+        defaults={"abbreviation": "fl_oz", "conversion_to_base": Decimal("1.0000")},
+    )
+    unit_type, _ = UnitType.objects.get_or_create(
+        name="Unit",
+        defaults={"abbreviation": "unit", "conversion_to_base": Decimal("1.0000")},
+    )
+
+    Ingredient.objects.create(name="To Go Bottle", type=packaging_type, unit_type=unit_type)
+    for milk_name in ["Whole Milk", "Oat Milk", "Almond Milk"]:
+        Ingredient.objects.create(name=milk_name, type=milk_type, unit_type=fl_oz)
+
+    token = "accommodating packages beverage for 10 people dairy or non dairy 3 x 10oz bottles per 96 oz box 10 pack of cups included 20 assorted packs of sweetener included stirrers and napkins included"
+    recipe_map = {
+        "Whole Milk": _recipe_entry("5.0", milk_type),
+    }
+
+    result, log = handle_extras(token, recipe_map, [token])
+
+    assert log["behavior"] == "catering_box_bundle"
+    assert result["To Go Bottle"]["qty"] == Decimal("3")
+    assert result["Whole Milk"]["qty"] == Decimal("15")
+    assert result["Oat Milk"]["qty"] == Decimal("10")
+    assert result["Almond Milk"]["qty"] == Decimal("10")
 
 
 @pytest.mark.django_db
