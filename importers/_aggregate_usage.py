@@ -301,18 +301,21 @@ def aggregate_ingredient_usage(
     overrides_map = overrides_map or {}
     ingredient_cache: dict[str, Ingredient | None] = {}
 
+    def _get_ingredient(name: str) -> Ingredient | None:
+        if name in ingredient_cache:
+            return ingredient_cache[name]
+        ing = (
+            Ingredient.objects.filter(name__iexact=name)
+            .select_related("type", "unit_type")
+            .first()
+        )
+        ingredient_cache[name] = ing
+        return ing
+
     def _get_unit_type(name: str, fallback: str = "fluid_oz") -> str:
         if name in usage_summary and "unit_type" in usage_summary[name]:
             return usage_summary[name]["unit_type"]
-        if name in ingredient_cache:
-            ing = ingredient_cache[name]
-        else:
-            ing = (
-                Ingredient.objects.filter(name__iexact=name)
-                .select_related("type", "unit_type")
-                .first()
-            )
-            ingredient_cache[name] = ing
+        ing = _get_ingredient(name)
         if ing:
             return _infer_unit_type_from_instance(ing, fallback)
         return fallback
@@ -458,7 +461,10 @@ def aggregate_ingredient_usage(
     main_liquid_key = None
     for k in usage_summary.keys():
         lower = k.lower()
-        if any(token in lower for token in ("brew", "coffee", "tea", "milk", "cream")):
+        ing = _get_ingredient(k)
+        type_name = _normalize_label(getattr(getattr(ing, "type", None), "name", ""))
+        matches_refresher_type = type_name == "refresher base"
+        if any(token in lower for token in ("brew", "tea", "milk", "cream")) or matches_refresher_type: # Removed 'coffee' to exclude 'green coffee extract' 
             main_liquid_key = k
             break
     if not main_liquid_key:
