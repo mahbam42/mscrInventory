@@ -7,10 +7,14 @@ from django.utils.text import slugify
 from mscrInventory.management.commands.import_products_csv import generate_auto_sku
 from mscrInventory.models import (
     Category,
+    ContainerType,
     Ingredient,
     IngredientType,
+    Packaging,
     Product,
     RecipeModifier,
+    RoastProfile,
+    SizeLabel,
     SquareUnmappedItem,
 )
 
@@ -85,6 +89,135 @@ class ProductForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+
+class IngredientForm(forms.ModelForm):
+    ROAST_TYPE_NAMES = {"coffee", "roast", "roasts"}
+    PACKAGING_TYPE_NAMES = {"packaging"}
+
+    class Meta:
+        model = Ingredient
+        fields = [
+            "name",
+            "type",
+            "unit_type",
+            "current_stock",
+            "case_size",
+            "reorder_point",
+            "lead_time",
+            "average_cost_per_unit",
+            "notes",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name, field in self.fields.items():
+            widget = field.widget
+            existing = widget.attrs.get("class", "")
+            widget.attrs["class"] = f"{existing} form-control".strip()
+            widget.attrs.setdefault("autocomplete", "off")
+            if isinstance(widget, forms.Textarea):
+                widget.attrs.setdefault("rows", 3)
+
+    @staticmethod
+    def _requires_type(type_obj, valid_names: set[str]) -> bool:
+        if not type_obj:
+            return False
+        normalized = (type_obj.name or "").strip().lower()
+        return normalized in valid_names
+
+    @classmethod
+    def requires_roast_fields(cls, type_obj) -> bool:
+        return cls._requires_type(type_obj, cls.ROAST_TYPE_NAMES)
+
+    @classmethod
+    def requires_packaging_fields(cls, type_obj) -> bool:
+        return cls._requires_type(type_obj, cls.PACKAGING_TYPE_NAMES)
+
+
+class RoastProfileForm(forms.Form):
+    bag_size = forms.ChoiceField(choices=RoastProfile.BAG_SIZES, label="Bag Size")
+    grind = forms.ChoiceField(choices=RoastProfile.GRINDS, label="Grind")
+
+    def __init__(self, *args, ingredient: Ingredient | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        profile = None
+        if ingredient:
+            try:
+                profile = ingredient.roastprofile
+            except RoastProfile.DoesNotExist:
+                profile = None
+
+        if not self.is_bound:
+            self.initial.setdefault(
+                "bag_size",
+                profile.bag_size if profile else RoastProfile._meta.get_field("bag_size").get_default(),
+            )
+            self.initial.setdefault(
+                "grind",
+                profile.grind if profile else RoastProfile._meta.get_field("grind").get_default(),
+            )
+
+        for field in self.fields.values():
+            existing = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing} form-select".strip()
+
+
+class PackagingForm(forms.Form):
+    container = forms.ModelChoiceField(
+        queryset=ContainerType.objects.order_by("name"),
+        required=False,
+        label="Container",
+    )
+    temp = forms.ChoiceField(choices=Packaging.Temps, label="Temperature", required=False)
+    size_labels = forms.ModelMultipleChoiceField(
+        queryset=SizeLabel.objects.order_by("label"),
+        required=False,
+        label="Size Labels",
+    )
+    multiplier = forms.FloatField(required=False, label="Multiplier")
+    expands_to = forms.ModelMultipleChoiceField(
+        queryset=Ingredient.objects.filter(type__name__iexact="packaging").order_by("name"),
+        required=False,
+        label="Expands To",
+    )
+
+    def __init__(self, *args, ingredient: Ingredient | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        packaging = None
+        if ingredient:
+            try:
+                packaging = ingredient.packaging
+            except Packaging.DoesNotExist:
+                packaging = None
+            expands_field = self.fields.get("expands_to")
+            if expands_field is not None:
+                expands_field.queryset = expands_field.queryset.exclude(pk=ingredient.pk)
+
+        if not self.is_bound and packaging:
+            self.initial.setdefault("container", packaging.container_id)
+            self.initial.setdefault("temp", packaging.temp)
+            self.initial.setdefault("multiplier", packaging.multiplier)
+            self.initial.setdefault(
+                "size_labels",
+                list(packaging.size_labels.values_list("pk", flat=True)),
+            )
+            self.initial.setdefault(
+                "expands_to",
+                list(packaging.expands_to.values_list("pk", flat=True)),
+            )
+
+        for field_name, field in self.fields.items():
+            widget = field.widget
+            existing = widget.attrs.get("class", "")
+            if isinstance(field, forms.ModelMultipleChoiceField):
+                widget.attrs["class"] = f"{existing} form-select".strip()
+                widget.attrs.setdefault("multiple", True)
+                widget.attrs.setdefault("size", 4)
+            elif isinstance(field, forms.ModelChoiceField) or isinstance(field, forms.ChoiceField):
+                widget.attrs["class"] = f"{existing} form-select".strip()
+            else:
+                widget.attrs["class"] = f"{existing} form-control".strip()
 
 
 class LinkUnmappedItemForm(forms.Form):

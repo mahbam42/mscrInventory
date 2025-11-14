@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+    <div>
+      <h2 class="mb-0">🥕 Ingredients Dashboard</h2>
+      <p class="text-muted mb-0">Search, filter, and edit ingredients without the stock widgets.</p>
+    </div>
+    <button class="btn btn-primary"
+            hx-get="{% url 'ingredient_create_modal' %}"
+            hx-target="#globalModal .modal-content"
+            hx-swap="innerHTML"
+            data-bs-toggle="modal"
+            data-bs-target="#globalModal">
+      ➕ Create Ingredient
+    </button>
+  </div>
+
+  <hr />
+  {% include "partials/_tools.html" with show_inventory_tools=False %}
+  <hr />
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex flex-wrap gap-2 align-items-center" id="ingredients-filter-bar">
+        <div class="d-flex align-items-center gap-2">
+          <input type="text" id="ingredient-search" class="form-control form-control-sm" placeholder="Search by name or category" value="{{ search_query }}" style="width: 240px;">
+          <button type="button" id="ingredient-search-clear" class="btn btn-outline-secondary btn-sm" title="Clear search">✕</button>
+        </div>
+        <div class="ms-auto d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-sm {% if not active_type %}btn-primary{% else %}btn-outline-secondary{% endif %} ingredient-type-btn" data-ingredient-type="">
+            Show All
+          </button>
+          {% for type in ingredient_types %}
+          <button type="button" class="btn btn-sm {% if active_type|stringformat:'s' == type.id|stringformat:'s' %}btn-primary{% else %}btn-outline-secondary{% endif %} ingredient-type-btn" data-ingredient-type="{{ type.id }}">
+            {{ type.name }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" id="ingredient-type-filter" value="{{ active_type }}">
+
+  <div id="ingredients-table-wrap"
+       hx-get="{% url 'ingredients_table_partial' %}{% if search_query or active_type %}?{% if search_query %}q={{ search_query|urlencode }}{% endif %}{% if search_query and active_type %}&{% endif %}{% if active_type %}type={{ active_type }}{% endif %}{% endif %}"
+       hx-trigger="load, ingredient:refresh from:body"
+       hx-target="this"
+       hx-swap="innerHTML">
+    <div class="text-center text-muted py-5">Loading ingredients…</div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const searchInput = document.getElementById('ingredient-search');
+    const clearBtn = document.getElementById('ingredient-search-clear');
+    const typeInput = document.getElementById('ingredient-type-filter');
+    const filterButtons = document.querySelectorAll('.ingredient-type-btn');
+    const tableTarget = '#ingredients-table-wrap';
+    const endpoint = '{% url "ingredients_table_partial" %}';
+
+    function buildQuery() {
+      const params = new URLSearchParams();
+      const query = (searchInput.value || '').trim();
+      const type = (typeInput.value || '').trim();
+      if (query) params.set('q', query);
+      if (type) params.set('type', type);
+      return params.toString();
+    }
+
+    let debounceId;
+    function triggerFetch() {
+      const query = buildQuery();
+      const url = query ? `${endpoint}?${query}` : endpoint;
+      htmx.ajax('GET', url, { target: tableTarget, swap: 'innerHTML' });
+    }
+
+    function setActiveButton(targetValue) {
+      filterButtons.forEach(btn => {
+        if ((btn.dataset.ingredientType || '') === targetValue) {
+          btn.classList.remove('btn-outline-secondary');
+          btn.classList.add('btn-primary');
+        } else {
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-outline-secondary');
+        }
+      });
+    }
+
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const typeValue = btn.dataset.ingredientType || '';
+        typeInput.value = typeValue;
+        setActiveButton(typeValue);
+        triggerFetch();
+      });
+    });
+
+    setActiveButton((typeInput.value || '').trim());
+
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        clearTimeout(debounceId);
+        debounceId = setTimeout(triggerFetch, 250);
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        triggerFetch();
+        searchInput.focus();
+      });
+    }
+  })();
+</script>
+{% endblock %}
