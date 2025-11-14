@@ -50,6 +50,7 @@ class TestIngredientAdminPackagingInline:
             for inline in inline_instances
         )
 
+<<<<<<< HEAD
     def test_packaging_inline_expands_to_queryset_filters_packaging(self):
         packaging_type, _ = IngredientType.objects.get_or_create(name="Packaging")
         other_type = IngredientType.objects.create(name="Coffee")
@@ -77,3 +78,18 @@ class TestIngredientAdminPackagingInline:
         assert queryset.filter(pk=cup.pk).exists()
         assert queryset.filter(pk=lid.pk).exists()
         assert not queryset.filter(pk=other.pk).exists()
+=======
+    def test_packaging_inline_ensures_subclass_exists_for_existing_ingredient(self):
+        packaging_type = IngredientType.objects.create(name="Packaging")
+        base_only = Ingredient.objects.create(name="Base Packaging", type=packaging_type)
+
+        assert not Packaging.objects.filter(pk=base_only.pk).exists()
+
+        inline_instances = self.ingredient_admin.get_inline_instances(self.request, base_only)
+
+        assert any(
+            isinstance(inline, admin_module.PackagingInline)
+            for inline in inline_instances
+        )
+        assert Packaging.objects.filter(pk=base_only.pk).exists()
+>>>>>>> bd80df67085cd161f47229f90c534906ccfd2f4c
