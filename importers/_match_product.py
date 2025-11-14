@@ -27,6 +27,9 @@ from django.db.models.functions import Length
 
 from mscrInventory.models import Product
 
+SIZE_DESCRIPTOR_WORDS = ["small", "medium", "large", "xl", "extra", "regular"]
+TEMP_DESCRIPTOR_WORDS = ["iced", "hot"]
+
 
 def _normalize_name(name: str) -> str:
     """Basic cleanup: lowercase, remove punctuation, and normalize spaces."""
@@ -45,11 +48,11 @@ def _extract_descriptors(name: str):
     Example:
         'Iced Small Latte' → ('latte', ['iced', 'small'])
     """
-    size_words = ["small", "medium", "large", "xl", "extra", "regular"]
-    temp_words = ["iced", "hot"]
     tokens = name.split()
 
-    descriptors = [t for t in tokens if t in size_words + temp_words]
+    descriptors = [
+        t for t in tokens if t in SIZE_DESCRIPTOR_WORDS + TEMP_DESCRIPTOR_WORDS
+    ]
     core_tokens = [t for t in tokens if t not in descriptors]
     core_name = " ".join(core_tokens).strip()
 

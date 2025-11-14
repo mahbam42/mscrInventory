@@ -327,3 +327,35 @@ def test_square_importer_live_creates_orders_per_transaction(tmp_path, monkeypat
     for order in orders:
         assert order.items.count() == 1
         assert order.total_amount == Decimal("5.00")
+
+
+@pytest.mark.django_db
+def test_price_point_size_tokens_feed_handle_extras(tmp_path, monkeypatch):
+    product = Product.objects.create(name="Catering To Go Box", sku="CAT-BOX")
+    csv_path = tmp_path / "catering.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "\"Catering Hot and Cold Box 96oz -\",1,31.00,,\"Cold Brew Coffee- Medium\",txn-cold-hot\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (product, "exact"),
+    )
+    monkeypatch.setattr(square_importer, "resolve_modifier_tree", lambda *a, **k: [])
+    monkeypatch.setattr(square_importer, "aggregate_ingredient_usage", lambda *a, **k: {})
+
+    captured_tokens = []
+
+    def fake_handle_extras(modifier_name, recipe_map, normalized_modifiers, **kwargs):
+        captured_tokens.append(modifier_name)
+        return recipe_map, {"added": [], "replaced": [], "behavior": None}
+
+    monkeypatch.setattr(square_importer, "handle_extras", fake_handle_extras)
+
+    importer = SquareImporter(dry_run=True)
+    importer.run_from_file(csv_path)
+
+    assert "medium" in captured_tokens
+    assert "hot" not in captured_tokens

@@ -39,6 +39,20 @@ def normalize_modifier(raw: str) -> str:
     return token.strip()
 
 
+CATERING_PACKAGE_TOKEN = normalize_modifier(
+    "Accommodating Packages: Beverage for 10 people. Dairy or Non Dairy 3 x 10oz bottles per 96 oz Box. "
+    "10 pack of Cups included. 20 assorted packs of sweetener included. Stirrers and Napkins included."
+)
+CATERING_PACKAGE_ITEMS = [
+    ("To Go Bottle", Decimal("3")),
+]
+CATERING_PACKAGE_MILKS = [
+    ("Whole Milk", Decimal("10")),
+    ("Oat Milk", Decimal("10")),
+    ("Almond Milk", Decimal("10")),
+]
+
+
 def _select_targets(recipe_map: Dict[str, Dict],
                     current_context: Optional[List[str]] = None,
                     by_type: Optional[Iterable[object]] = None,
@@ -133,6 +147,52 @@ def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
     return None
 
 
+def _inject_recipe_ingredient(recipe_map: Dict[str, Dict], ingredient_name: str, quantity: Decimal) -> Optional[str]:
+    """
+    Ensure the given ingredient exists in recipe_map, incrementing quantity when already present.
+    Returns the canonical ingredient name when successful.
+    """
+    ingredient = (
+        Ingredient.objects.select_related("type")
+        .filter(name__iexact=ingredient_name)
+        .first()
+    )
+    if not ingredient:
+        return None
+
+    qty = Decimal(str(quantity))
+    entry = recipe_map.get(ingredient.name)
+    if entry:
+        current = Decimal(str(entry.get("qty", "0") or "0"))
+        entry["qty"] = current + qty
+        return ingredient.name
+
+    ing_type = getattr(ingredient, "type", None)
+    recipe_map[ingredient.name] = {
+        "qty": qty,
+        "type_id": getattr(ing_type, "id", None),
+        "type_name": getattr(ing_type, "name", "") or "",
+        "type": getattr(ing_type, "name", "") or "",
+    }
+    return ingredient.name
+
+
+def _apply_catering_package_bundle(recipe_map: Dict[str, Dict]):
+    """
+    Custom expansion for long-form catering modifier describing bottle + milk service.
+    """
+    additions: List[str] = []
+    for name, qty in CATERING_PACKAGE_ITEMS + CATERING_PACKAGE_MILKS:
+        added = _inject_recipe_ingredient(recipe_map, name, qty)
+        if added:
+            additions.append(added)
+    return recipe_map, {
+        "added": additions,
+        "replaced": [],
+        "behavior": "catering_box_bundle",
+    }
+
+
 # -----------------------------------------------------------------------
 # Helper: Expand a Barista’s Choice Product recipe into the current context
 # -----------------------------------------------------------------------
@@ -189,6 +249,9 @@ def handle_extras(modifier_name: str,
     Returns (result, changelog)
     """
     result = recipe_map.copy()
+    normalized_label = normalize_modifier(modifier_name)
+    if normalized_label == CATERING_PACKAGE_TOKEN:
+        return _apply_catering_package_bundle(result)
     name_norm = _normalize_token(modifier_name)
 
     target = _lookup_modifier_or_recipe(modifier_name)
