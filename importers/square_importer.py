@@ -118,6 +118,7 @@ def _product_is_drink(product: Product | None) -> bool:
         "drink",
         "beverage",
         "base",
+        "catering",
     }
     for name in category_names:
         for token in drink_tokens:

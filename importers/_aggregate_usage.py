@@ -459,12 +459,14 @@ def aggregate_ingredient_usage(
     # --- Rebalance main liquid (if any) -------------------------------------
     # Find main base liquid (typically something like 'Cold Brew', 'Espresso', 'Tea')
     main_liquid_key = None
-    for k in usage_summary.keys():
+    for k, meta in usage_summary.items():
+        if meta.get("unit_type") == "unit":
+            continue
         lower = k.lower()
         ing = _get_ingredient(k)
         type_name = _normalize_label(getattr(getattr(ing, "type", None), "name", ""))
         matches_refresher_type = type_name == "refresher base"
-        if any(token in lower for token in ("brew", "tea", "milk", "cream")) or matches_refresher_type: # Removed 'coffee' to exclude 'green coffee extract' 
+        if any(token in lower for token in ("brew", "tea", "milk", "cream")) or matches_refresher_type: # Removed 'coffee' to exclude 'green coffee extract'
             main_liquid_key = k
             break
     if not main_liquid_key:
