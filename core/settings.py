@@ -81,7 +81,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 "core.context_processors.navigation_links",
-                "mscrInventory.context_processors.admin_link",
+                "core.context_processors.admin_link",
                 #"core.context_processors.navigation_context",
             ],
         },

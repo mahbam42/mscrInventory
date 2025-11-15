@@ -29,6 +29,12 @@ def navigation_links(request):
 
     return {"nav_links": links}
 
+
+def admin_link(request):
+    """Expose the Django admin link globally."""
+
+    return {"admin_url": "/admin/"}
+
 # from .navigation import NAV_ITEMS
 
 # def navigation_context(request):
