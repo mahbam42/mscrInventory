@@ -1,5 +1,5 @@
 # mscrInventory/views/inventory.py
-from django.db.models import F, Sum
+from django.db.models import F, Sum, OuterRef, Subquery
 from django.db import transaction
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
@@ -296,23 +296,25 @@ def export_inventory_csv(request):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = f'attachment; filename=inventory_snapshot_{timezone.now():%Y%m%d_%H%M}.csv'
     writer = csv.writer(response)
-    writer.writerow([
-        "id",
-        "name",
-        "type",
-        "current_stock",
-        "case_size",
-        "reorder_point",
-        "average_cost_per_unit",
-        "lead_time",
-    ])
+    writer.writerow(REQUIRED_HEADERS)
 
-    qs = Ingredient.objects.select_related("type").order_by("name")
+    last_quantity_subquery = (
+        StockEntry.objects.filter(ingredient=OuterRef("pk"))
+        .order_by("-date_received")
+        .values("quantity_added")[:1]
+    )
+
+    qs = (
+        Ingredient.objects.select_related("type")
+        .annotate(last_quantity_added=Subquery(last_quantity_subquery))
+        .order_by("name")
+    )
     for i in qs:
         writer.writerow([
             i.id,
             i.name,
             getattr(i.type, "name", ""),
+            i.last_quantity_added if i.last_quantity_added is not None else 0,
             i.current_stock,
             i.case_size,
             i.reorder_point,
@@ -335,7 +337,15 @@ from mscrInventory.models import Ingredient
 def import_inventory_csv(request):
     csv_file = request.FILES.get("file")
     if not csv_file:
-        return render(request, "inventory/_import_inventory.html", {"error": "⚠️ No file selected."})
+        return render(
+            request,
+            "inventory/_import_inventory.html",
+            {
+                "error": "⚠️ No file selected.",
+                "stage": "upload",
+                "required_headers": REQUIRED_HEADERS,
+            },
+        )
 
     import io, csv
     decoded = csv_file.read().decode("utf-8")
@@ -399,11 +409,19 @@ def import_inventory_csv(request):
         "invalid_rows": invalid_rows,
         "valid_count": len(valid_rows),
         "invalid_count": len(invalid_rows),
+        "required_headers": REQUIRED_HEADERS,
     })
 
 def import_inventory_modal(request):
     """Render the initial upload form for the inventory importer modal."""
-    return render(request, "inventory/_import_inventory.html", {"stage": "upload"})
+    return render(
+        request,
+        "inventory/_import_inventory.html",
+        {
+            "stage": "upload",
+            "required_headers": REQUIRED_HEADERS,
+        },
+    )
 
 def download_inventory_csv_template(request):
     """Generate and download a blank CSV template with required headers."""

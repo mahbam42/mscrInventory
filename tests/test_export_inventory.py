@@ -13,7 +13,7 @@ def test_export_inventory_csv_empty(client):
     data = resp.content.decode("utf-8")
     rows = list(csv.reader(StringIO(data)))
     assert rows[0] == [
-        "id","name","type","current_stock","case_size",
+        "id","name","type","quantity_added","current_stock","case_size",
         "reorder_point","average_cost_per_unit","lead_time"
     ]
     # no data rows
@@ -39,7 +39,7 @@ def test_export_inventory_csv_with_rows(client):
     # header + 2 rows
     assert len(rows) == 3
     assert rows[0] == [
-        "id","name","type","current_stock","case_size",
+        "id","name","type","quantity_added","current_stock","case_size",
         "reorder_point","average_cost_per_unit","lead_time"
     ]
     # ensure deterministic order by name: Vanilla Syrup last

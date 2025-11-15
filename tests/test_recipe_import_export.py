@@ -35,8 +35,8 @@ class TestInventoryImportExport:
 
     def test_import_inventory_csv_updates_existing_ingredient(self, client):
         csv_content = (
-            "id,name,current_stock,case_size,reorder_point,average_cost_per_unit,lead_time\n"
-            f"{self.ingredient.id},Espresso Beans,200,20,10,1.50,5\n"
+            "id,name,type,quantity_added,current_stock,case_size,reorder_point,average_cost_per_unit,lead_time\n"
+            f"{self.ingredient.id},Espresso Beans,,5,200,20,10,1.50,5\n"
         )
         upload = SimpleUploadedFile("test.csv", csv_content.encode("utf-8"), content_type="text/csv")
         url = reverse("import_inventory_csv")
