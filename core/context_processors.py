@@ -6,6 +6,10 @@ def navigation_links(request):
     Returns a list of visible navigation items.
     Skips any that can't be reversed, so missing routes don't break templates.
     """
+    user = getattr(request, "user", None)
+    if not (user and user.is_authenticated):
+        return {"nav_links": []}
+
     nav_items = [
         {"name": "Dashboard", "url_name": "dashboard"},
         {"name": "Imports", "url_name": "imports_dashboard"},
@@ -16,12 +20,10 @@ def navigation_links(request):
         {"name": "Reporting", "url_name": "reporting_dashboard"},
     ]
 
-    user = getattr(request, "user", None)
-    if user and user.is_authenticated:
-        if user.has_perm("auth.view_user"):
-            nav_items.append({"name": "Manage Users", "url_name": "manage_users"})
-        if user.is_staff:
-            nav_items.append({"name": "Admin", "url_name": "admin:index"})
+    if user.has_perm("auth.view_user"):
+        nav_items.append({"name": "Manage Users", "url_name": "manage_users"})
+    if user.is_staff:
+        nav_items.append({"name": "Admin", "url_name": "admin:index"})
 
     links = []
     for item in nav_items:

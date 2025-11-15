@@ -11,7 +11,7 @@ from pathlib import Path
 
 from django import forms as django_forms
 from django.contrib import messages
-from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.management import call_command
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, Exists, OuterRef
@@ -133,6 +133,7 @@ def _build_unmapped_context(
 
 
 @permission_required("mscrInventory.view_ingredient", raise_exception=True)
+@login_required
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
 

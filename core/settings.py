@@ -127,11 +127,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # Authentication redirects
-LOGIN_URL = "/admin/login/"
+LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = LOGIN_URL
 LOGIN_EXEMPT_PATHS = [
     LOGIN_URL,
+    "/admin/login/",
     "/admin/logout/",
     "/admin/password_reset/",
     "/admin/reset/",
