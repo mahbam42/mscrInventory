@@ -5,9 +5,35 @@ import csv
 import pytest
 import json
 from decimal import Decimal
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 from mscrInventory.models import Ingredient, Product, RecipeItem, StockEntry
+
+
+def _login_with_perms(client, username, perm_codenames):
+    user = get_user_model().objects.create_user(username=username, password="pw")
+    for codename in perm_codenames:
+        perm = Permission.objects.get(
+            content_type__app_label="mscrInventory",
+            codename=codename,
+        )
+        user.user_permissions.add(perm)
+    client.force_login(user)
+    return user
+
+
+def _login_inventory_editor(client, username="inventory-editor"):
+    return _login_with_perms(client, username, ["view_ingredient", "change_ingredient"])
+
+
+def _login_recipe_editor(client, username="recipe-editor"):
+    return _login_with_perms(
+        client,
+        username,
+        ["view_recipeitem", "change_recipeitem"],
+    )
 
 
 @pytest.mark.django_db
@@ -25,6 +51,7 @@ class TestInventoryImportExport:
         )
 
     def test_export_inventory_csv_returns_csv_response(self, client):
+        _login_inventory_editor(client, "inventory-export")
         url = reverse("export_inventory_csv")
         response = client.get(url)
         assert response.status_code == 200
@@ -34,6 +61,7 @@ class TestInventoryImportExport:
         assert "average_cost_per_unit" in content or "lead_time" in content
 
     def test_import_inventory_csv_updates_existing_ingredient(self, client):
+        _login_inventory_editor(client, "inventory-import")
         csv_content = (
             "id,name,type,quantity_added,current_stock,case_size,reorder_point,average_cost_per_unit,lead_time\n"
             f"{self.ingredient.id},Espresso Beans,,5,200,20,10,1.50,5\n"
@@ -50,6 +78,7 @@ class TestInventoryImportExport:
         assert self.ingredient.current_stock != Decimal("1.500")
 
     def test_import_inventory_csv_preserves_decimal_precision(self, client):
+        _login_inventory_editor(client, "inventory-precision")
         qty_value = "12345678901234567890.123456"
         cost_value = "0.000123456789"
         csv_content = (
@@ -65,6 +94,7 @@ class TestInventoryImportExport:
         assert valid_rows[0]["cost_per_unit"] == cost_value
 
     def test_bulk_add_stock_creates_stockentry_records(self, client):
+        _login_inventory_editor(client, "inventory-bulk")
         url = reverse("bulk_add_stock")
         data = {
             "ingredient": [self.ingredient.id],
@@ -85,6 +115,7 @@ class TestInventoryImportExport:
 
     def test_bulk_add_stock_allows_zero_metadata_updates(self, client):
         """Zero values should persist instead of being skipped as falsy."""
+        _login_inventory_editor(client, "inventory-zero")
         self.ingredient.case_size = 25
         self.ingredient.lead_time = 14
         self.ingredient.reorder_point = Decimal("5")
@@ -128,6 +159,7 @@ class TestRecipeImportExport:
         assert round(self.prod.calculated_cogs, 2) == Decimal("1.00")
 
     def test_export_recipes_csv_contains_expected_columns(self, client):
+        _login_recipe_editor(client, "recipe-export")
         url = reverse("export_recipes_csv")
         response = client.get(url)
         assert response.status_code in (200, 302)
@@ -137,6 +169,7 @@ class TestRecipeImportExport:
         assert "Milk" in body
 
     def test_import_recipes_csv_dry_run_does_not_write(self, client):
+        _login_recipe_editor(client, "recipe-import")
         csv_text = (
             "product_id,ingredient_id,quantity\n"
             f"{self.prod.id},{self.ing.id},3.0\n"
@@ -152,6 +185,7 @@ class TestRecipeImportExport:
 
     def test_confirm_recipes_import_creates_and_updates_items(self, client):
         """Simulate HTMX confirm stage by posting valid JSON payload."""
+        _login_recipe_editor(client, "recipe-confirm")
         url = reverse("confirm_recipes_import")
         valid_rows = [
             {

@@ -1,14 +1,28 @@
 import logging
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 
 from mscrInventory.models import Ingredient, Product, RecipeItem, RecipeModifier
 from mscrInventory.views import recipe_modal
 
 
+def _login_recipe_editor(client, username="recipe-modal-editor"):
+    user = get_user_model().objects.create_user(username=username, password="pw")
+    perm = Permission.objects.get(
+        content_type__app_label="mscrInventory",
+        codename="change_recipeitem",
+    )
+    user.user_permissions.add(perm)
+    client.force_login(user)
+    return user
+
+
 @pytest.mark.django_db
 def test_add_recipe_ingredient_masks_internal_error(client, monkeypatch, caplog):
+    _login_recipe_editor(client, "modal-add")
     product = Product.objects.create(name="Test Drink", sku="TD-001")
     ingredient = Ingredient.objects.create(name="Test Ingredient")
     caplog.set_level(logging.ERROR, logger="mscrInventory.views.recipe_modal")
@@ -32,6 +46,7 @@ def test_add_recipe_ingredient_masks_internal_error(client, monkeypatch, caplog)
 
 @pytest.mark.django_db
 def test_save_recipe_modifiers_masks_internal_error(client, monkeypatch, caplog):
+    _login_recipe_editor(client, "modal-save")
     product = Product.objects.create(name="Another Drink", sku="AD-001")
     caplog.set_level(logging.ERROR, logger="mscrInventory.views.recipe_modal")
 

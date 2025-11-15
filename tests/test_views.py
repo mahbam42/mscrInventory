@@ -2,6 +2,8 @@ import datetime
 from decimal import Decimal
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 from django.utils import timezone
 
@@ -13,6 +15,18 @@ from tests.factories import (
     RecipeItemFactory,
 )
 
+
+def _login_user(client, username="views-user", perm_codenames=None):
+    user = get_user_model().objects.create_user(username=username, password="pw")
+    for codename in perm_codenames or []:
+        perm = Permission.objects.get(
+            content_type__app_label="mscrInventory",
+            codename=codename,
+        )
+        user.user_permissions.add(perm)
+    client.force_login(user)
+    return user
+
 @pytest.mark.django_db
 def test_edit_recipe_view_loads(client):
     product = ProductFactory()
@@ -23,6 +37,7 @@ def test_edit_recipe_view_loads(client):
 
 @pytest.mark.django_db
 def test_add_recipe_ingredient(client):
+    _login_user(client, "views-recipe", ["change_recipeitem"])
     product = ProductFactory()
     ingredient = IngredientFactory()
     url = reverse("add_recipe_ingredient", args=[product.id])
@@ -32,6 +47,7 @@ def test_add_recipe_ingredient(client):
 
 @pytest.mark.django_db
 def test_reporting_dashboard_view(client):
+    _login_user(client, "views-report")
     response = client.get(reverse("reporting_dashboard"))
     assert response.status_code == 200
     assert b"Reporting Dashboard" in response.content
@@ -39,6 +55,7 @@ def test_reporting_dashboard_view(client):
 
 @pytest.mark.django_db
 def test_reporting_dashboard_shows_variant_modal_trigger(client):
+    _login_user(client, "views-report-variants")
     product = ProductFactory(name="Cookie Sampler")
     order = Order.objects.create(
         order_id="order-1",

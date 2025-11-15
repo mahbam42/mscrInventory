@@ -5,6 +5,7 @@ from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 from django.http import HttpResponse, JsonResponse, QueryDict
 from django.contrib import messages
+from django.contrib.auth.decorators import permission_required
 from django.template.loader import render_to_string
 from decimal import Decimal, InvalidOperation
 from django.utils import timezone
@@ -82,6 +83,7 @@ def inventory_dashboard_view(request):
 # -----------------------------
 # INLINE ACTIONS
 # -----------------------------
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def update_ingredient(request, pk):
     """Inline update for ingredient fields."""
@@ -96,6 +98,7 @@ def update_ingredient(request, pk):
     return render(request, "inventory/_ingredient_row.html", {"i": ing})
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def add_case(request, pk):
     """Adds one case to stock using case_size and average_cost_per_unit."""
@@ -152,6 +155,7 @@ def _clean_decimal(value):
         return None
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def bulk_add_stock(request):
     """Create multiple StockEntry records and refresh dashboard via HTMX triggers."""
@@ -322,6 +326,7 @@ def inventory_all_ingredients_partial(request):
 # CSV Import/Export
 # -----------------------------
 # --- CSV Export ---
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def export_inventory_csv(request):
     """
     Download a point-in-time snapshot of all Ingredients.
@@ -368,6 +373,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from mscrInventory.models import Ingredient
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def import_inventory_csv(request):
     csv_file = request.FILES.get("file")
@@ -475,6 +481,7 @@ def import_inventory_modal(request):
         },
     )
 
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def download_inventory_csv_template(request):
     """Generate and download a blank CSV template with required headers."""
 
@@ -484,6 +491,7 @@ def download_inventory_csv_template(request):
     writer.writerow(REQUIRED_HEADERS)
     return response
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def confirm_inventory_import(request):
     """Apply validated import rows via bulk_add_stock()."""
     try:

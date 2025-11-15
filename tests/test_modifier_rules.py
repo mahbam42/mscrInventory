@@ -1,6 +1,8 @@
 from decimal import Decimal
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 
 from mscrInventory.models import RecipeModifier
@@ -12,8 +14,20 @@ from tests.factories import (
 )
 
 
+def _login_modifier_editor(client, username="modifier-editor"):
+    user = get_user_model().objects.create_user(username=username, password="pw")
+    perm = Permission.objects.get(
+        content_type__app_label="mscrInventory",
+        codename="change_recipemodifier",
+    )
+    user.user_permissions.add(perm)
+    client.force_login(user)
+    return user
+
+
 @pytest.mark.django_db
 def test_modifier_rules_modal_get(client):
+    _login_modifier_editor(client, "modifier-get")
     RecipeModifierFactory()
     url = reverse("modifier_rules_modal")
     response = client.get(url, HTTP_HX_REQUEST="true")
@@ -23,6 +37,7 @@ def test_modifier_rules_modal_get(client):
 
 @pytest.mark.django_db
 def test_modifier_rules_modal_updates_modifier(client):
+    _login_modifier_editor(client, "modifier-update")
     milk_type = IngredientTypeFactory(name="Milk")
     target_ingredient = IngredientFactory(name="Bacon", type=milk_type)
     modifier = RecipeModifierFactory(name="House Modifier", ingredient_type=milk_type)
@@ -57,6 +72,7 @@ def test_modifier_rules_modal_updates_modifier(client):
 
 @pytest.mark.django_db
 def test_create_modifier_from_modal(client):
+    _login_modifier_editor(client, "modifier-create")
     unit = UnitTypeFactory(name="Ounce", abbreviation="oz")
     ingredient = IngredientFactory()
 
