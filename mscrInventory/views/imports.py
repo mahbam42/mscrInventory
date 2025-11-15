@@ -254,6 +254,7 @@ def upload_square_view(request):
     return redirect("imports_dashboard")
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def unmapped_items_view(request):
     """Render modal or page content summarising unmapped entries."""
 
@@ -299,6 +300,7 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
     )
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def link_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
@@ -319,6 +321,7 @@ def link_unmapped_item(request, pk: int):
     return _render_unmapped_table(request, filter_type, form_overrides=overrides, status=400)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def create_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
@@ -347,6 +350,7 @@ def create_unmapped_item(request, pk: int):
     return _render_unmapped_table(request, filter_type, form_overrides=overrides, status=400)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def ignore_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk)

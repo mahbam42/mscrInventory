@@ -208,6 +208,7 @@ def edit_recipe_view(request, pk):
     return render(request, "recipes/_edit_modal.html", ctx)
 
 
+@permission_required("mscrInventory.change_product", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def edit_product_modal(request, pk):
     product = get_object_or_404(Product, pk=pk)
@@ -228,6 +229,7 @@ def edit_product_modal(request, pk):
     )
 
 
+@permission_required("mscrInventory.change_product", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def create_product_modal(request):
     if request.method == "POST":

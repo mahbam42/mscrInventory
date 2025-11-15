@@ -15,12 +15,14 @@
       Upload a CSV with columns: <code>Name, Type, Ingredient, Base Quantity, Unit, Cost per Unit, Price per Unit</code>.
     </p>
     <div class="d-flex justify-content-between align-items-center mb-3">
+      {% if perms.mscrInventory.view_recipemodifier %}
       <a href="{% url 'download_modifiers_template' %}" class="btn btn-sm btn-outline-secondary">
         📄 Download Template
       </a>
       <a href="{% url 'export_modifiers_csv' %}" class="btn btn-sm btn-outline-secondary">
         📤 Export Current Modifiers
       </a>
+      {% endif %}
     </div>
     <input type="file" name="file" accept=".csv" class="form-control mb-3" required>
     <div class="text-end">

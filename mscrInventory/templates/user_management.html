@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Manage Users{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h2 class="mb-1">Manage Users &amp; Groups</h2>
+      <p class="text-muted mb-0">Create accounts, adjust group membership, and reset passwords for your team.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ admin_url }}">
+      <i class="bi bi-box-arrow-up-right"></i>
+      Open Django Admin
+    </a>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header">Create User</div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            {% for field in create_form %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}
+              <div class="invalid-feedback d-block">{{ field.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary">Create User</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header">Edit User</div>
+        <div class="card-body">
+          {% if edit_form and selected_user %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+            <div class="alert alert-info d-flex align-items-center" role="status">
+              <i class="bi bi-person-fill me-2"></i>
+              Updating <strong class="ms-1">{{ selected_user.username }}</strong>
+            </div>
+            {% for field in edit_form %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}
+              <div class="invalid-feedback d-block">{{ field.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-muted small">Leave password blank to keep the current value.</span>
+              <button type="submit" class="btn btn-success">Save Changes</button>
+            </div>
+          </form>
+          {% else %}
+          <p class="text-muted mb-0">Select a user from the table below to edit details or reset their password.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>All Users</span>
+      <span class="badge bg-secondary">{{ users|length }} total</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Email</th>
+            <th scope="col">Groups</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td class="fw-semibold">{{ user.username }}</td>
+            <td>{% if user.email %}{{ user.email }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td>
+              {% if user.groups.all %}
+                {% for group in user.groups.all %}
+                <span class="badge bg-dark-subtle text-dark me-1">{{ group.name }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="text-muted">Unassigned</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if user.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-danger-subtle text-danger">Inactive</span>{% endif %}
+              {% if user.is_staff %}<span class="badge bg-primary-subtle text-primary">Staff</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm {% if selected_user and selected_user.id == user.id %}btn-secondary{% else %}btn-outline-primary{% endif %}"
+                 href="{% url 'manage_users' %}?user={{ user.id }}">
+                Manage
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center text-muted py-4">No users found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header">Groups &amp; Permissions</div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% for group in groups %}
+        <div class="col-md-6 col-xl-4">
+          <div class="border rounded p-3 h-100">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <h6 class="mb-0">{{ group.name }}</h6>
+                <p class="text-muted small mb-0">{{ group.permissions.count }} permissions</p>
+              </div>
+              <span class="badge bg-secondary">{{ group.user_set.count }} users</span>
+            </div>
+            <ul class="list-unstyled small mb-0">
+              {% for perm in group.permissions.all|slice:":5" %}
+              <li>{{ perm.codename }}</li>
+              {% empty %}
+              <li class="text-muted">No permissions assigned.</li>
+              {% endfor %}
+              {% if group.permissions.count > 5 %}
+              <li class="text-muted">… and {{ group.permissions.count|add:"-5" }} more.</li>
+              {% endif %}
+            </ul>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+          <p class="text-muted mb-0">No groups defined yet. Run <code>python manage.py bootstrap_roles</code> to seed defaults.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

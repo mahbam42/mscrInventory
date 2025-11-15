@@ -128,6 +128,7 @@ def test_upload_square_view_records_usage_logs(client, monkeypatch):
 
 @pytest.mark.django_db
 def test_unmapped_items_view_modal(client):
+    _login_ing_editor(client)
     SquareUnmappedItem.objects.create(item_name="Barista's Choice", price_point_name="Dracula's Delight")
     Ingredient.objects.create(name="Unmapped: Syrup")
 
@@ -148,6 +149,7 @@ def test_unmapped_items_view_modal(client):
 
 @pytest.mark.django_db
 def test_unmapped_items_view_page(client):
+    _login_ing_editor(client)
     SquareUnmappedItem.objects.create(item_name="Seasonal Special", price_point_name="")
     response = client.get(reverse("imports_unmapped_items"))
     assert response.status_code == 200
@@ -158,6 +160,7 @@ def test_unmapped_items_view_page(client):
 
 @pytest.mark.django_db
 def test_unmapped_items_hide_known_recipes_by_default(client):
+    _login_ing_editor(client)
     Product.objects.create(name="Maple Latte", sku="MAPLE-001")
     SquareUnmappedItem.objects.create(item_name="Maple Latte", price_point_name="")
     SquareUnmappedItem.objects.create(item_name="Mystery Blend", price_point_name="")
@@ -174,6 +177,7 @@ def test_unmapped_items_hide_known_recipes_by_default(client):
 
 @pytest.mark.django_db
 def test_unmapped_items_toggle_reveals_known_recipes(client):
+    _login_ing_editor(client)
     product = Product.objects.create(name="Caramel Cold Brew", sku="CCB-123")
     SquareUnmappedItem.objects.create(item_name="Caramel Cold Brew", price_point_name="")
 
@@ -220,6 +224,7 @@ def test_bulk_unmapped_create_products(client):
 
 @pytest.mark.django_db
 def test_import_logs_view_lists_entries(client, django_user_model):
+    _login_ing_editor(client, "log-viewer")
     user = django_user_model.objects.create_user(username="viewer", password="pw")
     ImportLog.objects.create(
         source="square",

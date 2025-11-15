@@ -72,6 +72,7 @@ from mscrInventory.views.ingredients import (
     ingredients_dashboard_view,
     ingredients_table_partial,
 )
+from mscrInventory.views.user_management import manage_users_groups_view
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
@@ -84,6 +85,7 @@ urlpatterns = [
     path("dashboard/", login_required(dashboard_view), name="dashboard"),
     path("reports/", login_required(reporting_dashboard_view), name="reporting_dashboard"),
     path("orders/", login_required(orders_dashboard_view), name="orders_dashboard"),
+    path("manage/users/", manage_users_groups_view, name="manage_users"),
 
     # edit unmapped products and ingredients
     path("partials/unmapped-products/", app_views.unmapped_products_partial, name="unmapped_products_partial"),

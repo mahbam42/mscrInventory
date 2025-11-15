@@ -2,8 +2,12 @@ import datetime
 from decimal import Decimal
 
 import pytest
+import datetime
+from decimal import Decimal
+
+import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
 from django.utils import timezone
 
@@ -110,3 +114,18 @@ def test_recipes_table_fragment_respects_none_filter(client):
     content = response.content.decode("utf-8")
     assert "Americano Solo" in content
     assert "Signature Latte" not in content
+
+
+@pytest.mark.django_db
+def test_dashboard_renders_user_banner(client):
+    group = Group.objects.create(name="Manager")
+    user = get_user_model().objects.create_user("banner-user", password="pw")
+    user.groups.add(group)
+    client.force_login(user)
+
+    response = client.get(reverse("dashboard"))
+    content = response.content.decode("utf-8")
+
+    assert "Logout" in content
+    assert "Manager" in content
+    assert 'data-user-role="Manager"' in content

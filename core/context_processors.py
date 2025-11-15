@@ -16,6 +16,13 @@ def navigation_links(request):
         {"name": "Reporting", "url_name": "reporting_dashboard"},
     ]
 
+    user = getattr(request, "user", None)
+    if user and user.is_authenticated:
+        if user.has_perm("auth.view_user"):
+            nav_items.append({"name": "Manage Users", "url_name": "manage_users"})
+        if user.is_staff:
+            nav_items.append({"name": "Admin", "url_name": "admin:index"})
+
     links = []
     for item in nav_items:
         try:
