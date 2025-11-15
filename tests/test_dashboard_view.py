@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import escape
@@ -33,6 +34,9 @@ def test_dashboard_renders_widgets(mock_named_drinks, client):
     SquareUnmappedItemFactory()
     ImportLogFactory(finished_at=timezone.now(), error_count=0, unmatched_count=1)
 
+    user = get_user_model().objects.create_user("tester", password="pw")
+    client.force_login(user)
+
     response = client.get(reverse("dashboard"))
     assert response.status_code == 200
     content = response.content.decode()
@@ -54,6 +58,9 @@ def test_dashboard_warnings_include_low_stock_and_failed_import(client):
     IngredientFactory(name="Espresso", current_stock=1, reorder_point=5)
     SquareUnmappedItemFactory()
     ImportLogFactory(finished_at=timezone.now(), error_count=2, unmatched_count=1)
+
+    user = get_user_model().objects.create_user("manager", password="pw")
+    client.force_login(user)
 
     response = client.get(reverse("dashboard"))
     content = response.content.decode()

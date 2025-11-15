@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import include, path
 from django.views.generic import TemplateView
 from mscrInventory.views.dashboard import dashboard_view
@@ -80,9 +81,9 @@ urlpatterns = [
     path("__reload__/", include("django_browser_reload.urls")),
 
     # main dashboard
-    path("dashboard/", dashboard_view, name="dashboard"),
-    path("reports/", reporting_dashboard_view, name="reporting_dashboard"),
-    path("orders/", orders_dashboard_view, name="orders_dashboard"),
+    path("dashboard/", login_required(dashboard_view), name="dashboard"),
+    path("reports/", login_required(reporting_dashboard_view), name="reporting_dashboard"),
+    path("orders/", login_required(orders_dashboard_view), name="orders_dashboard"),
 
     # edit unmapped products and ingredients
     path("partials/unmapped-products/", app_views.unmapped_products_partial, name="unmapped_products_partial"),

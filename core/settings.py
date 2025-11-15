@@ -81,6 +81,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 "core.context_processors.navigation_links",
+                "mscrInventory.context_processors.admin_link",
                 #"core.context_processors.navigation_context",
             ],
         },
@@ -122,6 +123,11 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+
+# Authentication redirects
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "/dashboard/"
 
 
 # Internationalization
