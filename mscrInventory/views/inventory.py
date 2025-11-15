@@ -450,17 +450,15 @@ def confirm_inventory_import(request):
     except json.JSONDecodeError:
         return JsonResponse({"status": "error", "message": "Invalid JSON payload."}, status=400)
 
-    # Build a QueryDict to mimic a POST
+    # Build a QueryDict to mimic a POST and keep row values aligned for bulk_add_stock()
     qd = QueryDict(mutable=True)
     for r in payload:
-        qd.update({
-            "ingredient": str(r["ingredient"]),
-            "Rowquantity_added": str(r["quantity_added"]),
-            "Rowcost_per_unit": str(r.get("cost_per_unit") or 0),
-            "Rowcase_size": str(r.get("case_size") or ""),
-            "Rowlead_time": str(r.get("lead_time") or ""),
-        })
-        qd.appendlist('Rowreorder_point', str(r.get("reorder_point") or "")) #refactor to qd.update
+        qd.appendlist("ingredient", str(r["ingredient"]))
+        qd.appendlist("Rowquantity_added", str(r["quantity_added"]))
+        qd.appendlist("Rowcost_per_unit", str(r.get("cost_per_unit") or 0))
+        qd.appendlist("Rowcase_size", str(r.get("case_size") or ""))
+        qd.appendlist("Rowlead_time", str(r.get("lead_time") or ""))
+        qd.appendlist("Rowreorder_point", str(r.get("reorder_point") or ""))
 
     request.POST = qd
     return bulk_add_stock(request)
