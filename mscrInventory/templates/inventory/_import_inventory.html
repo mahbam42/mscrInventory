@@ -6,12 +6,27 @@
     {% csrf_token %}
 
     {% if stage == "upload" %}
+    {% if error %}
+    <div class="alert alert-warning" role="alert">
+        {{ error }}
+    </div>
+    {% endif %}
+
     <form hx-post="{% url 'import_inventory_csv' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
         enctype="multipart/form-data" class="d-flex flex-column gap-3">
         <div>
             <label class="form-label">Select CSV File</label>
             <input type="file" name="file" accept=".csv" class="form-control" required>
         </div>
+
+        {% if required_headers %}
+        <p class="text-muted small mb-0">
+            Upload a CSV with columns:
+            {% for header in required_headers %}
+            <code>{{ header }}</code>{% if not forloop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+        {% endif %}
 
         <div class="d-flex justify-content-between align-items-center">
             <a href="{% url 'download_inventory_csv_template' %}" class="btn btn-sm btn-outline-secondary">
