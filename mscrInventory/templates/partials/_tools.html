@@ -3,48 +3,56 @@
 {% with show_inventory=show_inventory_tools|default:False %}
 <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
   {% if show_inventory %}
-  <button class="btn btn-primary"
-          hx-get="{% url 'inventory_bulk_add_modal' %}"
-          hx-target="#modal-body"
-          hx-swap="innerHTML"
-          data-bs-toggle="modal"
-          data-bs-target="#globalModal">
-    📦 Bulk Add Stock
-  </button>
+    {% if perms.mscrInventory.change_ingredient %}
+    <button class="btn btn-primary"
+            hx-get="{% url 'inventory_bulk_add_modal' %}"
+            hx-target="#modal-body"
+            hx-swap="innerHTML"
+            data-bs-toggle="modal"
+            data-bs-target="#globalModal">
+      📦 Bulk Add Stock
+    </button>
 
-  <button class="btn btn-sm btn-outline-primary"
-          hx-get="{% url 'import_inventory_modal' %}"
-          hx-target="#globalModal .modal-content"
-          hx-swap="innerHTML"
-          data-bs-toggle="modal"
-          data-bs-target="#globalModal">
-    📥 Import Inventory
-  </button>
+    <button class="btn btn-sm btn-outline-primary"
+            hx-get="{% url 'import_inventory_modal' %}"
+            hx-target="#globalModal .modal-content"
+            hx-swap="innerHTML"
+            data-bs-toggle="modal"
+            data-bs-target="#globalModal">
+      📥 Import Inventory
+    </button>
+    {% endif %}
 
-  <a href="{% url 'export_inventory_csv' %}" class="btn btn-outline-secondary">
-    📤 Export Inventory CSV
-  </a>
+    {% if perms.mscrInventory.view_ingredient %}
+    <a href="{% url 'export_inventory_csv' %}" class="btn btn-outline-secondary">
+      📤 Export Inventory CSV
+    </a>
+    {% endif %}
   {% endif %}
 
-  <!-- Modifier Explorer-->
-  <a class="btn btn-outline-primary mt-3 mt-lg-0" href="{% url 'modifier_explorer' %}">Open Modifier Explorer</a>
-  {% if unresolved_count %}
-    <button class="btn btn-warning"
-            hx-get="{% url 'imports_unmapped_items' %}"
-            hx-target="#modal-body"
-            hx-trigger="click">
-      ⚠️ View Unmapped Items ({{ unresolved_count }})
-    </button>
-    <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
-      View Full Dashboard
-    </a>
-  {% else %}
-    <button class="btn btn-outline-success" disabled>
-      ✅ All items mapped
-    </button>
-    <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
-      View Full Dashboard
-    </a>
+  {% if perms.mscrInventory.view_recipemodifier %}
+    <a class="btn btn-outline-primary mt-3 mt-lg-0" href="{% url 'modifier_explorer' %}">Open Modifier Explorer</a>
+  {% endif %}
+
+  {% if perms.mscrInventory.change_ingredient %}
+    {% if unresolved_count %}
+      <button class="btn btn-warning"
+              hx-get="{% url 'imports_unmapped_items' %}"
+              hx-target="#modal-body"
+              hx-trigger="click">
+        ⚠️ View Unmapped Items ({{ unresolved_count }})
+      </button>
+      <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+        View Full Dashboard
+      </a>
+    {% else %}
+      <button class="btn btn-outline-success" disabled>
+        ✅ All items mapped
+      </button>
+      <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+        View Full Dashboard
+      </a>
+    {% endif %}
   {% endif %}
 </div>
 {% endwith %}

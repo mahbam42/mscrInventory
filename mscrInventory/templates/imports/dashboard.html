@@ -5,6 +5,7 @@
 <h2 class="mb-3">🗳️ Data Imports</h2>
 <hr />
 
+{% if perms.mscrInventory.change_ingredient %}
 <div class="row g-4">
   <div class="col-lg-6">
     <div class="card shadow-sm h-100">
@@ -51,6 +52,11 @@
     </div>
   </div>
 </div>
+{% else %}
+<div class="alert alert-warning" role="alert">
+  You can browse logs and dashboards, but imports require a Manager.
+</div>
+{% endif %}
 
 <div class="card shadow-sm mt-4">
   <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
@@ -59,31 +65,36 @@
       <p class="text-muted mb-0">Resolve unmapped Square rows before committing the import.</p>
     </div>
     <div class="mt-3 mt-lg-0 d-flex gap-2">
-      {% if unresolved_count %}
-        <button
-          class="btn btn-warning"
-          hx-get="{% url 'imports_unmapped_items' %}"
-          hx-target="#modal-body"
-          hx-trigger="click"
-        >
-          ⚠️ View Unmapped Items ({{ unresolved_count }})
-        </button>
-        <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
-          View Full Dashboard
-        </a>
+      {% if perms.mscrInventory.change_ingredient %}
+        {% if unresolved_count %}
+          <button
+            class="btn btn-warning"
+            hx-get="{% url 'imports_unmapped_items' %}"
+            hx-target="#modal-body"
+            hx-trigger="click"
+          >
+            ⚠️ View Unmapped Items ({{ unresolved_count }})
+          </button>
+          <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+            View Full Dashboard
+          </a>
+        {% else %}
+          <button class="btn btn-outline-success" disabled>
+            ✅ All items mapped
+          </button>
+          <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+            View Full Dashboard
+          </a>
+        {% endif %}
       {% else %}
-        <button class="btn btn-outline-success" disabled>
-          ✅ All items mapped
-        </button>
-        <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
-          View Full Dashboard
-        </a>
+        <span class="text-muted">Contact a Manager to review unmapped items.</span>
       {% endif %}
     </div>
   </div>
 </div>
 
 
+{% if perms.mscrInventory.view_recipemodifier %}
 <div class="card shadow-sm mt-4">
   <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
     <div>
@@ -93,6 +104,7 @@
     <a class="btn btn-outline-primary mt-3 mt-lg-0" href="{% url 'modifier_explorer' %}">Open Explorer</a>
   </div>
 </div>
+{% endif %}
 <div class="card shadow-sm mt-4">
   <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
     <div>

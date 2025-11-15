@@ -34,6 +34,7 @@ def _build_sort_context(sort_key: str, direction: str, *, sort_map: dict[str, st
 # -----------------------------
 # DASHBOARD
 # -----------------------------
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def inventory_dashboard_view(request):
     """Display inventory with low stock, totals, and editable table."""
     base_qs = _inventory_queryset()
@@ -119,6 +120,7 @@ def add_case(request, pk):
 # -----------------------------
 # BULK ADD MODAL
 # -----------------------------
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def bulk_add_modal(request):
     """Render the bulk stock modal."""
     all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("type__name", "name")
@@ -470,6 +472,7 @@ def import_inventory_csv(request):
         "required_headers": REQUIRED_HEADERS,
     })
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def import_inventory_modal(request):
     """Render the initial upload form for the inventory importer modal."""
     return render(

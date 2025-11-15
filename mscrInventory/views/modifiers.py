@@ -684,6 +684,7 @@ def edit_modifier_extra_view(request, modifier_id):
     return render(request, "modifiers/edit_extra_modal.html", {"modifier": modifier, "ingredients": ingredients})
 
 
+@permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def modifier_explorer_view(request):
     analyzer = ModifierExplorerAnalyzer()
     report = analyzer.analyze()

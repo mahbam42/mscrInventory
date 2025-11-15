@@ -11,7 +11,7 @@ from pathlib import Path
 
 from django import forms as django_forms
 from django.contrib import messages
-from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.management import call_command
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, Exists, OuterRef
@@ -132,6 +132,8 @@ def _build_unmapped_context(
     }
 
 
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
+@login_required
 def imports_dashboard_view(request):
     """Renders the unified imports dashboard."""
 
@@ -254,6 +256,7 @@ def upload_square_view(request):
     return redirect("imports_dashboard")
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def unmapped_items_view(request):
     """Render modal or page content summarising unmapped entries."""
 
@@ -299,6 +302,7 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
     )
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def link_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
@@ -319,6 +323,7 @@ def link_unmapped_item(request, pk: int):
     return _render_unmapped_table(request, filter_type, form_overrides=overrides, status=400)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def create_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
@@ -347,6 +352,7 @@ def create_unmapped_item(request, pk: int):
     return _render_unmapped_table(request, filter_type, form_overrides=overrides, status=400)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def ignore_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk)

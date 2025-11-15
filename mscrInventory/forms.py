@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.db import IntegrityError
 from django.utils.text import slugify
 
@@ -17,6 +19,8 @@ from mscrInventory.models import (
     SizeLabel,
     SquareUnmappedItem,
 )
+
+User = get_user_model()
 
 
 class ProductForm(forms.ModelForm):
@@ -410,3 +414,100 @@ class CreateFromUnmappedItemForm(forms.Form):
             counter += 1
             candidate = f"{slug[:10].upper()}-{counter}" if slug else f"SQUARE-{counter}"
         return candidate
+
+
+class UserCreateForm(forms.ModelForm):
+    password1 = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput,
+        strip=False,
+    )
+    password2 = forms.CharField(
+        label="Confirm Password",
+        widget=forms.PasswordInput,
+        strip=False,
+    )
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "is_active", "is_staff", "groups"]
+        widgets = {
+            "groups": forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["groups"].queryset = Group.objects.order_by("name")
+        if "is_active" in self.fields:
+            self.fields["is_active"].initial = True
+        for name, field in self.fields.items():
+            if name == "groups":
+                continue
+            existing = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing} form-control".strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        password1 = cleaned.get("password1")
+        password2 = cleaned.get("password2")
+        if password1 != password2:
+            raise forms.ValidationError("Passwords do not match.")
+        return cleaned
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data["password1"])
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
+
+
+class UserUpdateForm(forms.ModelForm):
+    password1 = forms.CharField(
+        label="New Password",
+        widget=forms.PasswordInput,
+        strip=False,
+        required=False,
+    )
+    password2 = forms.CharField(
+        label="Confirm New Password",
+        widget=forms.PasswordInput,
+        strip=False,
+        required=False,
+    )
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "is_active", "is_staff", "groups"]
+        widgets = {
+            "groups": forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["groups"].queryset = Group.objects.order_by("name")
+        for name, field in self.fields.items():
+            if name == "groups":
+                continue
+            existing = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing} form-control".strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        password1 = cleaned.get("password1")
+        password2 = cleaned.get("password2")
+        if password1 or password2:
+            if password1 != password2:
+                raise forms.ValidationError("Passwords do not match.")
+        return cleaned
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get("password1")
+        if password:
+            user.set_password(password)
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user

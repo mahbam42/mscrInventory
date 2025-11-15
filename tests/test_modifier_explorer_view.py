@@ -1,6 +1,9 @@
 import pytest
 from unittest.mock import patch
 
+import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 
 from mscrInventory.utils.modifier_explorer import (
@@ -9,6 +12,13 @@ from mscrInventory.utils.modifier_explorer import (
     ModifierInsight,
 )
 from tests.factories import ProductFactory, RecipeModifierFactory
+
+
+def _login_modifier_viewer(client):
+    user = get_user_model().objects.create_user("modifier-viewer", password="pw")
+    perm = Permission.objects.get(codename="view_recipemodifier")
+    user.user_permissions.add(perm)
+    client.force_login(user)
 
 
 def build_report(alias_modifier=None):
@@ -45,6 +55,7 @@ def build_report(alias_modifier=None):
 @pytest.mark.django_db
 @patch.object(ModifierExplorerAnalyzer, "analyze")
 def test_modifier_explorer_view_renders(mock_analyze, client):
+    _login_modifier_viewer(client)
     modifier = RecipeModifierFactory(name="Sweet Cream")
     mock_analyze.return_value = build_report(alias_modifier=modifier)
 
@@ -63,6 +74,7 @@ def test_modifier_explorer_view_renders(mock_analyze, client):
 @pytest.mark.django_db
 @patch.object(ModifierExplorerAnalyzer, "analyze")
 def test_modifier_explorer_csv_export(mock_analyze, client):
+    _login_modifier_viewer(client)
     RecipeModifierFactory(name="Sweet Cream")
     mock_analyze.return_value = build_report()
 
@@ -78,6 +90,7 @@ def test_modifier_explorer_csv_export(mock_analyze, client):
 @pytest.mark.django_db
 @patch.object(ModifierExplorerAnalyzer, "analyze")
 def test_unknown_modifiers_matching_products_hidden_by_default(mock_analyze, client):
+    _login_modifier_viewer(client)
     ProductFactory(name="Pumpkin Dust")
     mock_analyze.return_value = build_report()
 
@@ -98,6 +111,7 @@ def test_unknown_modifiers_matching_products_hidden_by_default(mock_analyze, cli
 @pytest.mark.django_db
 @patch.object(ModifierExplorerAnalyzer, "analyze")
 def test_unknown_modifiers_matching_products_shown_when_requested(mock_analyze, client):
+    _login_modifier_viewer(client)
     ProductFactory(name="Pumpkin Dust")
     mock_analyze.return_value = build_report()
 
