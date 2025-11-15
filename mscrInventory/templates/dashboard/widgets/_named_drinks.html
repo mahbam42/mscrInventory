@@ -1,0 +1,49 @@
+<div class="card h-100">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <p class="text-uppercase text-muted small mb-1">Custom Orders</p>
+        <h2 class="h5 mb-0">Top Name-Your-Drink</h2>
+        <p class="text-muted small mb-0">Based on the last {{ named_drinks_window }} days</p>
+      </div>
+      <span class="badge text-bg-primary-subtle text-primary-emphasis">Trending</span>
+    </div>
+
+    {% if named_drinks %}
+      <ul class="list-group list-group-flush">
+        {% for drink in named_drinks %}
+          <li class="list-group-item d-flex justify-content-between align-items-start position-relative">
+            <div>
+              <div class="fw-semibold">
+                <a
+                  {% if drink.orders_url %}
+                    href="{{ drink.orders_url }}"
+                  {% else %}
+                    href="{% url 'orders_dashboard' %}"
+                  {% endif %}
+                  class="stretched-link text-decoration-none text-reset"
+                >
+                  {{ drink.label }}
+                </a>
+              </div>
+              {% if drink.products %}
+                <div class="text-muted small">{{ drink.products|join:", " }}</div>
+              {% endif %}
+              {% if drink.last_seen %}
+                <div class="text-muted small">Last seen {{ drink.last_seen|date:"M j" }}</div>
+              {% endif %}
+            </div>
+            <span class="badge rounded-pill text-bg-primary">{{ drink.count }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mb-0">No custom drink names recorded recently.</p>
+    {% endif %}
+  </div>
+  <div class="card-footer bg-transparent border-top-0 pt-0">
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'modifier_explorer' %}">
+      Open Modifier Explorer
+    </a>
+  </div>
+</div>

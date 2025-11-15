@@ -17,6 +17,7 @@ from mscrInventory.models import RecipeModifier, RecipeModifierAlias
 # than actionable modifiers. This intentionally mirrors the Square importer logic
 # so that diagnostics stay aligned with production handling.
 IGNORED_TOKENS: set[str] = {"iced", "ice", "hot", "small", "medium", "large", "xl"}
+CUSTOM_DRINK_PREFIXES = ("name your drink", "name this coffee")
 
 # Default directory that stores Square CSV exports inside the repository.
 DEFAULT_SQUARE_DIR = Path("squareCSVs")
@@ -178,8 +179,14 @@ class ModifierExplorerReport:
 class ModifierExplorerAnalyzer:
     """Collects and summarizes modifier usage from Square CSV exports."""
 
-    def __init__(self, ignored_tokens: Optional[Iterable[str]] = None) -> None:
+    def __init__(
+        self,
+        ignored_tokens: Optional[Iterable[str]] = None,
+        custom_name_prefixes: Optional[Iterable[str]] = None,
+    ) -> None:
         self.ignored_tokens = set(ignored_tokens or IGNORED_TOKENS)
+        prefixes = custom_name_prefixes or CUSTOM_DRINK_PREFIXES
+        self.custom_name_prefixes = tuple(prefix.strip().lower() for prefix in prefixes)
 
     # ------------------------------------------------------------------
     # Public API
@@ -199,7 +206,9 @@ class ModifierExplorerAnalyzer:
                 filtered = [
                     (raw, normalized)
                     for raw, normalized in zip(raw_modifiers, normalized_modifiers)
-                    if normalized and normalized not in self.ignored_tokens
+                    if normalized
+                    and normalized not in self.ignored_tokens
+                    and not self._is_custom_drink_token(normalized)
                 ]
                 if not filtered:
                     continue
@@ -261,6 +270,12 @@ class ModifierExplorerAnalyzer:
 
     def _fetch_aliases(self) -> QuerySet[RecipeModifierAlias]:
         return RecipeModifierAlias.objects.select_related("modifier").all()
+
+    def _is_custom_drink_token(self, token: str) -> bool:
+        normalized = (token or "").strip().lower()
+        if not normalized:
+            return False
+        return any(normalized.startswith(prefix) for prefix in self.custom_name_prefixes)
 
     def _classify_modifiers(
         self,

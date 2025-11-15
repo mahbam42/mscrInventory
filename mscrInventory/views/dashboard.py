@@ -9,7 +9,9 @@ from mscrInventory.utils.dashboard_metrics import (
     get_recent_imports,
     get_shortcuts,
     get_stat_counts,
+    get_top_named_drinks,
     get_warning_items,
+    NAMED_DRINK_LOOKBACK_DAYS,
 )
 
 
@@ -24,6 +26,8 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
         "recent_imports": recent_imports,
         "activity_feed": get_activity_feed(),
         "quick_actions": get_quick_actions(),
+        "named_drinks": get_top_named_drinks(),
+        "named_drinks_window": NAMED_DRINK_LOOKBACK_DAYS,
         "warnings": get_warning_items(low_stock_summary, stat_counts, recent_imports),
         "shortcuts": get_shortcuts(),
     }

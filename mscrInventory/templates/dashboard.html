@@ -24,10 +24,11 @@
   </div>
 
   <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-8">
+    <div class="col-12 col-lg-6">
       {% include "dashboard/widgets/_activity_feed.html" with activity_feed=activity_feed %}
     </div>
-    <div class="col-12 col-lg-4">
+    <div class="col-12 col-lg-6 d-flex flex-column gap-3">
+      {% include "dashboard/widgets/_named_drinks.html" with named_drinks=named_drinks named_drinks_window=named_drinks_window %}
       {% include "dashboard/widgets/_quick_actions.html" with quick_actions=quick_actions %}
     </div>
   </div>

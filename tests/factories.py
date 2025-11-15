@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import factory
 from django.utils import timezone
 
@@ -6,6 +8,8 @@ from mscrInventory.models import (
     ImportLog,
     Ingredient,
     IngredientType,
+    Order,
+    OrderItem,
     Product,
     RecipeItem,
     RecipeModifier,
@@ -115,4 +119,25 @@ class SquareUnmappedItemFactory(factory.django.DjangoModelFactory):
     )
     last_reason = "not matched"
     seen_count = 1
+
+
+class OrderFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Order
+
+    order_id = factory.Sequence(lambda n: f"SQ-{n:05d}")
+    platform = "square"
+    order_date = factory.LazyFunction(timezone.now)
+    total_amount = Decimal("5.00")
+
+
+class OrderItemFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = OrderItem
+
+    order = factory.SubFactory(OrderFactory)
+    product = factory.SubFactory(ProductFactory)
+    quantity = 1
+    unit_price = Decimal("5.00")
+    variant_info = factory.LazyFunction(dict)
 
