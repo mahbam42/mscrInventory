@@ -49,7 +49,7 @@
               class="row g-3"
               hx-post="{% url 'create_modifier' %}"
               hx-target="#globalModal .modal-content"
-              hx-swap="outerHTML">
+              hx-swap="innerHTML">
           {% csrf_token %}
           <div class="col-md-4">
             <label for="create-modifier-name" class="form-label">Name<span class="text-danger">*</span></label>
@@ -166,7 +166,7 @@
   <form id="modifier-rules-form"
         hx-post="{% url 'modifier_rules_modal' %}"
         hx-target="#globalModal .modal-content"
-        hx-swap="outerHTML">
+        hx-swap="innerHTML">
     {% csrf_token %}
 
     <div class="accordion" id="modifier-rules-accordion">
