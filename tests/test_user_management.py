@@ -15,6 +15,14 @@ def change_user_permission(db):
     )
 
 
+@pytest.fixture
+def add_user_permission(db):
+    return Permission.objects.get(
+        content_type__app_label="auth",
+        codename="add_user",
+    )
+
+
 @pytest.mark.django_db
 def test_manage_users_requires_permission(client):
     user = get_user_model().objects.create_user("barista", password="pw")
@@ -25,9 +33,9 @@ def test_manage_users_requires_permission(client):
 
 
 @pytest.mark.django_db
-def test_manage_users_can_create_user(client, change_user_permission):
+def test_manage_users_can_create_user(client, change_user_permission, add_user_permission):
     manager = get_user_model().objects.create_user("manager", password="pw", is_staff=True)
-    manager.user_permissions.add(change_user_permission)
+    manager.user_permissions.add(change_user_permission, add_user_permission)
     client.force_login(manager)
 
     payload = {
@@ -71,6 +79,28 @@ def test_manage_users_can_reset_password(client, change_user_permission):
 
 
 @pytest.mark.django_db
+def test_manage_users_rejects_weak_password(client, change_user_permission, add_user_permission):
+    manager = get_user_model().objects.create_user("manager", password="pw", is_staff=True)
+    manager.user_permissions.add(change_user_permission, add_user_permission)
+    client.force_login(manager)
+
+    payload = {
+        "action": "create",
+        "create-username": "weakling",
+        "create-email": "weak@example.com",
+        "create-is_active": "on",
+        "create-password1": "123",
+        "create-password2": "123",
+    }
+
+    response = client.post(reverse("manage_users"), payload)
+
+    assert response.status_code == 200
+    assert b"This password is too short" in response.content
+    assert not get_user_model().objects.filter(username="weakling").exists()
+
+
+@pytest.mark.django_db
 def test_navigation_links_include_admin_and_manage_users(change_user_permission):
     factory = RequestFactory()
     user = get_user_model().objects.create_user("nav-manager", password="pw", is_staff=True)
@@ -83,6 +113,23 @@ def test_navigation_links_include_admin_and_manage_users(change_user_permission)
 
     assert "Manage Users" in names
     assert "Admin" in names
+
+
+@pytest.mark.django_db
+def test_signup_creates_pending_user(client):
+    payload = {
+        "signup-username": "newuser",
+        "signup-email": "newuser@example.com",
+        "signup-password1": "Sup3rSecret!",
+        "signup-password2": "Sup3rSecret!",
+    }
+
+    response = client.post(reverse("signup"), payload)
+
+    assert response.status_code == 302
+    created = get_user_model().objects.get(username="newuser")
+    assert created.groups.filter(name="pending").exists()
+    assert not created.is_staff
 
 
 @pytest.mark.django_db

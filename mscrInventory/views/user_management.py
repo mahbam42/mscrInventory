@@ -13,7 +13,11 @@ from mscrInventory.forms import UserCreateForm, UserUpdateForm
 def _has_user_admin_access(user) -> bool:
     """Return True if the user can administer accounts."""
 
-    return bool(user.is_superuser or user.has_perm("auth.change_user"))
+    return bool(
+        user.is_superuser
+        or user.has_perm("auth.change_user")
+        or user.has_perm("auth.add_user")
+    )
 
 
 @login_required
@@ -24,6 +28,9 @@ def manage_users_groups_view(request):
         raise PermissionDenied
 
     User = get_user_model()
+    can_add_user = request.user.has_perm("auth.add_user") or request.user.is_superuser
+    can_change_user = request.user.has_perm("auth.change_user") or request.user.is_superuser
+
     selected_user = None
     selected_user_id = request.GET.get("user")
     if selected_user_id:
@@ -35,12 +42,16 @@ def manage_users_groups_view(request):
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "create":
+            if not can_add_user:
+                raise PermissionDenied
             create_form = UserCreateForm(request.POST, prefix="create")
             if create_form.is_valid():
                 new_user = create_form.save()
                 messages.success(request, f"Created user {new_user.username}.")
                 return redirect(f"{reverse('manage_users')}?user={new_user.pk}")
         elif action == "update":
+            if not can_change_user:
+                raise PermissionDenied
             user_id = request.POST.get("user_id")
             target = get_object_or_404(User, pk=user_id)
             edit_form = UserUpdateForm(request.POST, instance=target, prefix="edit")
@@ -58,5 +69,7 @@ def manage_users_groups_view(request):
         "selected_user": selected_user,
         "users": users,
         "groups": groups,
+        "can_add_user": can_add_user,
+        "can_change_user": can_change_user,
     }
     return render(request, "user_management.html", context)
