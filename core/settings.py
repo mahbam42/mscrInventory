@@ -138,6 +138,7 @@ LOGIN_EXEMPT_PATHS = [
     "/admin/password_reset/",
     "/admin/reset/",
     "/logout/",
+    "/signup/",
 ]
 LOGIN_EXEMPT_PREFIXES = [
     "/static/",

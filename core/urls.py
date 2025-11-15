@@ -19,7 +19,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
-from mscrInventory.views.auth import logout_view
+from mscrInventory.views.auth import LoginView, logout_view, signup_view
 from mscrInventory.views.dashboard import dashboard_view
 from mscrInventory.views.orders import orders_dashboard_view
 from mscrInventory.views.reporting import reporting_dashboard_view
@@ -82,7 +82,8 @@ from mscrInventory.views.user_management import manage_users_groups_view
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("__reload__/", include("django_browser_reload.urls")),
-    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("login/", LoginView.as_view(), name="login"),
+    path("signup/", signup_view, name="signup"),
     path("logout/", logout_view, name="logout"),
     path("", RedirectView.as_view(pattern_name="dashboard", permanent=False), name="home"),
 
