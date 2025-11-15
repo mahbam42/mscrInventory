@@ -64,6 +64,7 @@ def _render_product_form_modal(request, form: ProductForm, *, title: str, submit
     )
 
 
+@permission_required("mscrInventory.view_product", raise_exception=True)
 def recipes_dashboard_view(request):
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
@@ -247,6 +248,7 @@ def create_product_modal(request):
         submit_label="Create Product",
     )
 
+@permission_required("mscrInventory.view_product", raise_exception=True)
 def recipes_table_fragment(request):
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()

@@ -34,6 +34,7 @@ def _build_sort_context(sort_key: str, direction: str, *, sort_map: dict[str, st
 # -----------------------------
 # DASHBOARD
 # -----------------------------
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def inventory_dashboard_view(request):
     """Display inventory with low stock, totals, and editable table."""
     base_qs = _inventory_queryset()

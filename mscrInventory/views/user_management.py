@@ -13,7 +13,7 @@ from mscrInventory.forms import UserCreateForm, UserUpdateForm
 def _has_user_admin_access(user) -> bool:
     """Return True if the user can administer accounts."""
 
-    return bool(user.is_superuser or user.has_perm("auth.view_user"))
+    return bool(user.is_superuser or user.has_perm("auth.change_user"))
 
 
 @login_required

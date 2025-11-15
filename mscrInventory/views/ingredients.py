@@ -21,6 +21,7 @@ from mscrInventory.models import (
 from .inventory import _build_sort_context, _inventory_queryset
 
 
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def ingredients_dashboard_view(request):
     ingredient_types = IngredientType.objects.exclude(name__iexact="extra").order_by("name")
     unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
@@ -38,6 +39,7 @@ def ingredients_dashboard_view(request):
     return render(request, "ingredients/dashboard.html", context)
 
 
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def ingredients_table_partial(request):
     search_query = request.GET.get("q", "").strip()
     active_type = request.GET.get("type", "").strip()
