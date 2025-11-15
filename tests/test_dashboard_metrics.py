@@ -66,7 +66,7 @@ def test_get_top_named_drinks_ignores_out_of_window_and_noise():
     )
     OrderItemFactory(
         order=current_order,
-        variant_info={"modifiers": ["name your drink"]},
+        variant_info={"modifiers": ["name this coffee"]},
     )
 
     results = get_top_named_drinks(limit=5, lookback_days=30)
