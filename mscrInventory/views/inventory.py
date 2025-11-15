@@ -121,6 +121,37 @@ def bulk_add_modal(request):
     all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("type__name", "name")
     return render(request, "inventory/_bulk_add_modal.html", {"all_ingredients": all_ingredients})
 
+def _clean_int(value):
+    """Return an int or None, preserving zero but skipping blanks."""
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        value = value.strip()
+        if value == "":
+            return None
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _clean_decimal(value):
+    """Return a Decimal or None, preserving zero but skipping blanks."""
+    if value is None:
+        return None
+
+    value = str(value).strip()
+    if value == "":
+        return None
+
+    try:
+        return Decimal(value)
+    except InvalidOperation:
+        return None
+
+
 @require_POST
 def bulk_add_stock(request):
     """Create multiple StockEntry records and refresh dashboard via HTMX triggers."""
@@ -173,12 +204,16 @@ def bulk_add_stock(request):
             # ✅ Update Ingredient stock and metadata
             ing.current_stock = (ing.current_stock or Decimal(0)) + qty_val
 
-            if case:
-                ing.case_size = case
-            if lead:
-                ing.lead_time = lead
-            if reorder:
-                ing.reorder_point = reorder
+            case_value = _clean_int(case)
+            lead_value = _clean_int(lead)
+            reorder_value = _clean_decimal(reorder)
+
+            if case_value is not None:
+                ing.case_size = case_value
+            if lead_value is not None:
+                ing.lead_time = lead_value
+            if reorder_value is not None:
+                ing.reorder_point = reorder_value
 
             ing.save(
                 update_fields=[

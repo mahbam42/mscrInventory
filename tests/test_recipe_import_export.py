@@ -83,6 +83,32 @@ class TestInventoryImportExport:
         assert entry.quantity_added == Decimal("10")
         assert entry.source == "restock"
 
+    def test_bulk_add_stock_allows_zero_metadata_updates(self, client):
+        """Zero values should persist instead of being skipped as falsy."""
+        self.ingredient.case_size = 25
+        self.ingredient.lead_time = 14
+        self.ingredient.reorder_point = Decimal("5")
+        self.ingredient.save()
+
+        url = reverse("bulk_add_stock")
+        data = {
+            "ingredient": [self.ingredient.id],
+            "Rowquantity_added": ["1"],
+            "Rowcost_per_unit": ["1.00"],
+            "Rowcase_size": ["0"],
+            "Rowlead_time": ["0"],
+            "Rowreorder_point": ["0"],
+            "reason": "Restock",
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == 200
+
+        self.ingredient.refresh_from_db()
+        assert self.ingredient.case_size == 0
+        assert self.ingredient.lead_time == 0
+        assert self.ingredient.reorder_point == Decimal("0")
+
 
 @pytest.mark.django_db
 class TestRecipeImportExport:
