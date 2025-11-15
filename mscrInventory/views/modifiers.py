@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import permission_required
 
 from urllib.parse import urlencode
 
@@ -187,6 +188,7 @@ def _render_modifier_modal(request, context_overrides=None, trigger=None):
     return response
 
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def modifier_rules_modal(request):
     if request.method == "POST":
         modifier_id = request.POST.get("modifier_id")
@@ -249,6 +251,7 @@ def modifier_rules_modal(request):
     return _render_modifier_modal(request)
 
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def create_modifier(request):
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -370,10 +373,12 @@ def create_modifier(request):
     )
 
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def import_modifiers_modal(request):
     return render(request, "modifiers/_import_modifiers.html")
 
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 @require_POST
 def import_modifiers_csv(request):
     csv_file = request.FILES.get("file")
@@ -549,6 +554,7 @@ def import_modifiers_csv(request):
     return render(request, "modifiers/_import_modifiers_preview.html", context)
 
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 @require_POST
 def confirm_modifiers_import(request):
     data_json = request.POST.get("valid_rows") or request.body.decode("utf-8")
@@ -593,6 +599,7 @@ def confirm_modifiers_import(request):
     return response
 
 
+@permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def export_modifiers_csv(request):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="modifiers_export.csv"'
@@ -626,6 +633,7 @@ def export_modifiers_csv(request):
     return response
 
 
+@permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def download_modifiers_template(request):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="modifiers_template.csv"'
@@ -654,6 +662,7 @@ def download_modifiers_template(request):
     )
     return response
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def edit_modifier_extra_view(request, modifier_id):
     modifier = get_object_or_404(RecipeModifier, pk=modifier_id)
     # stub logic for now
@@ -675,6 +684,7 @@ def edit_modifier_extra_view(request, modifier_id):
     return render(request, "modifiers/edit_extra_modal.html", {"modifier": modifier, "ingredients": ingredients})
 
 
+@permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def modifier_explorer_view(request):
     analyzer = ModifierExplorerAnalyzer()
     report = analyzer.analyze()
@@ -794,6 +804,7 @@ def modifier_explorer_view(request):
     return render(request, 'modifiers/explorer.html', context)
 
 
+@permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 @require_POST
 def create_modifier_alias(request):
     modifier_id = request.POST.get('modifier_id')

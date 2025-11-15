@@ -15,8 +15,10 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import include, path
-from django.views.generic import TemplateView
+from django.views.generic import RedirectView
+from mscrInventory.views.auth import logout_view
 from mscrInventory.views.dashboard import dashboard_view
 from mscrInventory.views.orders import orders_dashboard_view
 from mscrInventory.views.reporting import reporting_dashboard_view
@@ -71,6 +73,7 @@ from mscrInventory.views.ingredients import (
     ingredients_dashboard_view,
     ingredients_table_partial,
 )
+from mscrInventory.views.user_management import manage_users_groups_view
 
 # from mscrInventory.views.imports import imports_dashboard_view, upload_square_upload, fetch_shopify_view
 
@@ -78,11 +81,14 @@ from mscrInventory.views.ingredients import (
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("__reload__/", include("django_browser_reload.urls")),
+    path("logout/", logout_view, name="logout"),
+    path("", RedirectView.as_view(pattern_name="dashboard", permanent=False), name="home"),
 
     # main dashboard
-    path("dashboard/", dashboard_view, name="dashboard"),
-    path("reports/", reporting_dashboard_view, name="reporting_dashboard"),
-    path("orders/", orders_dashboard_view, name="orders_dashboard"),
+    path("dashboard/", login_required(dashboard_view), name="dashboard"),
+    path("reports/", login_required(reporting_dashboard_view), name="reporting_dashboard"),
+    path("orders/", login_required(orders_dashboard_view), name="orders_dashboard"),
+    path("manage/users/", manage_users_groups_view, name="manage_users"),
 
     # edit unmapped products and ingredients
     path("partials/unmapped-products/", app_views.unmapped_products_partial, name="unmapped_products_partial"),

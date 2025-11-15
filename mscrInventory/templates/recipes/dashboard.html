@@ -7,23 +7,34 @@
   <hr />
   <!-- Edit Widgets -->
   <div class="d-flex justify-content-end flex-wrap gap-2 mb-3">
+    {% if perms.mscrInventory.change_product %}
     <button class="btn btn-sm btn-outline-secondary" hx-get="{% url 'recipes_create_product' %}"
       hx-target="#globalModal .modal-content" hx-swap="innerHTML">
       ➕ Create Product
     </button>
+    {% endif %}
+
+    {% if perms.mscrInventory.change_recipemodifier %}
     <button class="btn btn-sm btn-outline-success"
       hx-get="{% url 'modifier_rules_modal' %}"
       hx-target="#globalModal .modal-content"
       hx-swap="innerHTML">
       🛠️ Edit Modifier Rules
     </button>
+    {% endif %}
+
+    {% if perms.mscrInventory.view_recipeitem %}
     <a href="{% url 'export_recipes_csv' %}" class="btn btn-sm btn-outline-secondary">
       📤 Export Recipes CSV
     </a>
+    {% endif %}
+
+    {% if perms.mscrInventory.change_recipeitem %}
     <button hx-get="{% url 'import_recipes_modal' %}" hx-target="#globalModal .modal-content" hx-swap="innerHTML"
       class="btn btn-sm btn-outline-primary">
       📥 Import Recipes CSV
     </button>
+    {% endif %}
   </div>
 
   {% include "partials/_tools.html" with show_inventory_tools=False %}

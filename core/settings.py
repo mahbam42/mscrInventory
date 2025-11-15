@@ -63,6 +63,7 @@ MIDDLEWARE = [
     "django_browser_reload.middleware.BrowserReloadMiddleware",
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -81,6 +82,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 "core.context_processors.navigation_links",
+                "core.context_processors.admin_link",
                 #"core.context_processors.navigation_context",
             ],
         },
@@ -121,6 +123,25 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+]
+
+
+# Authentication redirects
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "/dashboard/"
+LOGOUT_REDIRECT_URL = LOGIN_URL
+LOGIN_EXEMPT_PATHS = [
+    LOGIN_URL,
+    "/admin/logout/",
+    "/admin/password_reset/",
+    "/admin/reset/",
+    "/logout/",
+]
+LOGIN_EXEMPT_PREFIXES = [
+    "/static/",
+    "/media/",
+    "/admin/jsi18n/",
+    "/__reload__/",
 ]
 
 

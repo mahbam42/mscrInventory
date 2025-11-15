@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.response import TemplateResponse
+from django.contrib.auth.decorators import permission_required
 
 from mscrInventory.forms import IngredientForm, PackagingForm, RoastProfileForm
 from mscrInventory.models import (
@@ -20,6 +21,7 @@ from mscrInventory.models import (
 from .inventory import _build_sort_context, _inventory_queryset
 
 
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def ingredients_dashboard_view(request):
     ingredient_types = IngredientType.objects.exclude(name__iexact="extra").order_by("name")
     unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
@@ -37,6 +39,7 @@ def ingredients_dashboard_view(request):
     return render(request, "ingredients/dashboard.html", context)
 
 
+@permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def ingredients_table_partial(request):
     search_query = request.GET.get("q", "").strip()
     active_type = request.GET.get("type", "").strip()
@@ -187,6 +190,7 @@ def _render_ingredient_modal(
     )
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def ingredient_create_modal(request):
     return _render_ingredient_modal(
         request,
@@ -196,6 +200,7 @@ def ingredient_create_modal(request):
     )
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def ingredient_edit_modal(request, pk: int):
     ingredient = get_object_or_404(Ingredient, pk=pk)
     return _render_ingredient_modal(

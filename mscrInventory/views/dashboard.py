@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
@@ -15,7 +16,13 @@ from mscrInventory.utils.dashboard_metrics import (
 )
 
 
+@login_required
 def dashboard_view(request: HttpRequest) -> HttpResponse:
+    role = (
+        request.user.groups.first().name
+        if request.user.groups.exists()
+        else "Unassigned"
+    )
     low_stock_summary = get_low_stock_summary()
     stat_counts = get_stat_counts()
     stat_cards = build_stat_cards(stat_counts, low_stock_summary)
@@ -30,6 +37,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
         "named_drinks_window": NAMED_DRINK_LOOKBACK_DAYS,
         "warnings": get_warning_items(low_stock_summary, stat_counts, recent_imports),
         "shortcuts": get_shortcuts(),
+        "user_role": role,
     }
     return render(request, "dashboard.html", context)
 

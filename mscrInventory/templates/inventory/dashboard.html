@@ -9,19 +9,23 @@
   {% include "inventory/_summary.html" %}
   <hr>
   <div class="d-flex justify-content-end gap-2 mt-3">
+    {% if perms.mscrInventory.change_ingredient %}
     <button class="btn btn-primary" hx-get="{% url 'inventory_bulk_add_modal' %}" hx-target="#modal-body"
       hx-swap="innerHTML" data-bs-toggle="modal" data-bs-target="#globalModal">
       📦 Bulk Add Stock
     </button>
-  
+
     <button class="btn btn-sm btn-outline-primary" hx-get="{% url 'import_inventory_modal' %}"
       hx-target="#globalModal .modal-content" hx-swap="innerHTML" data-bs-toggle="modal" data-bs-target="#globalModal">
       📥 Import Inventory
     </button>
-  
+    {% endif %}
+
+    {% if perms.mscrInventory.view_ingredient %}
     <a href="{% url 'export_inventory_csv' %}" class="btn btn-outline-secondary">
       📤 Export CSV
     </a>
+    {% endif %}
   </div>
   {% include "partials/_tools.html" %}
   <hr />

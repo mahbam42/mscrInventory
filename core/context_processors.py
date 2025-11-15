@@ -16,6 +16,13 @@ def navigation_links(request):
         {"name": "Reporting", "url_name": "reporting_dashboard"},
     ]
 
+    user = getattr(request, "user", None)
+    if user and user.is_authenticated:
+        if user.has_perm("auth.view_user"):
+            nav_items.append({"name": "Manage Users", "url_name": "manage_users"})
+        if user.is_staff:
+            nav_items.append({"name": "Admin", "url_name": "admin:index"})
+
     links = []
     for item in nav_items:
         try:
@@ -28,6 +35,12 @@ def navigation_links(request):
             continue
 
     return {"nav_links": links}
+
+
+def admin_link(request):
+    """Expose the Django admin link globally."""
+
+    return {"admin_url": "/admin/"}
 
 # from .navigation import NAV_ITEMS
 
