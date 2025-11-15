@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Dict, List
 
 from django.core.cache import cache
 from django.db.models import F
 from django.urls import reverse
+from django.utils import timezone
 
 from mscrInventory.models import (
     ImportLog,
     Ingredient,
+    OrderItem,
     Product,
     RecipeModifier,
     SquareUnmappedItem,
@@ -22,6 +26,9 @@ LOW_STOCK_LIMIT = 5
 RECENT_IMPORT_LIMIT = 4
 ACTIVITY_LIMIT = 6
 WARNING_LIMIT = 5
+NAMED_DRINK_CACHE_KEY = "dashboard:named_drinks"
+NAMED_DRINK_PREFIX = "name your drink"
+NAMED_DRINK_LOOKBACK_DAYS = 30
 
 
 @dataclass
@@ -204,6 +211,83 @@ def get_quick_actions() -> List[Dict[str, Any]]:
             "icon": "bi-arrow-repeat",
         },
     ]
+
+
+def _extract_named_drink_label(token: str) -> str | None:
+    normalized = (token or "").strip().lower()
+    if not normalized.startswith(NAMED_DRINK_PREFIX):
+        return None
+    remainder = normalized[len(NAMED_DRINK_PREFIX) :].strip()
+    remainder = remainder.lstrip(":- ")
+    cleaned = remainder.strip()
+    if not cleaned:
+        return None
+    return cleaned
+
+
+def get_top_named_drinks(
+    limit: int = 10, lookback_days: int = NAMED_DRINK_LOOKBACK_DAYS
+) -> List[Dict[str, Any]]:
+    cache_key = f"{NAMED_DRINK_CACHE_KEY}:{limit}:{lookback_days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    since = timezone.now() - timedelta(days=lookback_days)
+    rows = (
+        OrderItem.objects.select_related("product", "order")
+        .filter(order__order_date__gte=since)
+        .only("quantity", "variant_info", "product__name", "order__order_date")
+    )
+
+    aggregates: Dict[str, Dict[str, Any]] = defaultdict(
+        lambda: {"count": 0, "last_seen": None, "products": set()}
+    )
+
+    for row in rows:
+        info = row.variant_info or {}
+        modifiers = info.get("modifiers") or []
+        for token in modifiers:
+            custom = _extract_named_drink_label(token)
+            if not custom:
+                continue
+            entry = aggregates[custom]
+            qty = int(row.quantity or 1)
+            entry["count"] += qty
+            order_date = getattr(row.order, "order_date", None)
+            if order_date and (entry["last_seen"] is None or order_date > entry["last_seen"]):
+                entry["last_seen"] = order_date
+            if row.product and row.product.name:
+                entry["products"].add(row.product.name)
+
+    results: List[Dict[str, Any]] = []
+    for normalized_label, meta in aggregates.items():
+        display = normalized_label.title()
+        products = sorted(meta["products"])
+        results.append(
+            {
+                "label": display,
+                "normalized_label": normalized_label,
+                "count": meta["count"],
+                "last_seen": meta["last_seen"],
+                "products": products,
+            }
+        )
+
+    results.sort(
+        key=lambda item: (
+            -item["count"],
+            -(
+                item["last_seen"].timestamp()
+                if item["last_seen"]
+                else 0
+            ),
+        )
+    )
+
+    trimmed = results[:limit]
+    cache.set(cache_key, trimmed, CACHE_TIMEOUT)
+    return trimmed
 
 
 def get_shortcuts() -> List[Dict[str, Any]]:

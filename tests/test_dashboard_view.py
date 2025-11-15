@@ -1,6 +1,9 @@
+from unittest.mock import patch
+
 import pytest
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import escape
 
 from tests.factories import (
     ImportLogFactory,
@@ -12,7 +15,17 @@ from tests.factories import (
 
 
 @pytest.mark.django_db
-def test_dashboard_renders_widgets(client):
+@patch("mscrInventory.views.dashboard.get_top_named_drinks")
+def test_dashboard_renders_widgets(mock_named_drinks, client):
+    mock_named_drinks.return_value = [
+        {
+            "label": "Dracula's Delight",
+            "normalized_label": "draculas delight",
+            "count": 3,
+            "products": ["Latte"],
+            "last_seen": timezone.now(),
+        }
+    ]
     ProductFactory()
     IngredientFactory(name="Beans", current_stock=2, reorder_point=5)
     RecipeModifierFactory()
@@ -28,6 +41,8 @@ def test_dashboard_renders_widgets(client):
     assert "Recent Imports" in content
     assert "Quick Add / Import" in content
     assert "Recent Changes" in content
+    assert "Top Name-Your-Drink" in content
+    assert escape("Dracula's Delight") in content
     assert "Recent Warnings" in content
     assert "Shortcuts" in content
 

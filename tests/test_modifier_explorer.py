@@ -55,6 +55,20 @@ Cold Brew,"iced, extra shot"
     assert report.insights["extra shot"].total_count == 1
 
 
+def test_analyzer_ignores_name_your_drink_tokens(db, tmp_path):
+    content = """Item,Modifiers Applied
+Latte,"Name Your Drink: Dracula, Oat Milk"
+"""
+    csv_path = tmp_path / "nyd.csv"
+    csv_path.write_text(content)
+
+    analyzer = ModifierExplorerAnalyzer()
+    report = analyzer.analyze(paths=[csv_path])
+
+    assert "name your drink dracula" not in report.insights
+    assert report.insights["oat milk"].total_count == 1
+
+
 def test_analyzer_co_occurrence(db, tmp_path):
     content = """Item,Modifiers Applied
 Latte,"Oat Milk, Vanilla, Extra Shot"
