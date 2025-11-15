@@ -1,0 +1,20 @@
+<div class="card h-100 shadow-sm">
+  <div class="card-header bg-white border-0">
+    <p class="text-uppercase text-muted small mb-0">Shortcuts</p>
+    <span class="fw-semibold">Jump to key areas</span>
+  </div>
+  <div class="card-body pt-0">
+    <div class="row g-2">
+      {% for shortcut in shortcuts %}
+      <div class="col-6">
+        <a class="btn btn-light w-100 d-flex flex-column align-items-center py-3" href="{{ shortcut.url }}">
+          {% if shortcut.icon %}
+          <i class="bi {{ shortcut.icon }} fs-4 mb-2 text-secondary"></i>
+          {% endif %}
+          <span class="fw-semibold">{{ shortcut.label }}</span>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

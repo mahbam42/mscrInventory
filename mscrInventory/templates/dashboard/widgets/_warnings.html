@@ -1,0 +1,25 @@
+<div class="card h-100 shadow-sm">
+  <div class="card-header bg-white border-0">
+    <p class="text-uppercase text-muted small mb-0">Recent Warnings</p>
+    <span class="fw-semibold">Integrity + inventory alerts</span>
+  </div>
+  <div class="card-body pt-0">
+    {% if warnings %}
+    <ul class="list-group list-group-flush">
+      {% for warning in warnings %}
+      <li class="list-group-item px-0 d-flex justify-content-between align-items-start">
+        <div>
+          <span class="fw-semibold d-block">{{ warning.title }}</span>
+          <span class="text-muted small">{{ warning.detail }}</span>
+        </div>
+        {% if warning.url %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ warning.url }}">Open</a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-0">All systems look good ✅</p>
+    {% endif %}
+  </div>
+</div>

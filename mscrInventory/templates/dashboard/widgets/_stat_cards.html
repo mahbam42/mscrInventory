@@ -1,0 +1,37 @@
+<div class="row g-3">
+  {% for card in stat_cards %}
+  <div class="col-12 col-md-6">
+    <div class="card h-100 shadow-sm border{% if card.highlight %} border-warning{% else %} border-0{% endif %}">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div>
+            <p class="text-uppercase text-muted small mb-1">{{ card.title }}</p>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="display-6 fw-semibold">{{ card.value }}</span>
+            </div>
+          </div>
+          {% if card.icon %}
+          <span class="badge rounded-pill bg-light text-secondary">
+            <i class="bi {{ card.icon }}"></i>
+          </span>
+          {% endif %}
+        </div>
+        <p class="text-muted small mb-3">{{ card.description }}</p>
+        {% if card.items %}
+        <ul class="list-unstyled small mb-3">
+          {% for item in card.items %}
+          <li class="d-flex justify-content-between">
+            <span>{{ item.name }}</span>
+            <span class="text-muted">{{ item.current_stock|floatformat:0 }} / {{ item.reorder_point|floatformat:0 }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if card.cta %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ card.cta.url }}">{{ card.cta.label }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
