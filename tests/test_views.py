@@ -52,7 +52,7 @@ def test_add_recipe_ingredient(client):
 
 @pytest.mark.django_db
 def test_reporting_dashboard_view(client):
-    _login_user(client, "views-report")
+    _login_user(client, "views-report", ["change_order"])
     response = client.get(reverse("reporting_dashboard"))
     assert response.status_code == 200
     assert b"Reporting Dashboard" in response.content
@@ -60,7 +60,7 @@ def test_reporting_dashboard_view(client):
 
 @pytest.mark.django_db
 def test_reporting_dashboard_shows_variant_modal_trigger(client):
-    _login_user(client, "views-report-variants")
+    _login_user(client, "views-report-variants", ["change_order"])
     product = ProductFactory(name="Cookie Sampler")
     order = Order.objects.create(
         order_id="order-1",
@@ -87,6 +87,15 @@ def test_reporting_dashboard_shows_variant_modal_trigger(client):
     content = response.content.decode("utf-8")
     assert "variant-details-" in content
     assert "data-variant-script-id" in content
+
+
+@pytest.mark.django_db
+def test_reporting_dashboard_requires_permission(client):
+    _login_user(client, "views-report-no-perms")
+
+    response = client.get(reverse("reporting_dashboard"))
+
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db

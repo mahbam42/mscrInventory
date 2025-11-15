@@ -2,7 +2,7 @@ import datetime
 from decimal import Decimal
 
 from django.conf import settings
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import render
 from django.utils import timezone
 
@@ -19,6 +19,7 @@ def _parse_date(value: str | None) -> datetime.date | None:
         return None
 
 
+@permission_required("mscrInventory.change_order", raise_exception=True)
 @login_required
 def reporting_dashboard_view(request):
     today = timezone.localdate()
