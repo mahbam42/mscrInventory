@@ -1,0 +1,30 @@
+<div class="card h-100 shadow-sm">
+  <div class="card-header bg-white border-0">
+    <p class="text-uppercase text-muted small mb-0">Quick Add / Import</p>
+    <span class="fw-semibold">Shortcuts for common actions</span>
+  </div>
+  <div class="card-body pt-0">
+    {% for action in quick_actions %}
+    <div class="mb-3">
+      {% if action.hx_get %}
+      <button type="button"
+              class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
+              hx-get="{{ action.hx_get }}"
+              hx-target="{{ action.hx_target|default:'#modal-body' }}"
+              hx-trigger="{{ action.hx_trigger|default:'click' }}"
+              hx-swap="innerHTML">
+        {% if action.icon %}<i class="bi {{ action.icon }}"></i>{% endif %}
+        {{ action.label }}
+      </button>
+      {% else %}
+      <a class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2"
+         href="{{ action.url }}">
+        {% if action.icon %}<i class="bi {{ action.icon }}"></i>{% endif %}
+        {{ action.label }}
+      </a>
+      {% endif %}
+      <p class="text-muted small mb-0 mt-1">{{ action.description }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>

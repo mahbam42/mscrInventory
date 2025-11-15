@@ -1,0 +1,36 @@
+<div class="card h-100 shadow-sm">
+  <div class="card-header bg-white border-0">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <p class="text-uppercase text-muted small mb-0">Recent Imports</p>
+        <span class="fw-semibold">Square & Shopify runs</span>
+      </div>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'imports_dashboard' %}">Open</a>
+    </div>
+  </div>
+  <div class="card-body pt-0">
+    {% if recent_imports %}
+    <ul class="list-group list-group-flush">
+      {% for run in recent_imports %}
+      <li class="list-group-item px-0 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">{{ run.source }} ({{ run.run_type }})</span>
+          <span class="badge {{ run.badge }}">{{ run.status }}</span>
+        </div>
+        <small class="text-muted">
+          {{ run.created_at|date:"M j, g:i a" }} · {{ run.rows_processed }} rows · {{ run.matched }} matched
+        </small>
+        {% if run.unmatched %}
+        <small class="text-warning">{{ run.unmatched }} unmatched rows</small>
+        {% endif %}
+        {% if run.summary %}
+        <small class="text-muted">{{ run.summary }}</small>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-0">No imports yet. Upload a CSV to get started.</p>
+    {% endif %}
+  </div>
+</div>

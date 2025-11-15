@@ -2,64 +2,44 @@
 {% load static %}
 
 {% block content %}
-<h1>Dashboard — {{ selected_date }}</h1>
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-end mb-4">
+    <div>
+      <p class="text-uppercase text-muted small mb-1">Operations</p>
+      <h1 class="h3 mb-0">Dashboard</h1>
+      <p class="text-muted mb-0">Live inventory, imports, and activity snapshots</p>
+    </div>
+    <a class="btn btn-outline-secondary mt-3 mt-sm-0" href="{% url 'imports_dashboard' %}">
+      View imports log
+    </a>
+  </div>
 
-<div class="stats">
-    <div class="stat">
-        <strong>{{ total_orders }}</strong><br>Orders
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xl-8">
+      {% include "dashboard/widgets/_stat_cards.html" with stat_cards=stat_cards %}
     </div>
-    <div class="stat">
-        <strong>${{ total_revenue }}</strong><br>Total Revenue
+    <div class="col-12 col-xl-4">
+      {% include "dashboard/widgets/_recent_imports.html" with recent_imports=recent_imports %}
     </div>
-    <div class="stat">
-        <strong>{{ unmapped_products_count }}</strong><br>Unmapped Products
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-8">
+      {% include "dashboard/widgets/_activity_feed.html" with activity_feed=activity_feed %}
     </div>
-    <div class="stat">
-        <strong>{{ low_stock_ingredients|length }}</strong><br>Low Stock Items
+    <div class="col-12 col-lg-4">
+      {% include "dashboard/widgets/_quick_actions.html" with quick_actions=quick_actions %}
     </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      {% include "dashboard/widgets/_warnings.html" with warnings=warnings %}
+    </div>
+    <div class="col-12 col-lg-6">
+      {% include "dashboard/widgets/_shortcuts.html" with shortcuts=shortcuts %}
+    </div>
+  </div>
 </div>
-
-<h2>Top Products</h2>
-<table>
-    <tr><th>Product</th><th>SKU</th><th>Quantity Sold</th><th>Total Sales</th></tr>
-    {% for p in top_products %}
-    <tr>
-        <td>{{ p.product__name }}</td>
-        <td>{{ p.product__sku }}</td>
-        <td>{{ p.total_qty }}</td>
-        <td>${{ p.total_sales }}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="4">No orders for this day.</td></tr>
-    {% endfor %}
-</table>
-
-<h2>Low Stock Ingredients</h2>
-<table>
-    <tr><th>Name</th><th>Current Stock</th><th>Reorder Point</th></tr>
-    {% for ing in low_stock_ingredients %}
-    <tr class="low">
-        <td>{{ ing.name }}</td>
-        <td>{{ ing.current_stock }}</td>
-        <td>{{ ing.reorder_point }}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="3">No low stock items 🎉</td></tr>
-    {% endfor %}
-</table>
-
-<h2>Unmapped Products</h2>
-<table>
-    <tr><th>SKU</th><th>Name</th></tr>
-    {% for prod in unmapped_products %}
-    <tr>
-        <td>{{ prod.sku }}</td>
-        <td>{{ prod.name }}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="2">No unmapped products 🎉</td></tr>
-    {% endfor %}
-</table>
 {% endblock %}
-
 
