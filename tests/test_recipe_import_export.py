@@ -49,6 +49,21 @@ class TestInventoryImportExport:
         assert "1.50" in csv_content
         assert self.ingredient.current_stock != Decimal("1.500")
 
+    def test_import_inventory_csv_preserves_decimal_precision(self, client):
+        qty_value = "12345678901234567890.123456"
+        cost_value = "0.000123456789"
+        csv_content = (
+            "id,name,type,quantity_added,current_stock,case_size,reorder_point,average_cost_per_unit,lead_time\n"
+            f"{self.ingredient.id},Espresso Beans,,{qty_value},200,20,10,{cost_value},5\n"
+        )
+        upload = SimpleUploadedFile("precise.csv", csv_content.encode("utf-8"), content_type="text/csv")
+        url = reverse("import_inventory_csv")
+        response = client.post(url, {"file": upload})
+        assert response.status_code == 200
+        valid_rows = response.context["valid_rows"]
+        assert valid_rows[0]["quantity_added"] == qty_value
+        assert valid_rows[0]["cost_per_unit"] == cost_value
+
     def test_bulk_add_stock_creates_stockentry_records(self, client):
         url = reverse("bulk_add_stock")
         data = {
