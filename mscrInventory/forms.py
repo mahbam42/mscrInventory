@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django import forms
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, password_validation
 from django.contrib.auth.models import Group
 from django.db import IntegrityError
 from django.utils.text import slugify
@@ -433,6 +433,8 @@ class UserCreateForm(forms.ModelForm):
         fields = ["username", "email", "is_active", "is_staff", "groups"]
         widgets = {
             "groups": forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_staff": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -444,7 +446,10 @@ class UserCreateForm(forms.ModelForm):
             if name == "groups":
                 continue
             existing = field.widget.attrs.get("class", "")
-            field.widget.attrs["class"] = f"{existing} form-control".strip()
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = f"{existing} form-check-input".strip()
+            else:
+                field.widget.attrs["class"] = f"{existing} form-control".strip()
 
     def clean(self):
         cleaned = super().clean()
@@ -452,6 +457,11 @@ class UserCreateForm(forms.ModelForm):
         password2 = cleaned.get("password2")
         if password1 != password2:
             raise forms.ValidationError("Passwords do not match.")
+        if password1:
+            try:
+                password_validation.validate_password(password1, self.instance)
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
         return cleaned
 
     def save(self, commit=True):
@@ -482,6 +492,8 @@ class UserUpdateForm(forms.ModelForm):
         fields = ["username", "email", "is_active", "is_staff", "groups"]
         widgets = {
             "groups": forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_staff": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -491,7 +503,10 @@ class UserUpdateForm(forms.ModelForm):
             if name == "groups":
                 continue
             existing = field.widget.attrs.get("class", "")
-            field.widget.attrs["class"] = f"{existing} form-control".strip()
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = f"{existing} form-check-input".strip()
+            else:
+                field.widget.attrs["class"] = f"{existing} form-control".strip()
 
     def clean(self):
         cleaned = super().clean()
@@ -500,6 +515,10 @@ class UserUpdateForm(forms.ModelForm):
         if password1 or password2:
             if password1 != password2:
                 raise forms.ValidationError("Passwords do not match.")
+            try:
+                password_validation.validate_password(password1, self.instance)
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
         return cleaned
 
     def save(self, commit=True):
@@ -510,4 +529,49 @@ class UserUpdateForm(forms.ModelForm):
         if commit:
             user.save()
             self.save_m2m()
+        return user
+
+
+class PublicUserCreateForm(forms.ModelForm):
+    password1 = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput,
+        strip=False,
+    )
+    password2 = forms.CharField(
+        label="Confirm Password",
+        widget=forms.PasswordInput,
+        strip=False,
+    )
+
+    class Meta:
+        model = User
+        fields = ["username", "email"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            existing = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing} form-control".strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        password1 = cleaned.get("password1")
+        password2 = cleaned.get("password2")
+        if password1 != password2:
+            raise forms.ValidationError("Passwords do not match.")
+        if password1:
+            try:
+                password_validation.validate_password(password1, self.instance)
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
+        return cleaned
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.is_active = True
+        user.is_staff = False
+        user.set_password(self.cleaned_data["password1"])
+        if commit:
+            user.save()
         return user

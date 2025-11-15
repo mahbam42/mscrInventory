@@ -26,8 +26,59 @@
           {% endfor %}
           <button type="submit" class="btn btn-primary w-100">Log in</button>
         </form>
+        <div class="text-center mt-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#signupModal">
+            Create new account
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </div>
+<div class="modal fade" id="signupModal" tabindex="-1" aria-labelledby="signupModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="signupModalLabel">Request an account</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'signup' %}" novalidate>
+        <div class="modal-body">
+          {% csrf_token %}
+          {% for field in signup_form %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% if field.errors %}
+            <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <p class="text-muted small mb-0">New accounts are added to the <strong>pending</strong> group until a manager approves access.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+  (() => {
+    const shouldOpenSignup = {% if show_signup_modal or signup_form.is_bound and signup_form.errors %}true{% else %}false{% endif %};
+    if (shouldOpenSignup) {
+      const modalEl = document.getElementById('signupModal');
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+  })();
+</script>
 {% endblock %}
