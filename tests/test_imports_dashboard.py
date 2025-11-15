@@ -4,6 +4,8 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
@@ -19,8 +21,16 @@ from mscrInventory.models import (
 )
 
 
+def _login_ing_editor(client, username="editor"):
+    user = get_user_model().objects.create_user(username=username, password="pw")
+    user.user_permissions.add(Permission.objects.get(codename="change_ingredient"))
+    client.force_login(user)
+    return user
+
+
 @pytest.mark.django_db
 def test_upload_square_view_logs_output(client, monkeypatch):
+    _login_ing_editor(client, "square-logger")
     csv_content = "Item,Qty,Transaction ID\nLatte,1,txn-test\n"
     upload = SimpleUploadedFile("square.csv", csv_content.encode("utf-8"))
 
@@ -47,6 +57,7 @@ def test_upload_square_view_logs_output(client, monkeypatch):
 
 @pytest.mark.django_db
 def test_upload_square_view_uses_secure_tempfile(client, monkeypatch):
+    _login_ing_editor(client, "square-secure")
     captured_path: dict[str, Path] = {}
 
     def fake_run(self, path):
@@ -68,6 +79,7 @@ def test_upload_square_view_uses_secure_tempfile(client, monkeypatch):
 
 @pytest.mark.django_db
 def test_upload_square_view_records_usage_logs(client, monkeypatch):
+    _login_ing_editor(client, "square-usage")
     ingredient = Ingredient.objects.create(name="Cold Brew", average_cost_per_unit=Decimal("0.50"), current_stock=Decimal("10"))
     upload = SimpleUploadedFile("square.csv", b"Item,Qty\nCold Brew,2\n")
 
@@ -116,6 +128,7 @@ def test_upload_square_view_records_usage_logs(client, monkeypatch):
 
 @pytest.mark.django_db
 def test_unmapped_items_view_modal(client):
+    _login_ing_editor(client)
     SquareUnmappedItem.objects.create(item_name="Barista's Choice", price_point_name="Dracula's Delight")
     Ingredient.objects.create(name="Unmapped: Syrup")
 
@@ -136,6 +149,7 @@ def test_unmapped_items_view_modal(client):
 
 @pytest.mark.django_db
 def test_unmapped_items_view_page(client):
+    _login_ing_editor(client)
     SquareUnmappedItem.objects.create(item_name="Seasonal Special", price_point_name="")
     response = client.get(reverse("imports_unmapped_items"))
     assert response.status_code == 200
@@ -146,6 +160,7 @@ def test_unmapped_items_view_page(client):
 
 @pytest.mark.django_db
 def test_unmapped_items_hide_known_recipes_by_default(client):
+    _login_ing_editor(client)
     Product.objects.create(name="Maple Latte", sku="MAPLE-001")
     SquareUnmappedItem.objects.create(item_name="Maple Latte", price_point_name="")
     SquareUnmappedItem.objects.create(item_name="Mystery Blend", price_point_name="")
@@ -162,6 +177,7 @@ def test_unmapped_items_hide_known_recipes_by_default(client):
 
 @pytest.mark.django_db
 def test_unmapped_items_toggle_reveals_known_recipes(client):
+    _login_ing_editor(client)
     product = Product.objects.create(name="Caramel Cold Brew", sku="CCB-123")
     SquareUnmappedItem.objects.create(item_name="Caramel Cold Brew", price_point_name="")
 
@@ -191,9 +207,8 @@ def test_known_recipe_forms_target_products():
 
 
 @pytest.mark.django_db
-def test_bulk_unmapped_create_products(client, django_user_model):
-    user = django_user_model.objects.create_user(username="staff", password="pw", is_staff=True)
-    client.force_login(user)
+def test_bulk_unmapped_create_products(client):
+    _login_ing_editor(client, "bulk-editor")
 
     SquareUnmappedItem.objects.create(item_name="Mystery Drink", price_point_name="Nightcap")
     response = client.post(
@@ -209,6 +224,7 @@ def test_bulk_unmapped_create_products(client, django_user_model):
 
 @pytest.mark.django_db
 def test_import_logs_view_lists_entries(client, django_user_model):
+    _login_ing_editor(client, "log-viewer")
     user = django_user_model.objects.create_user(username="viewer", password="pw")
     ImportLog.objects.create(
         source="square",

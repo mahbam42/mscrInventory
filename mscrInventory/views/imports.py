@@ -11,6 +11,7 @@ from pathlib import Path
 
 from django import forms as django_forms
 from django.contrib import messages
+from django.contrib.auth.decorators import permission_required
 from django.core.management import call_command
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, Exists, OuterRef
@@ -138,6 +139,7 @@ def imports_dashboard_view(request):
     return render(request, "imports/dashboard.html", {"unresolved_count": unresolved_count})
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def upload_square_view(request):
     """Handle Square CSV upload via dashboard (supports dry run)."""
@@ -252,6 +254,7 @@ def upload_square_view(request):
     return redirect("imports_dashboard")
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def unmapped_items_view(request):
     """Render modal or page content summarising unmapped entries."""
 
@@ -297,6 +300,7 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
     )
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def link_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
@@ -317,6 +321,7 @@ def link_unmapped_item(request, pk: int):
     return _render_unmapped_table(request, filter_type, form_overrides=overrides, status=400)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def create_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
@@ -345,6 +350,7 @@ def create_unmapped_item(request, pk: int):
     return _render_unmapped_table(request, filter_type, form_overrides=overrides, status=400)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def ignore_unmapped_item(request, pk: int):
     item = get_object_or_404(SquareUnmappedItem, pk=pk)
@@ -360,6 +366,7 @@ def ignore_unmapped_item(request, pk: int):
     return response
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def bulk_unmapped_action(request):
     action = request.POST.get("action")
@@ -415,6 +422,7 @@ def bulk_unmapped_action(request):
     return redirect(redirect_url)
 
 
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def fetch_shopify_view(request):
     """Fetch Shopify data for a date or range."""

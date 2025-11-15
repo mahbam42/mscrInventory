@@ -4,6 +4,8 @@ import json
 
 import pytest
 from decimal import Decimal
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -13,6 +15,10 @@ from tests.factories import IngredientFactory
 
 @pytest.mark.django_db
 def test_import_inventory_csv_updates_existing(client):
+    user = get_user_model().objects.create_user("inventory", password="pw")
+    user.user_permissions.add(Permission.objects.get(codename="change_ingredient"))
+    client.force_login(user)
+
     i = Ingredient.objects.create(name="Whole Milk", current_stock=5)
     data = io.StringIO()
     writer = csv.writer(data)
@@ -31,6 +37,10 @@ def test_import_inventory_csv_updates_existing(client):
 
 @pytest.mark.django_db
 def test_import_inventory_preview_includes_current_stock_value(client):
+    user = get_user_model().objects.create_user("inventory2", password="pw")
+    user.user_permissions.add(Permission.objects.get(codename="change_ingredient"))
+    client.force_login(user)
+
     ingredient = IngredientFactory()
     csv_buffer = io.StringIO()
     writer = csv.writer(csv_buffer)
@@ -64,6 +74,10 @@ def test_import_inventory_preview_includes_current_stock_value(client):
 
 @pytest.mark.django_db
 def test_confirm_inventory_import_emits_hx_triggers(client):
+    user = get_user_model().objects.create_user("inventory3", password="pw")
+    user.user_permissions.add(Permission.objects.get(codename="change_ingredient"))
+    client.force_login(user)
+
     ingredient = IngredientFactory()
     ingredient.current_stock = Decimal("0")
     ingredient.save(update_fields=["current_stock"])

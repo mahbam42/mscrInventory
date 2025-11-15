@@ -1,11 +1,17 @@
 import csv
 from io import StringIO
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 from mscrInventory.models import Ingredient, IngredientType
 
 @pytest.mark.django_db
 def test_export_inventory_csv_empty(client):
+    user = get_user_model().objects.create_user("viewer", password="pw")
+    user.user_permissions.add(Permission.objects.get(codename="view_ingredient"))
+    client.force_login(user)
+
     url = reverse("export_inventory_csv")
     resp = client.get(url)
     assert resp.status_code == 200
@@ -32,6 +38,10 @@ def test_export_inventory_csv_with_rows(client):
         current_stock=20, case_size=12, reorder_point=6,
         average_cost_per_unit=0.12, lead_time=0
     )
+    user = get_user_model().objects.create_user("viewer2", password="pw")
+    user.user_permissions.add(Permission.objects.get(codename="view_ingredient"))
+    client.force_login(user)
+
     url = reverse("export_inventory_csv")
     resp = client.get(url)
     data = resp.content.decode("utf-8")

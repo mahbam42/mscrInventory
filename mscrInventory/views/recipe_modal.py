@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.contrib import messages
+from django.contrib.auth.decorators import permission_required
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -207,6 +208,7 @@ def edit_recipe_view(request, pk):
     return render(request, "recipes/_edit_modal.html", ctx)
 
 
+@permission_required("mscrInventory.change_product", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def edit_product_modal(request, pk):
     product = get_object_or_404(Product, pk=pk)
@@ -227,6 +229,7 @@ def edit_product_modal(request, pk):
     )
 
 
+@permission_required("mscrInventory.change_product", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def create_product_modal(request):
     if request.method == "POST":
@@ -267,6 +270,7 @@ def recipes_table_fragment(request):
     # ✅ Always return an HttpResponse
     return render(request, "recipes/_table.html", ctx)
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_http_methods(["POST"])
 @transaction.atomic
 def add_recipe_ingredient(request, pk):
@@ -301,6 +305,7 @@ def add_recipe_ingredient(request, pk):
         return JsonResponse({"error": "Unable to add ingredient right now."}, status=400)
 
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_http_methods(["DELETE"])
 @transaction.atomic
 def delete_recipe_ingredient(request, product_id, item_id):
@@ -314,6 +319,7 @@ def delete_recipe_ingredient(request, product_id, item_id):
     html = render_to_string("recipes/_edit_ingredient_body.html", ctx, request=request)
     return HttpResponse(html)
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_POST
 def update_recipe_item(request, pk):
     """Inline update for RecipeItem (quantity)."""
@@ -331,6 +337,7 @@ def update_recipe_item(request, pk):
         {"item": item, "product": product},  # 👈 Include product in context
     )
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_http_methods(["POST"])
 @transaction.atomic
 def save_recipe_modifiers(request, pk):
@@ -345,6 +352,7 @@ def save_recipe_modifiers(request, pk):
         logger.exception("Failed to save modifiers for recipe %s", product.pk)
         return JsonResponse({"error": "Unable to save modifiers right now."}, status=400)
 
+@permission_required("mscrInventory.view_recipeitem", raise_exception=True)
 def export_recipes_csv(request):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="recipes_snapshot.csv"'
@@ -362,6 +370,7 @@ def export_recipes_csv(request):
     return response
 
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_POST
 def import_recipes_csv(request):
     csv_file = request.FILES.get("file")
@@ -444,11 +453,13 @@ def export_recipes_csv(request):
     return response
 
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 def import_recipes_modal(request):
     """Render upload modal."""
     return render(request, "recipes/_import_recipes.html")
 
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_POST
 def import_recipes_csv(request):
     """Parse CSV, validate rows, show preview (supports dry-run)."""
@@ -519,6 +530,7 @@ def import_recipes_csv(request):
     }
     return render(request, "recipes/_import_recipes_preview.html", ctx)
 
+@permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_POST
 def confirm_recipes_import(request):
     """Write validated CSV rows into RecipeItems."""
@@ -572,6 +584,7 @@ def confirm_recipes_import(request):
     })
     return response
 
+@permission_required("mscrInventory.view_recipeitem", raise_exception=True)
 def download_recipes_template(request):
     """Generate a blank CSV template for recipe imports."""
     response = HttpResponse(content_type="text/csv")
