@@ -24,6 +24,7 @@ def test_dashboard_renders_widgets(mock_named_drinks, client):
             "count": 3,
             "products": ["Latte"],
             "last_seen": timezone.now(),
+            "orders_url": "/orders/?preset=30&platform=all&q=Dracula&start=2025-10-17&end=2025-11-15&sort=order_date&direction=desc",
         }
     ]
     ProductFactory()
@@ -43,6 +44,7 @@ def test_dashboard_renders_widgets(mock_named_drinks, client):
     assert "Recent Changes" in content
     assert "Top Name-Your-Drink" in content
     assert escape("Dracula's Delight") in content
+    assert "orders/?preset=30" in content
     assert "Recent Warnings" in content
     assert "Shortcuts" in content
 

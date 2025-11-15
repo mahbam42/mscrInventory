@@ -9,6 +9,7 @@ from django.core.cache import cache
 from django.db.models import F
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import urlencode
 
 from mscrInventory.models import (
     ImportLog,
@@ -27,7 +28,7 @@ RECENT_IMPORT_LIMIT = 4
 ACTIVITY_LIMIT = 6
 WARNING_LIMIT = 5
 NAMED_DRINK_CACHE_KEY = "dashboard:named_drinks"
-NAMED_DRINK_PREFIX = "name this coffee"
+NAMED_DRINK_PREFIXES = ("name your drink", "name this coffee")
 NAMED_DRINK_LOOKBACK_DAYS = 30
 
 
@@ -215,14 +216,33 @@ def get_quick_actions() -> List[Dict[str, Any]]:
 
 def _extract_named_drink_label(token: str) -> str | None:
     normalized = (token or "").strip().lower()
-    if not normalized.startswith(NAMED_DRINK_PREFIX):
+    if not normalized:
         return None
-    remainder = normalized[len(NAMED_DRINK_PREFIX) :].strip()
-    remainder = remainder.lstrip(":- ")
-    cleaned = remainder.strip()
-    if not cleaned:
+    for prefix in NAMED_DRINK_PREFIXES:
+        if not normalized.startswith(prefix):
+            continue
+        remainder = normalized[len(prefix) :].strip()
+        remainder = remainder.lstrip(":- ")
+        cleaned = remainder.strip()
+        if cleaned:
+            return cleaned
         return None
-    return cleaned
+    return None
+
+
+def _build_named_drink_orders_url(label: str, lookback_days: int) -> str:
+    today = timezone.localdate()
+    start_date = today - timedelta(days=lookback_days)
+    params = {
+        "preset": str(lookback_days),
+        "platform": "all",
+        "q": label,
+        "start": start_date.isoformat(),
+        "end": today.isoformat(),
+        "sort": "order_date",
+        "direction": "desc",
+    }
+    return f"{reverse('orders_dashboard')}?{urlencode(params)}"
 
 
 def get_top_named_drinks(
@@ -271,6 +291,7 @@ def get_top_named_drinks(
                 "count": meta["count"],
                 "last_seen": meta["last_seen"],
                 "products": products,
+                "orders_url": _build_named_drink_orders_url(display, lookback_days),
             }
         )
 

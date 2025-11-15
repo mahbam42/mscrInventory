@@ -17,7 +17,7 @@ from mscrInventory.models import RecipeModifier, RecipeModifierAlias
 # than actionable modifiers. This intentionally mirrors the Square importer logic
 # so that diagnostics stay aligned with production handling.
 IGNORED_TOKENS: set[str] = {"iced", "ice", "hot", "small", "medium", "large", "xl"}
-NAME_YOUR_DRINK_PREFIX = "name this coffee"
+CUSTOM_DRINK_PREFIXES = ("name your drink", "name this coffee")
 
 # Default directory that stores Square CSV exports inside the repository.
 DEFAULT_SQUARE_DIR = Path("squareCSVs")
@@ -185,7 +185,7 @@ class ModifierExplorerAnalyzer:
         custom_name_prefixes: Optional[Iterable[str]] = None,
     ) -> None:
         self.ignored_tokens = set(ignored_tokens or IGNORED_TOKENS)
-        prefixes = custom_name_prefixes or (NAME_YOUR_DRINK_PREFIX,)
+        prefixes = custom_name_prefixes or CUSTOM_DRINK_PREFIXES
         self.custom_name_prefixes = tuple(prefix.strip().lower() for prefix in prefixes)
 
     # ------------------------------------------------------------------
