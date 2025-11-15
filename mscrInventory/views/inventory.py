@@ -440,10 +440,16 @@ def import_inventory_csv(request):
             continue
 
         # Build valid entry
+        current_stock_display = (
+            str(current_stock_csv)
+            if current_stock_csv is not None
+            else (row.get("current_stock") or "")
+        )
         valid_rows.append({
             "ingredient": ing.id,
             "name": ing.name,
             "quantity_added": str(qty_added),
+            "current_stock": current_stock_display,
             "cost_per_unit": str(cost_per_unit) if cost_per_unit is not None else "0",
             "case_size": row.get("case_size") or "",
             "lead_time": row.get("lead_time") or "",
