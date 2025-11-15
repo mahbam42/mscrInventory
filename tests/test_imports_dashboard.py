@@ -1,5 +1,5 @@
 import datetime
-import tempfile
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,6 +21,14 @@ from mscrInventory.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def square_csv_dir(settings, tmp_path):
+    target = tmp_path / "squareCSVs"
+    target.mkdir()
+    settings.SQUARE_CSV_DIR = target
+    return target
+
+
 def _login_ing_editor(client, username="editor"):
     user = get_user_model().objects.create_user(username=username, password="pw")
     user.user_permissions.add(Permission.objects.get(codename="change_ingredient"))
@@ -29,12 +37,15 @@ def _login_ing_editor(client, username="editor"):
 
 
 @pytest.mark.django_db
-def test_upload_square_view_logs_output(client, monkeypatch):
+def test_upload_square_view_logs_output(client, monkeypatch, square_csv_dir):
     _login_ing_editor(client, "square-logger")
     csv_content = "Item,Qty,Transaction ID\nLatte,1,txn-test\n"
     upload = SimpleUploadedFile("square.csv", csv_content.encode("utf-8"))
 
+    captured_path: dict[str, Path] = {}
+
     def fake_run(self, path):
+        captured_path["value"] = Path(path)
         self.buffer = ["Test output", "📊 **Square Import Summary**", "✅ Dry-run complete."]
         return "\n".join(self.buffer)
 
@@ -51,12 +62,15 @@ def test_upload_square_view_logs_output(client, monkeypatch):
     assert logs.count() == 1
     log = logs.first()
     assert log.run_type == "dry-run"
-    assert log.filename == "square.csv"
+    assert log.filename.endswith("-square.csv")
     assert "Test output" in (log.log_output or "")
+    saved_path = captured_path["value"]
+    assert saved_path.parent == square_csv_dir
+    assert saved_path.exists()
 
 
 @pytest.mark.django_db
-def test_upload_square_view_uses_secure_tempfile(client, monkeypatch):
+def test_upload_square_view_uses_secure_tempfile(client, monkeypatch, square_csv_dir):
     _login_ing_editor(client, "square-secure")
     captured_path: dict[str, Path] = {}
 
@@ -71,10 +85,11 @@ def test_upload_square_view_uses_secure_tempfile(client, monkeypatch):
 
     assert response.status_code == 302
     secure_path = captured_path["value"]
-    assert secure_path.parent == Path(tempfile.gettempdir())
+    assert secure_path.parent == square_csv_dir
     assert secure_path.name != "../../evil.csv"
+    assert re.match(r"\d{8}-\d{6}-evil\.csv", secure_path.name)
     assert ".." not in secure_path.name
-    assert not secure_path.exists()
+    assert secure_path.exists()
 
 
 @pytest.mark.django_db

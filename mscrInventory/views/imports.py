@@ -4,7 +4,6 @@ Import views for handling external data sources.
 
 import datetime
 import json
-import tempfile
 from decimal import Decimal
 from io import StringIO
 from pathlib import Path
@@ -12,12 +11,14 @@ from pathlib import Path
 from django import forms as django_forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.conf import settings
 from django.core.management import call_command
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, Exists, OuterRef
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
@@ -132,6 +133,26 @@ def _build_unmapped_context(
     }
 
 
+def _save_square_upload(uploaded_file) -> Path:
+    """Persist the uploaded Square CSV into the configured directory."""
+
+    target_dir = Path(settings.SQUARE_CSV_DIR)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    original_name = Path(uploaded_file.name or "square-upload")
+    base = slugify(original_name.stem) or "square-upload"
+    extension = original_name.suffix
+    timestamp = timezone.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"{timestamp}-{base}{extension}"
+
+    destination = target_dir / filename
+    with destination.open("wb") as handle:
+        for chunk in uploaded_file.chunks():
+            handle.write(chunk)
+
+    return destination
+
+
 @permission_required("mscrInventory.view_ingredient", raise_exception=True)
 @login_required
 def imports_dashboard_view(request):
@@ -153,18 +174,11 @@ def upload_square_view(request):
         messages.error(request, "No file uploaded.")
         return redirect("imports_dashboard")
 
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-    tmp_path = Path(temp_file.name)
-    try:
-        for chunk in uploaded_file.chunks():
-            temp_file.write(chunk)
-        temp_file.flush()
-    finally:
-        temp_file.close()
+    saved_path = _save_square_upload(uploaded_file)
 
     try:
         importer = SquareImporter(dry_run=dry_run)
-        importer.run_from_file(tmp_path)
+        importer.run_from_file(saved_path)
         output = importer.get_output()
         summary = importer.get_summary()
         metadata = importer.get_run_metadata()
@@ -175,7 +189,7 @@ def upload_square_view(request):
         ImportLog.objects.create(
             source="square",
             run_type="dry-run" if dry_run else "live",
-            filename=uploaded_file.name,
+            filename=saved_path.name,
             started_at=metadata.get("started_at"),
             finished_at=metadata.get("finished_at"),
             duration_seconds=duration_decimal,
@@ -246,12 +260,6 @@ def upload_square_view(request):
 
     except Exception as exc:  # pragma: no cover - defensive logging
         messages.error(request, f"❌ Error importing Square CSV: {exc}")
-    finally:
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except TypeError:
-            if tmp_path.exists():
-                tmp_path.unlink()
 
     return redirect("imports_dashboard")
 
