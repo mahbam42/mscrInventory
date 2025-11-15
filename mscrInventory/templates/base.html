@@ -109,10 +109,10 @@
       document.addEventListener('hidden.bs.modal', function (event) {
         const modal = event.target;
         if (modal.id === 'globalModal') {
-          const recipeTable = document.querySelector('#recipe-table');
+          const recipeTable = document.querySelector('#recipes-table-wrap');
           if (recipeTable) {
-            // Fire HTMX request to reload the table fragment
-            htmx.ajax('GET', '/recipes/table/', { target: '#recipe-table', swap: 'innerHTML' });
+            const refreshUrl = recipeTable.getAttribute('hx-get') || '/recipes/table/';
+            htmx.ajax('GET', refreshUrl, { target: '#recipes-table-wrap', swap: 'innerHTML' });
           }
         }
       });

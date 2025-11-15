@@ -87,7 +87,11 @@
 {{ valid_rows|json_script:"validRowsData" }}
 <script>
     const validRows = JSON.parse(document.getElementById("validRowsData").textContent);
-    document.getElementById("confirmImportBtn").addEventListener("click", () => {
+    const confirmBtn = document.getElementById("confirmImportBtn");
+    const modalEl = document.getElementById("globalModal");
+
+    confirmBtn.addEventListener("click", () => {
+        confirmBtn.disabled = true;
         fetch("{% url 'confirm_inventory_import' %}", {
             method: "POST",
             headers: {
@@ -96,10 +100,40 @@
             },
             body: JSON.stringify(validRows),
         })
-            .then(res => res.json())
-            .then(() => {
-                htmx.trigger(document.body, "inventory:refresh");
-                bootstrap.Modal.getInstance(document.getElementById("globalModal")).hide();
+            .then(async (res) => {
+                const triggerHeader = res.headers.get("HX-Trigger");
+                const payload = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(payload?.message || "Import failed");
+                }
+
+                if (triggerHeader) {
+                    try {
+                        const events = JSON.parse(triggerHeader);
+                        Object.entries(events).forEach(([name, detail]) => {
+                            const eventDetail = detail === true ? {} : detail;
+                            htmx.trigger(document.body, name, eventDetail);
+                        });
+                    } catch (err) {
+                        console.warn("Failed to parse HX-Trigger header", err);
+                    }
+                } else {
+                    htmx.trigger(document.body, "inventory:refresh");
+                }
+
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            })
+            .catch((error) => {
+                htmx.trigger(document.body, "showMessage", {
+                    text: error.message || "Import failed.",
+                    level: "danger",
+                });
+            })
+            .finally(() => {
+                confirmBtn.disabled = false;
             });
     });
 </script>
