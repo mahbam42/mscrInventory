@@ -378,6 +378,17 @@ def import_inventory_csv(request):
             current_stock_csv = None
             row_errors.append("current_stock not numeric.")
 
+        cost_raw = row.get("average_cost_per_unit")
+        try:
+            cost_per_unit = (
+                Decimal(str(cost_raw).strip())
+                if cost_raw not in (None, "", " ")
+                else Decimal("0")
+            )
+        except (InvalidOperation, AttributeError):
+            cost_per_unit = None
+            row_errors.append("average_cost_per_unit not numeric.")
+
         # Derive delta if no explicit quantity_added
         if qty_added is None and current_stock_csv is not None:
             delta = current_stock_csv - (ing.current_stock or Decimal(0))
@@ -397,8 +408,8 @@ def import_inventory_csv(request):
         valid_rows.append({
             "ingredient": ing.id,
             "name": ing.name,
-            "quantity_added": float(qty_added),
-            "cost_per_unit": float(row.get("average_cost_per_unit") or 0),
+            "quantity_added": str(qty_added),
+            "cost_per_unit": str(cost_per_unit) if cost_per_unit is not None else "0",
             "case_size": row.get("case_size") or "",
             "lead_time": row.get("lead_time") or "",
             "reorder_point": row.get("reorder_point") or "",
