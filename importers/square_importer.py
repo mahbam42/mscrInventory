@@ -315,12 +315,14 @@ class SquareImporter:
         self._last_run_finished: datetime | None = None
         self._current_order: Order | None = None
         self._orders_by_transaction: dict[str, Order | None] = {}
-        self._unmapped_seen_keys: set[tuple[str, str]] = set()
+        self._unmapped_seen_keys: set[tuple[str, str, str]] = set()
         self.usage_totals: defaultdict[int, Decimal] = defaultdict(lambda: Decimal("0"))
         self.usage_breakdown: defaultdict[int, defaultdict[str, Decimal]] = defaultdict(
             lambda: defaultdict(lambda: Decimal("0"))
         )
         self._ingredient_cache: dict[str, Ingredient | None] = {}
+        self._normalized_modifier_names: set[str] | None = None
+        self._normalized_ingredient_names: set[str] | None = None
 
     # ------------------------------------------------------------------
     # 🧩 Single-row processing
@@ -334,6 +336,52 @@ class SquareImporter:
         ingredient = Ingredient.objects.filter(name__iexact=name).first()
         self._ingredient_cache[normalized] = ingredient
         return ingredient
+
+    def _get_normalized_modifier_names(self) -> set[str]:
+        if self._normalized_modifier_names is None:
+            modifier_names = RecipeModifier.objects.values_list("name", flat=True)
+            self._normalized_modifier_names = {
+                _normalize_name(name) for name in modifier_names if _normalize_name(name)
+            }
+        return self._normalized_modifier_names
+
+    def _get_normalized_ingredient_names(self) -> set[str]:
+        if self._normalized_ingredient_names is None:
+            ingredient_names = Ingredient.objects.values_list("name", flat=True)
+            self._normalized_ingredient_names = {
+                _normalize_name(name) for name in ingredient_names if _normalize_name(name)
+            }
+        return self._normalized_ingredient_names
+
+    def _infer_item_type(
+        self, item_name: str, price_point: str, modifiers: list[str]
+    ) -> str:
+        """Infer the intended Square item type from known ingredients/modifiers."""
+
+        candidates = [item_name, price_point]
+        candidates.extend(modifiers or [])
+
+        normalized_item = _normalize_name(item_name)
+        normalized_price = _normalize_name(price_point)
+        item_core, _ = _extract_descriptors(normalized_item)
+        price_core, _ = _extract_descriptors(normalized_price)
+
+        candidates.extend([normalized_item, normalized_price, item_core, price_core])
+        candidates.extend([_normalize_name(mod) for mod in modifiers])
+
+        normalized_candidates = {
+            _normalize_name(value) for value in candidates if _normalize_name(value)
+        }
+
+        modifier_names = self._get_normalized_modifier_names()
+        if normalized_candidates & modifier_names:
+            return "modifier"
+
+        ingredient_names = self._get_normalized_ingredient_names()
+        if normalized_candidates & ingredient_names:
+            return "ingredient"
+
+        return "product"
 
     def _record_usage_totals(
         self,
@@ -470,6 +518,10 @@ class SquareImporter:
             core_name, item_descriptors = _extract_descriptors(normalized_item)
             _, price_descriptors = _extract_descriptors(normalized_price)
 
+            intended_item_type = self._infer_item_type(
+                item_name, price_point, normalized_modifiers
+            )
+
             descriptors = list(item_descriptors)
             for token in price_descriptors:
                 if token and token not in descriptors:
@@ -533,7 +585,7 @@ class SquareImporter:
             resolved_mapping = (
                 SquareUnmappedItem.objects.filter(
                     source="square",
-                    item_type="product",
+                    item_type=intended_item_type,
                     normalized_item=normalized_item,
                     normalized_price_point=normalized_price,
                     resolved=True,
@@ -566,6 +618,7 @@ class SquareImporter:
                     price_point,
                     normalized_modifiers,
                     reason,
+                    item_type=intended_item_type,
                 )
                 if reason == "variant_unmapped" and price_point:
                     self.buffer.append(
@@ -1042,17 +1095,21 @@ class SquareImporter:
     # ------------------------------------------------------------------
     # ⚠️ Unmapped tracking helpers
     # ------------------------------------------------------------------
-    def _record_unmapped_item(self, item_name, price_point, modifiers, reason) -> None:
+    def _record_unmapped_item(
+        self, item_name, price_point, modifiers, reason, *, item_type: str = "product"
+    ) -> None:
         normalized_item = _normalize_name(item_name)
         normalized_price = _normalize_name(price_point)
-        key = (normalized_item, normalized_price)
+        allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
+        resolved_type = item_type if item_type in allowed_types else "product"
+        key = (normalized_item, normalized_price, resolved_type)
         seen_in_run = key in self._unmapped_seen_keys
         self._unmapped_seen_keys.add(key)
 
         now = timezone.now()
         defaults = {
             "source": "square",
-            "item_type": "product",
+            "item_type": resolved_type,
             "item_name": item_name or "(unknown)",
             "price_point_name": price_point or "",
             "normalized_item": normalized_item,
@@ -1065,6 +1122,7 @@ class SquareImporter:
         }
 
         obj, created = SquareUnmappedItem.objects.get_or_create(
+            item_type=resolved_type,
             normalized_item=normalized_item,
             normalized_price_point=normalized_price,
             defaults=defaults,
@@ -1072,8 +1130,9 @@ class SquareImporter:
 
         if created:
             label = "🧪" if self.dry_run else "⚠️"
+            type_label = resolved_type if resolved_type != "product" else "product"
             self.buffer.append(
-                f"{label} No product match found; recorded as unmapped (first seen {now:%Y-%m-%d %H:%M})."
+                f"{label} No {type_label} match found; recorded as unmapped (first seen {now:%Y-%m-%d %H:%M})."
             )
             return
 

@@ -6,6 +6,7 @@ from django.core.management import call_command
 
 from importers import square_importer
 from importers.square_importer import SquareImporter
+from tests.factories import RecipeModifierFactory
 from mscrInventory.models import (
     Ingredient,
     IngredientUsageLog,
@@ -13,6 +14,7 @@ from mscrInventory.models import (
     OrderItem,
     Product,
     ProductVariantCache,
+    RecipeModifier,
     SquareUnmappedItem,
 )
 
@@ -47,6 +49,52 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
     unmapped = SquareUnmappedItem.objects.get()
     assert unmapped.item_name == "Latte"
     assert unmapped.seen_count == 1
+
+
+@pytest.mark.django_db
+def test_square_importer_records_modifier_type(tmp_path, monkeypatch):
+    RecipeModifierFactory(name="Oat Milk")
+
+    csv_path = tmp_path / "square_modifier.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Oat Milk,1,1.00,,,txn-mod\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (None, "no match"),
+    )
+
+    importer = SquareImporter(dry_run=True)
+    importer.run_from_file(csv_path)
+
+    unmapped = SquareUnmappedItem.objects.get()
+    assert unmapped.item_type == "modifier"
+
+
+@pytest.mark.django_db
+def test_square_importer_records_ingredient_type(tmp_path, monkeypatch):
+    Ingredient.objects.create(name="House Syrup")
+
+    csv_path = tmp_path / "square_ingredient.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "House Syrup,1,1.00,,,txn-ing\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (None, "no match"),
+    )
+
+    importer = SquareImporter(dry_run=True)
+    importer.run_from_file(csv_path)
+
+    unmapped = SquareUnmappedItem.objects.get()
+    assert unmapped.item_type == "ingredient"
 
 
 @pytest.mark.django_db
