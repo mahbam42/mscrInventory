@@ -71,7 +71,7 @@
 {{ block.super }}
 <script>
   (() => {
-    const shouldOpenSignup = {% if show_signup_modal or (signup_form.is_bound and signup_form.errors) %}true{% else %}false{% endif %};
+    const shouldOpenSignup = {% if show_signup_modal or signup_form.is_bound and signup_form.errors %}true{% else %}false{% endif %};
     if (shouldOpenSignup) {
       const modalEl = document.getElementById('signupModal');
       if (modalEl) {
