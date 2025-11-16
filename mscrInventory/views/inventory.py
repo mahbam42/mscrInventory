@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 import json, csv, io
 from itertools import zip_longest
-from mscrInventory.models import Ingredient, StockEntry, IngredientType, SquareUnmappedItem
+from mscrInventory.models import Ingredient, StockEntry, IngredientType, SquareUnmappedItem, UnitType
 
 
 def _inventory_queryset():
@@ -126,7 +126,12 @@ def add_case(request, pk):
 def bulk_add_modal(request):
     """Render the bulk stock modal."""
     all_ingredients = Ingredient.objects.select_related("type", "unit_type").order_by("type__name", "name")
-    return render(request, "inventory/_bulk_add_modal.html", {"all_ingredients": all_ingredients})
+    unit_types = UnitType.objects.order_by("name")
+    return render(
+        request,
+        "inventory/_bulk_add_modal.html",
+        {"all_ingredients": all_ingredients, "unit_types": unit_types},
+    )
 
 def _clean_int(value):
     """Return an int or None, preserving zero but skipping blanks."""
@@ -159,6 +164,37 @@ def _clean_decimal(value):
         return None
 
 
+def _convert_to_ingredient_units(quantity: Decimal, cost: Decimal, ingredient: Ingredient, unit_id: int | None):
+    """Convert quantity/cost into the ingredient's base unit using UnitType ratios."""
+    if not unit_id:
+        return quantity, cost
+
+    try:
+        source_unit = UnitType.objects.get(pk=unit_id)
+    except UnitType.DoesNotExist:
+        return quantity, cost
+
+    target_unit = getattr(ingredient, "unit_type", None)
+    if not target_unit or target_unit == source_unit:
+        return quantity, cost
+
+    try:
+        source_ratio = Decimal(str(source_unit.conversion_to_base or 1))
+        target_ratio = Decimal(str(target_unit.conversion_to_base or 1))
+        if target_ratio == 0:
+            return quantity, cost
+        factor = source_ratio / target_ratio
+    except (InvalidOperation, ZeroDivisionError):
+        return quantity, cost
+
+    converted_qty = (quantity * factor).quantize(Decimal("0.001"))
+    converted_cost = cost
+    if cost is not None:
+        converted_cost = (cost / factor).quantize(Decimal("0.000001"))
+
+    return converted_qty, converted_cost
+
+
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def bulk_add_stock(request):
@@ -173,16 +209,26 @@ def bulk_add_stock(request):
     case_list = data.getlist("Rowcase_size") or data.getlist("Modalcase_size")
     lead_list = data.getlist("Rowlead_time") or data.getlist("Modallead_time")
     reorder_list = data.getlist("Rowreorder_point") or []
+    unit_list = data.getlist("Rowunit_type") or data.getlist("Modalunit_type")
 
     # Clean empty strings
     ingredients = [i for i in data.getlist("ingredient") if i.strip()]
 
-    items = zip_longest(ingredients, qty_list, cost_list, case_list, lead_list, reorder_list, fillvalue=None)
+    items = zip_longest(
+        ingredients,
+        qty_list,
+        cost_list,
+        case_list,
+        lead_list,
+        reorder_list,
+        unit_list,
+        fillvalue=None,
+    )
 
     created = 0
 
     with transaction.atomic():
-        for ing_id, qty, cost, case, lead, reorder in items:
+        for ing_id, qty, cost, case, lead, reorder, unit in items:
             if not ing_id or qty in (None, "", " "):
                 continue
 
@@ -193,6 +239,10 @@ def bulk_add_stock(request):
             except (Ingredient.DoesNotExist, InvalidOperation):
                 continue
 
+            qty_val, cost_val = _convert_to_ingredient_units(
+                qty_val, cost_val, ing, _clean_int(unit)
+            )
+
             # ✅ Create the StockEntry (allow negatives)
             StockEntry.objects.create(
                 ingredient=ing,
@@ -202,29 +252,24 @@ def bulk_add_stock(request):
                 note=note,
             )
 
-            # ✅ Update Ingredient stock and metadata
-            ing.current_stock = (ing.current_stock or Decimal(0)) + qty_val
+            ing.refresh_from_db()
 
             case_value = _clean_int(case)
             lead_value = _clean_int(lead)
             reorder_value = _clean_decimal(reorder)
 
+            update_fields = ["last_updated"]
             if case_value is not None:
                 ing.case_size = case_value
+                update_fields.append("case_size")
             if lead_value is not None:
                 ing.lead_time = lead_value
+                update_fields.append("lead_time")
             if reorder_value is not None:
                 ing.reorder_point = reorder_value
+                update_fields.append("reorder_point")
 
-            ing.save(
-                update_fields=[
-                    "current_stock",
-                    "case_size",
-                    "lead_time",
-                    "reorder_point",
-                    "last_updated",
-                ]
-            )
+            ing.save(update_fields=update_fields)
 
             created += 1
 
