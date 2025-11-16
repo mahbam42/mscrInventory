@@ -8,7 +8,7 @@ def navigation_links(request):
     """
     user = getattr(request, "user", None)
     if not (user and user.is_authenticated):
-        return {"nav_links": []}
+        return {"nav_links": [], "nav_links_admin": []}
 
     nav_items = [
         {"name": "Dashboard", "url_name": "dashboard"},
@@ -19,26 +19,33 @@ def navigation_links(request):
         {"name": "Inventory", "url_name": "inventory_dashboard"},
     ]
 
+    admin_items = []
+
     if user.has_perm("mscrInventory.change_order"):
         nav_items.append({"name": "Reporting", "url_name": "reporting_dashboard"})
 
     if user.has_perm("auth.change_user") or user.has_perm("auth.add_user"):
-        nav_items.append({"name": "Manage Users", "url_name": "manage_users"})
+        admin_items.append({"name": "Manage Users", "url_name": "manage_users"})
     if user.is_staff:
-        nav_items.append({"name": "Admin", "url_name": "admin:index"})
+        admin_items.append({"name": "Admin", "url_name": "admin:index"})
 
-    links = []
-    for item in nav_items:
-        try:
-            links.append({
-                "name": item["name"],
-                "url": reverse(item["url_name"])
-            })
-        except NoReverseMatch:
-            # Silently skip if not defined yet
-            continue
+    def build_links(items):
+        links = []
+        for item in items:
+            try:
+                links.append({
+                    "name": item["name"],
+                    "url": reverse(item["url_name"])
+                })
+            except NoReverseMatch:
+                # Silently skip if not defined yet
+                continue
+        return links
 
-    return {"nav_links": links}
+    return {
+        "nav_links": build_links(nav_items),
+        "nav_links_admin": build_links(admin_items),
+    }
 
 
 def admin_link(request):

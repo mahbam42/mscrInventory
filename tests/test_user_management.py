@@ -109,7 +109,7 @@ def test_navigation_links_include_admin_and_manage_users(change_user_permission)
     request.user = user
 
     context = navigation_links(request)
-    names = [link["name"] for link in context["nav_links"]]
+    names = [link["name"] for link in context["nav_links_admin"]]
 
     assert "Manage Users" in names
     assert "Admin" in names
@@ -145,7 +145,7 @@ def test_navigation_links_hide_manage_users_without_change_perm():
     request.user = user
 
     context = navigation_links(request)
-    names = [link["name"] for link in context["nav_links"]]
+    names = [link["name"] for link in context["nav_links_admin"]]
 
     assert "Manage Users" not in names
 
