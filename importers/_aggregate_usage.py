@@ -386,6 +386,7 @@ def _load_packaging_index():
 
     return {
         "label_aliases": label_aliases,
+        "base_capacity": min_capacity,
         "capacity_lookup": capacity_lookup,
         "default_label": default_label,
         "packaging_lookup": packaging_lookup,
@@ -517,6 +518,14 @@ def aggregate_ingredient_usage(
     if is_drink and packaging_entry:
         scale_factor = packaging_entry["multiplier"]
         cup_capacity = packaging_entry.get("capacity")
+
+        base_capacity = packaging_index.get("base_capacity")
+        if cup_capacity is not None and base_capacity:
+            try:
+                capacity_ratio = Decimal(cup_capacity) / Decimal(base_capacity)
+                scale_factor *= capacity_ratio
+            except (InvalidOperation, ZeroDivisionError):
+                pass
     elif is_drink:
         scale_factor = Decimal("1.0")
 

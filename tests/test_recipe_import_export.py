@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
-from mscrInventory.models import Ingredient, Product, RecipeItem, StockEntry
+from mscrInventory.models import Ingredient, Product, RecipeItem, StockEntry, UnitType
 
 
 def _login_with_perms(client, username, perm_codenames):
@@ -139,6 +139,39 @@ class TestInventoryImportExport:
         assert self.ingredient.case_size == 0
         assert self.ingredient.lead_time == 0
         assert self.ingredient.reorder_point == Decimal("0")
+
+    def test_bulk_add_stock_converts_unit_types(self, client):
+        _login_inventory_editor(client, "inventory-convert")
+
+        fl_oz = UnitType.objects.create(
+            name="Fluid Ounce", abbreviation="fl oz", conversion_to_base=Decimal("1")
+        )
+        gallon = UnitType.objects.create(
+            name="Gallon", abbreviation="gal", conversion_to_base=Decimal("128")
+        )
+
+        ingredient = Ingredient.objects.create(
+            name="Whole Milk", unit_type=fl_oz, current_stock=Decimal("0"),
+        )
+
+        url = reverse("bulk_add_stock")
+        data = {
+            "ingredient": [ingredient.id],
+            "Rowquantity_added": ["2"],
+            "Rowunit_type": [str(gallon.id)],
+            "Rowcost_per_unit": ["12.80"],
+            "reason": "Restock",
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == 200
+
+        entry = StockEntry.objects.latest("id")
+        assert entry.quantity_added == Decimal("256.000")
+        assert entry.cost_per_unit == Decimal("0.100000")
+
+        ingredient.refresh_from_db()
+        assert ingredient.current_stock == Decimal("256.000")
 
 
 @pytest.mark.django_db

@@ -11,7 +11,9 @@ from mscrInventory.models import (
     Ingredient,
     IngredientType,
     IngredientUsageLog,
+    ModifierBehavior,
     Packaging,
+    RecipeModifier,
     SizeLabel,
     UnitType,
 )
@@ -259,3 +261,71 @@ def test_aggregate_usage_includes_packaging_expands_items():
     ):
         assert usage[milk_name]["qty"] == Decimal("1")
         assert usage[milk_name]["sources"] == ["packaging_expands"]
+
+
+@pytest.mark.django_db
+def test_keg_size_scales_liquid_usage_to_capacity():
+    fluid_oz = UnitType.objects.create(name="Fluid Ounce", abbreviation="fl oz")
+    each = UnitType.objects.create(name="Each", abbreviation="ea")
+    packaging_type = IngredientType.objects.create(name="Packaging")
+    beverage_type = IngredientType.objects.create(name="Beverage Component")
+
+    small_label = SizeLabel.objects.create(label="small")
+    keg_label = SizeLabel.objects.create(label="keg")
+
+    small_container = ContainerType.objects.create(
+        name="12oz Cup",
+        capacity=Decimal("12.0"),
+        unit_type=fluid_oz,
+    )
+    keg_container = ContainerType.objects.create(
+        name="Cold Brew Keg",
+        capacity=Decimal("640.0"),
+        unit_type=fluid_oz,
+    )
+
+    small_packaging = Packaging.objects.create(
+        name="12oz Cold Cup",
+        type=packaging_type,
+        unit_type=each,
+        container=small_container,
+        temp="cold",
+        multiplier=Decimal("1.0"),
+    )
+    small_packaging.size_labels.add(small_label)
+
+    keg_packaging = Packaging.objects.create(
+        name="Retail Keg",
+        type=packaging_type,
+        unit_type=each,
+        container=keg_container,
+        temp="cold",
+        multiplier=Decimal("1.0"),
+    )
+    keg_packaging.size_labels.add(keg_label)
+
+    coldbrew = Ingredient.objects.create(
+        name="Cold Brew",
+        type=beverage_type,
+        unit_type=fluid_oz,
+    )
+
+    keg_modifier = RecipeModifier.objects.create(
+        name="cold brew keg",
+        ingredient_type=beverage_type,
+        behavior=ModifierBehavior.ADD,
+        ingredient=coldbrew,
+        base_quantity=Decimal("12.0"),
+        unit="fl_oz",
+    )
+
+    usage = aggregate_ingredient_usage(
+        [],
+        resolved_modifiers=[keg_modifier],
+        temp_type="cold",
+        size="keg",
+        is_drink=True,
+        include_cup=False,
+    )
+
+    assert usage["Cold Brew"]["qty"] == Decimal("640")

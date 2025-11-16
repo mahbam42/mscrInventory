@@ -28,6 +28,7 @@
                     <tr>
                         <th>Ingredient</th>
                         <th>Qty</th>
+                        <th>Unit</th>
                         <th>Cost</th>
                         <th>Case</th>
                         <th>Lead Time</th>
@@ -49,7 +50,9 @@
                     {% for group in ingredients_by_type %}
                     <optgroup label="{{ group.grouper|title }}">
                         {% for ing in group.list %}
-                        <option value="{{ ing.id }}">{{ ing.name }}</option>
+                        <option value="{{ ing.id }}" data-unit="{{ ing.unit_type.id|default:'' }}">
+                            {{ ing.name }}
+                        </option>
                         {% endfor %}
                     </optgroup>
                     {% endfor %}
@@ -58,8 +61,16 @@
 
             <div class="col-3">
                 <label class="form-label">Qty Added</label>
-                <input type="number" step="any" name="Modalquantity_added" class="form-control form-control-sm"
-                    placeholder="0">
+                <div class="d-flex gap-2">
+                    <input type="number" step="any" name="Modalquantity_added" class="form-control form-control-sm"
+                        placeholder="0">
+                    <select name="Modalunit_type" class="form-select form-select-sm" style="max-width: 110px;">
+                        <option value="">Unit</option>
+                        {% for unit in unit_types %}
+                        <option value="{{ unit.id }}">{{ unit.abbreviation|default:unit.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <label class="form-label mt-2">Case Size</label>
                 <input type="number" step="1" name="Modalcase_size" class="form-control form-control-sm"
                     placeholder="Units per case">
@@ -88,6 +99,7 @@
         const tbody = modalBody.querySelector("#bulk-stock-body");
         const form = modalBody.querySelector("form");
         const ingredientSelect = modalBody.querySelector("#bulk-ingredient-select");
+        const unitSelect = modalBody.querySelector("[name='Modalunit_type']");
         const searchInput = modalBody.querySelector("#ingredient-search");
         const clearButton = modalBody.querySelector("#ingredient-clear");
 
@@ -124,6 +136,9 @@
                 const cost = form.querySelector("[name='Modalcost_per_unit']").value;
                 const caseSize = form.querySelector("[name='Modalcase_size']").value;
                 const leadTime = form.querySelector("[name='Modallead_time']").value;
+                const unitSelect = form.querySelector("[name='Modalunit_type']");
+                const unitId = unitSelect?.value || "";
+                const unitLabel = unitSelect?.options[unitSelect.selectedIndex]?.text || "";
 
                 if (!ingId || !qty || !cost) return;
 
@@ -131,6 +146,7 @@
                 row.innerHTML = `
         <td>${ingName}<input type="hidden" name="ingredient" value="${ingId}"></td>
         <td>${qty}<input type="hidden" name="Rowquantity_added" value="${qty}"></td>
+        <td>${unitLabel || ""}<input type="hidden" name="Rowunit_type" value="${unitId}"></td>
         <td>${cost}<input type="hidden" name="Rowcost_per_unit" value="${cost}"></td>
         <td>${caseSize || "-"}<input type="hidden" name="Rowcase_size" value="${caseSize}"></td>
         <td>${leadTime || "-"}<input type="hidden" name="Rowlead_time" value="${leadTime}"></td>
@@ -158,10 +174,15 @@
 
     // --- Auto-fill fields when ingredient selected ---
     const ingredientSelect = document.getElementById("bulk-ingredient-select");
+    const unitSelect = document.querySelector("[name='Modalunit_type']");
     if (ingredientSelect) {
         ingredientSelect.addEventListener("change", async (e) => {
             const ingId = e.target.value;
             if (!ingId) return;
+            const defaultUnit = e.target.options[e.target.selectedIndex]?.dataset.unit;
+            if (unitSelect && defaultUnit !== undefined) {
+                unitSelect.value = defaultUnit;
+            }
             try {
                 console.log("📦 Fetching details for ingredient ID:", ingId);
 
