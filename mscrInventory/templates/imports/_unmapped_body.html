@@ -1,23 +1,28 @@
-<div class="mb-3">
-  {% if total_unresolved %}
-    <p class="mb-1">
-      <strong>{{ total_unresolved }}</strong> unresolved Square items require mapping. Use the quick actions
-      below to link them to existing records, create new entries, or ignore them temporarily.
+<div id="unmapped-body">
+  <div class="mb-3">
+    {% if total_unresolved %}
+      <p class="mb-1">
+        <strong>{{ total_unresolved }}</strong> unresolved Square items require mapping. Use the quick actions
+        below to link them to existing records, create new entries, or ignore them temporarily.
+      </p>
+    {% else %}
+      <p class="text-success mb-0">✅ All Square items are currently mapped.</p>
+    {% endif %}
+    <p class="text-muted small mb-0">
+      Filters apply to the table and actions update instantly via HTMX.
     </p>
-  {% else %}
-    <p class="text-success mb-0">✅ All Square items are currently mapped.</p>
-  {% endif %}
-  <p class="text-muted small mb-0">
-    Filters apply to the table and actions update instantly via HTMX.
-  </p>
+  </div>
+
+  {% include "partials/unmapped_square_items_table.html" %}
+
+  <div class="mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h5 class="mb-0">Type-Specific Unmapped Items</h5>
+      <small class="text-muted">Ingredients and modifiers grouped by Square item type.</small>
+    </div>
+    <div class="row g-3">
+      {% include "imports/_unmapped_type_table.html" with type_key="ingredient" type_data=unmapped_by_type.ingredient %}
+      {% include "imports/_unmapped_type_table.html" with type_key="modifier" type_data=unmapped_by_type.modifier %}
+    </div>
+  </div>
 </div>
-
-{% include "partials/unmapped_square_items_table.html" %}
-
-<!-- <div class="mt-4">
-  <h5 class="mb-2">Legacy Unmapped Ingredients</h5>
-  <p class="text-muted small">
-    Ingredients created as placeholders prior to the new workflow still appear here.
-  </p>
-  {% include "partials/unmapped_ingredients_table.html" with items=ingredients %}
-</div> -->
