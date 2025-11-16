@@ -163,13 +163,6 @@ def bulk_add_stock(request):
     """Create multiple StockEntry records and refresh dashboard via HTMX triggers."""
     data = request.POST
 
-    #degug data
-    print("POST keys:", list(data.keys()))
-    print("reason:", data.get("reason"))
-    print("note:", data.get("note"))
-    print("Rowquantity_added:", data.getlist("Rowquantity_added"))
-    # end debug
-
     reason = data.get("reason") or "Bulk Add"
     note = data.get("note") or "Added via bulk add modal"
     # Use Row* lists if present; otherwise fall back to Modal*
