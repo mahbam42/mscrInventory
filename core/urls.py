@@ -96,6 +96,7 @@ urlpatterns = [
     # edit unmapped products and ingredients
     path("partials/unmapped-products/", app_views.unmapped_products_partial, name="unmapped_products_partial"),
     path("partials/unmapped-ingredients/", app_views.unmapped_ingredients_partial, name="unmapped_ingredients_partial"),
+    path("partials/unmapped-modifiers/", app_views.unmapped_modifiers_partial, name="unmapped_modifiers_partial"),
     path("partials/empty-modal/", app_views.empty_modal_partial, name="empty_modal_partial"),
 
     #imports

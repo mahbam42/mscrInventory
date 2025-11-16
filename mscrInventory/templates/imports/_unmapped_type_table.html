@@ -1,0 +1,63 @@
+{% with data=type_data %}
+  <div class="col-12 col-lg-6">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <div class="fw-semibold mb-0">{{ data.label|default:type_key|title }}s</div>
+          <small class="text-muted">Square item type: {{ type_key|title }}</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge {% if data.total %}bg-warning text-dark{% else %}bg-success{% endif %}">
+            {{ data.total|default:0 }} pending
+          </span>
+          <button
+            class="btn btn-sm btn-outline-primary"
+            type="button"
+            hx-get="{% url 'imports_unmapped_items' %}?type={{ type_key }}{% if include_known %}&include_known=true{% endif %}"
+            hx-target="#unmapped-body"
+            hx-swap="outerHTML"
+          >
+            Open {{ data.label|default:type_key|title }}s
+          </button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Raw Name</th>
+              <th class="text-nowrap">Last Seen</th>
+              <th class="text-center">Occurrences</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if data and data.items %}
+              {% for item in data.items|slice:":10" %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ item.display_label }}</div>
+                    {% if item.last_reason %}
+                      <div class="text-muted small">Reason: {{ item.last_reason|title }}</div>
+                    {% endif %}
+                    {% if item.is_known_recipe %}
+                      <span class="badge bg-info text-dark small">Known recipe</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted small">{{ item.last_seen|date:"Y-m-d H:i" }}</td>
+                  <td class="text-center">{{ item.seen_count }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="3" class="text-success text-center py-3">✅ All {{ type_key|default:"items" }} are mapped.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% if data and data.items|length > 10 %}
+        <div class="card-footer text-muted small">Showing 10 of {{ data.total }} pending entries.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endwith %}

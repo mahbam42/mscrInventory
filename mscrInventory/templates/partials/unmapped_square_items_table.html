@@ -15,7 +15,7 @@
               type="button"
               class="btn btn-sm {% if filter_type == value %}btn-primary{% else %}btn-outline-secondary{% endif %}"
               hx-get="{% url 'imports_unmapped_items' %}?type={{ value }}{% if include_known %}&include_known=true{% endif %}"
-              hx-target="#unmapped-items-table"
+              hx-target="#unmapped-body"
               hx-swap="outerHTML"
             >
               {{ label }} <span class="badge bg-light text-dark ms-1">{{ count }}</span>
@@ -26,7 +26,7 @@
       <div class="d-flex align-items-center gap-2">
         <form
           hx-get="{% url 'imports_unmapped_items' %}"
-          hx-target="#unmapped-items-table"
+          hx-target="#unmapped-body"
           hx-swap="outerHTML"
           hx-trigger="change"
           class="d-flex align-items-center gap-2"
@@ -123,7 +123,7 @@
                     action="{% url 'imports_unmapped_ignore' item.id %}"
                     class="d-inline"
                     hx-post="{% url 'imports_unmapped_ignore' item.id %}"
-                    hx-target="#unmapped-items-table"
+                    hx-target="#unmapped-body"
                     hx-swap="outerHTML"
                   >
                     {% csrf_token %}
@@ -144,7 +144,7 @@
                       method="post"
                       action="{% url 'imports_unmapped_link' item.id %}"
                       hx-post="{% url 'imports_unmapped_link' item.id %}"
-                      hx-target="#unmapped-items-table"
+                      hx-target="#unmapped-body"
                       hx-swap="outerHTML"
                       class="row gy-2 align-items-end"
                     >
@@ -179,7 +179,7 @@
                       method="post"
                       action="{% url 'imports_unmapped_create' item.id %}"
                       hx-post="{% url 'imports_unmapped_create' item.id %}"
-                      hx-target="#unmapped-items-table"
+                      hx-target="#unmapped-body"
                       hx-swap="outerHTML"
                       class="row gy-2"
                     >

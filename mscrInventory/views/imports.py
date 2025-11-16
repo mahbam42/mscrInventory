@@ -119,6 +119,17 @@ def _build_unmapped_context(
         ],
     ]
 
+    unmapped_by_type = {}
+    for item_type, label in SquareUnmappedItem.ITEM_TYPE_CHOICES:
+        type_items = list(visible_unresolved_qs.filter(item_type=item_type))
+        for item in type_items:
+            item.is_known_recipe = bool(getattr(item, "is_known_recipe", False))
+        unmapped_by_type[item_type] = {
+            "label": label,
+            "items": type_items,
+            "total": len(type_items),
+        }
+
     return {
         "square_items": current_items,
         "square_entries": entries,
@@ -130,6 +141,7 @@ def _build_unmapped_context(
         "known_recipe_count": known_recipe_count,
         "product_name_list": product_name_list,
         "ingredients": Ingredient.objects.filter(name__startswith="Unmapped:").order_by("name"),
+        "unmapped_by_type": unmapped_by_type,
     }
 
 
@@ -280,8 +292,10 @@ def unmapped_items_view(request):
         include_known=include_known,
     )
 
-    hx_target = request.headers.get("HX-Target")
-    if hx_target == "unmapped-items-table":
+    hx_target = (request.headers.get("HX-Target") or "").lstrip("#")
+    if hx_target == "unmapped-body":
+        template = "imports/_unmapped_body.html"
+    elif hx_target == "unmapped-items-table":
         template = "partials/unmapped_square_items_table.html"
     elif request.headers.get("HX-Request") == "true":
         template = "imports/_unmapped_modal.html"
@@ -302,9 +316,11 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
         paginate=paginate_flag,
         include_known=include_known,
     )
+    hx_target = (request.headers.get("HX-Target") or "").lstrip("#")
+    template = "imports/_unmapped_body.html" if hx_target == "unmapped-body" else "partials/unmapped_square_items_table.html"
     return render(
         request,
-        "partials/unmapped_square_items_table.html",
+        template,
         context,
         status=status,
     )
