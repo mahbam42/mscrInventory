@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 import json, csv, io
 from itertools import zip_longest
-from mscrInventory.models import Ingredient, StockEntry, IngredientType
+from mscrInventory.models import Ingredient, StockEntry, IngredientType, SquareUnmappedItem
 
 
 def _inventory_queryset():
@@ -64,6 +64,7 @@ def inventory_dashboard_view(request):
         or 0
     )
     ingredient_types = IngredientType.objects.exclude(name__iexact="extra").order_by("name")
+    unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
     
     context = {
         "total_ingredients": total_ingredients,
@@ -78,6 +79,7 @@ def inventory_dashboard_view(request):
         "search_query": "",
         "active_type": "",
         "ingredient_types": ingredient_types,
+        "unresolved_count": unresolved_count,
     }
     return render(request, "inventory/dashboard.html", context)
 

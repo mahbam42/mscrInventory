@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import render
 from django.utils import timezone
 
-from mscrInventory.models import IngredientUsageLog
+from mscrInventory.models import IngredientUsageLog, SquareUnmappedItem
 from mscrInventory.utils import reports
 
 
@@ -49,6 +49,7 @@ def reporting_dashboard_view(request):
         .filter(date__gte=start, date__lte=end)
         .order_by("-date", "ingredient__name")
     )
+    unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
 
     context = {
         "start": start,
@@ -65,6 +66,7 @@ def reporting_dashboard_view(request):
         "total_cogs": total_cogs,
         "total_revenue": total_revenue,
         "tzname": tzname,
+        "unresolved_count": unresolved_count,
     }
 
     return render(request, "reports/dashboard.html", context)
