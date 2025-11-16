@@ -63,7 +63,7 @@
                 <td class="text-nowrap">
                     <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                     <button class="btn btn-sm btn-outline-primary" hx-post="{% url 'add_case' i.id %}"
-                        hx-target="#ingredient-{{ i.id }}" hx-swap="outerHTML">
+                        hx-target="#ingredient-{{ i.id }}" hx-swap="outerHTML" hx-include="closest tr">
                         ➕ Add Case
                     </button>
                     <button class="btn btn-sm btn-success" hx-post="{% url 'update_ingredient' i.id %}" hx-target="#ingredient-{{ i.id }}"
