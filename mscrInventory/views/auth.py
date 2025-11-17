@@ -12,9 +12,11 @@ from mscrInventory.forms import PublicUserCreateForm
 
 
 class LoginView(auth_views.LoginView):
+    """Custom login view that surfaces the public signup modal."""
     template_name = "registration/login.html"
 
     def get_context_data(self, **kwargs):
+        """Inject the signup form to support modal toggling."""
         context = super().get_context_data(**kwargs)
         context.setdefault("signup_form", PublicUserCreateForm(prefix="signup"))
         context.setdefault("show_signup_modal", False)

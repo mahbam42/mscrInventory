@@ -119,6 +119,7 @@ def _mock_orders_for_date(target_date: datetime.date) -> list[Dict[str, Any]]:
 
 
 class Command(BaseCommand):
+    """Synchronize Shopify orders, log usage, and notify low-stock items."""
     help = "Fetch daily orders from Shopify, compute ingredient usage, and email the low stock report."
 
     def add_arguments(self, parser) -> None:

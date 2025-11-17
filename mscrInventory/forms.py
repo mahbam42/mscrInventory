@@ -1,3 +1,5 @@
+"""Forms for managing catalog, inventory, and unmapped Square data."""
+
 from __future__ import annotations
 
 from django import forms
@@ -24,6 +26,7 @@ User = get_user_model()
 
 
 class ProductForm(forms.ModelForm):
+    """Bootstrap-friendly CRUD form for Product records."""
     categories = forms.ModelMultipleChoiceField(
         queryset=Category.objects.order_by("name"),
         required=False,
@@ -62,9 +65,11 @@ class ProductForm(forms.ModelForm):
         self.fields["square_id"].required = False
 
     def clean_name(self):
+        """Normalize whitespace around the submitted name."""
         return (self.cleaned_data.get("name") or "").strip()
 
     def clean_sku(self):
+        """Ensure the SKU is unique and auto-generate one if omitted."""
         sku = (self.cleaned_data.get("sku") or "").strip()
 
         qs = Product.objects.all()
@@ -86,6 +91,7 @@ class ProductForm(forms.ModelForm):
         return sku
 
     def save(self, commit=True):
+        """Persist the product while normalizing key text fields."""
         instance = super().save(commit=False)
         instance.name = (self.cleaned_data.get("name") or "").strip()
         instance.sku = (self.cleaned_data.get("sku") or "").strip()
@@ -96,6 +102,7 @@ class ProductForm(forms.ModelForm):
 
 
 class IngredientForm(forms.ModelForm):
+    """Primary form for creating or editing Ingredient records."""
     ROAST_TYPE_NAMES = {"coffee", "roast", "roasts"}
     PACKAGING_TYPE_NAMES = {"packaging"}
 
@@ -114,6 +121,7 @@ class IngredientForm(forms.ModelForm):
         ]
 
     def __init__(self, *args, **kwargs):
+        """Apply consistent Bootstrap styling to all fields."""
         super().__init__(*args, **kwargs)
         for field_name, field in self.fields.items():
             widget = field.widget
@@ -132,18 +140,22 @@ class IngredientForm(forms.ModelForm):
 
     @classmethod
     def requires_roast_fields(cls, type_obj) -> bool:
+        """Return True when roast-specific fields should be shown."""
         return cls._requires_type(type_obj, cls.ROAST_TYPE_NAMES)
 
     @classmethod
     def requires_packaging_fields(cls, type_obj) -> bool:
+        """Return True when packaging-specific fields should be shown."""
         return cls._requires_type(type_obj, cls.PACKAGING_TYPE_NAMES)
 
 
 class RoastProfileForm(forms.Form):
+    """Supplemental form for roast bag metadata."""
     bag_size = forms.ChoiceField(choices=RoastProfile.BAG_SIZES, label="Bag Size")
     grind = forms.ChoiceField(choices=RoastProfile.GRINDS, label="Grind")
 
     def __init__(self, *args, ingredient: Ingredient | None = None, **kwargs):
+        """Prefill defaults from an existing RoastProfile (if any)."""
         super().__init__(*args, **kwargs)
         profile = None
         if ingredient:
@@ -168,6 +180,7 @@ class RoastProfileForm(forms.Form):
 
 
 class PackagingForm(forms.Form):
+    """Collect packaging preferences for a given Ingredient."""
     container = forms.ModelChoiceField(
         queryset=ContainerType.objects.order_by("name"),
         required=False,
@@ -187,6 +200,7 @@ class PackagingForm(forms.Form):
     )
 
     def __init__(self, *args, ingredient: Ingredient | None = None, **kwargs):
+        """Pre-populate with saved Packaging data and style widgets."""
         super().__init__(*args, **kwargs)
         packaging = None
         if ingredient:
@@ -417,6 +431,7 @@ class CreateFromUnmappedItemForm(forms.Form):
 
 
 class UserCreateForm(forms.ModelForm):
+    """Internal admin form for provisioning a new Django user."""
     password1 = forms.CharField(
         label="Password",
         widget=forms.PasswordInput,
@@ -452,6 +467,7 @@ class UserCreateForm(forms.ModelForm):
                 field.widget.attrs["class"] = f"{existing} form-control".strip()
 
     def clean(self):
+        """Validate matching passwords and run Django's password validators."""
         cleaned = super().clean()
         password1 = cleaned.get("password1")
         password2 = cleaned.get("password2")
@@ -465,6 +481,7 @@ class UserCreateForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
+        """Persist the user with the provided password."""
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password1"])
         if commit:
@@ -474,6 +491,7 @@ class UserCreateForm(forms.ModelForm):
 
 
 class UserUpdateForm(forms.ModelForm):
+    """Admin form for updating an existing Django user."""
     password1 = forms.CharField(
         label="New Password",
         widget=forms.PasswordInput,
@@ -509,6 +527,7 @@ class UserUpdateForm(forms.ModelForm):
                 field.widget.attrs["class"] = f"{existing} form-control".strip()
 
     def clean(self):
+        """Validate optional password change fields."""
         cleaned = super().clean()
         password1 = cleaned.get("password1")
         password2 = cleaned.get("password2")
@@ -522,6 +541,7 @@ class UserUpdateForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
+        """Update user details and optionally reset the password."""
         user = super().save(commit=False)
         password = self.cleaned_data.get("password1")
         if password:
@@ -533,6 +553,7 @@ class UserUpdateForm(forms.ModelForm):
 
 
 class PublicUserCreateForm(forms.ModelForm):
+    """Self-service registration form used on the public site."""
     password1 = forms.CharField(
         label="Password",
         widget=forms.PasswordInput,
@@ -555,6 +576,7 @@ class PublicUserCreateForm(forms.ModelForm):
             field.widget.attrs["class"] = f"{existing} form-control".strip()
 
     def clean(self):
+        """Validate that passwords match and meet strength requirements."""
         cleaned = super().clean()
         password1 = cleaned.get("password1")
         password2 = cleaned.get("password2")
@@ -568,6 +590,7 @@ class PublicUserCreateForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
+        """Create an inactive user pending admin approval."""
         user = super().save(commit=False)
         user.is_active = False
         user.is_staff = False

@@ -1,3 +1,5 @@
+"""Orders dashboard filters and helper utilities."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,6 +21,7 @@ from mscrInventory.models import Order
 
 @dataclass
 class DateRange:
+    """Resolved date range plus original dates for UI."""
     start: datetime
     end: datetime
     start_date: date
@@ -43,6 +46,7 @@ _SORT_OPTIONS: Dict[str, str] = {
 
 
 def _parse_date(value: Optional[str]) -> Optional[date]:
+    """Return a parsed ISO date or None."""
     if not value:
         return None
     try:
@@ -52,6 +56,7 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
 
 
 def _resolve_date_range(preset: str, start_param: Optional[str], end_param: Optional[str]) -> DateRange:
+    """Convert preset/start/end params into a bounded DateRange."""
     today = timezone.localdate()
     end_date = _parse_date(end_param) or today
 
@@ -73,6 +78,7 @@ def _resolve_date_range(preset: str, start_param: Optional[str], end_param: Opti
 
 @login_required
 def orders_dashboard_view(request: HttpRequest) -> HttpResponse:
+    """Display imported orders with filtering, sorting, and pagination."""
     preset = request.GET.get("preset", "14")
     platform = request.GET.get("platform", "all")
     search_term = request.GET.get("q", "").strip()

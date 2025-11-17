@@ -97,6 +97,7 @@ def _select_targets(recipe_map: Dict[str, Dict],
 
 
 def _lookup_modifier_or_recipe(name: str) -> Optional[object]:
+    """Return a matching RecipeModifier, Product, or RecipeItem."""
     """Try to resolve a name to a RecipeModifier or Product/RecipeItem."""
     if not name:
         return None
@@ -178,9 +179,7 @@ def _inject_recipe_ingredient(recipe_map: Dict[str, Dict], ingredient_name: str,
 
 
 def _apply_catering_package_bundle(recipe_map: Dict[str, Dict]):
-    """
-    Custom expansion for long-form catering modifier describing bottle + milk service.
-    """
+    """Custom expansion for the catering bundles present in Square data."""
     additions: List[str] = []
     for name, qty in CATERING_PACKAGE_ITEMS + CATERING_PACKAGE_MILKS:
         added = _inject_recipe_ingredient(recipe_map, name, qty)
@@ -197,14 +196,12 @@ def _apply_catering_package_bundle(recipe_map: Dict[str, Dict]):
 # Helper: Expand a Barista’s Choice Product recipe into the current context
 # -----------------------------------------------------------------------
 
-def _expand_baristas_choice(product: Product,
-                            recipe_map: Dict[str, Dict],
-                            verbose: bool = False):
-    """
-    Merge the given Barista's Choice product recipe_items into the current recipe_map.
-    - Overrides duplicate ingredient quantities instead of adding.
-    - Does not replace the base recipe.
-    """
+def _expand_baristas_choice(
+    product: Product,
+    recipe_map: Dict[str, Dict],
+    verbose: bool = False,
+):
+    """Merge a Barista's Choice recipe into the working recipe map."""
     added: List[str] = []
     overridden: List[Tuple[str, str]] = []
     for item in product.recipe_items.all():
@@ -239,15 +236,14 @@ def _expand_baristas_choice(product: Product,
 # Core logic
 # ---------------------------------------------------------------------------
 
-def handle_extras(modifier_name: str,
-                  recipe_map: Dict[str, Dict],
-                  normalized_modifiers: List[str],
-                  recipe_context: Optional[List[str]] = None,
-                  verbose: bool = False):
-    """
-    Expand, scale, or replace ingredients based on modifier rules.
-    Returns (result, changelog)
-    """
+def handle_extras(
+    modifier_name: str,
+    recipe_map: Dict[str, Dict],
+    normalized_modifiers: List[str],
+    recipe_context: Optional[List[str]] = None,
+    verbose: bool = False,
+):
+    """Expand, scale, or replace ingredients based on modifier-specific rules."""
     result = recipe_map.copy()
     normalized_label = normalize_modifier(modifier_name)
     if normalized_label == CATERING_PACKAGE_TOKEN:

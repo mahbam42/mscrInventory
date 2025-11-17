@@ -1,4 +1,4 @@
-# mscrInventory/management/commands/_base_importer.py
+"""Shared importer base class used by Square and Shopify workflows."""
 
 import csv
 import io

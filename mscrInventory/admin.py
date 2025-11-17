@@ -1,4 +1,4 @@
-# admin.py (top of file)
+"""Admin customizations for managing inventory, recipes, and imports."""
 import io
 import csv
 import datetime
@@ -38,6 +38,7 @@ from .utils.reports import cogs_by_day, usage_detail_by_day
 
 @admin.register(StockEntry)
 class StockEntryAdmin(admin.ModelAdmin):
+    """Read-only dashboard for verifying stock additions."""
     list_display = (
         "ingredient",
         "quantity_added",
@@ -67,6 +68,7 @@ class StockEntryAdmin(admin.ModelAdmin):
         return False
 
 class UnmappedProductFilter(admin.SimpleListFilter):
+    """Filter that separates mapped vs unmapped placeholder products."""
     title = 'Mapping Status'
     parameter_name = 'mapped'
 
@@ -84,6 +86,7 @@ class UnmappedProductFilter(admin.SimpleListFilter):
         return queryset
     
 class RecipeItemInline(admin.TabularInline):
+    """Allow recipe items to be edited inline on the product page."""
     model = RecipeItem
     extra = 1
     autocomplete_fields = ['ingredient']
@@ -93,11 +96,13 @@ class RecipeItemInline(admin.TabularInline):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
+    """Basic admin listing for taxonomy categories."""
     list_display = ("name",)
     search_fields = ("name",)
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    """Product admin with inline recipe rows and modifier chooser."""
     list_display = ("name", "sku", "category_list", "active", "created_at")
     list_filter = ("active", "categories")
 
@@ -112,17 +117,20 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(IngredientType)
 class IngredientTypeAdmin(admin.ModelAdmin):
+    """Manage ingredient type classifications."""
     list_display = ("name",)
     search_fields = ("name",)
     ordering = ("name",)
 
 @admin.register(UnitType)
 class UnitTypeAdmin(admin.ModelAdmin):
+    """Manage measurement units and conversion ratios."""
     list_display = ("name", "abbreviation", "conversion_to_base")
     search_fields = ("name", "abbreviation")
     ordering = ("name",)
 
 class StockEntryInline(admin.TabularInline):
+    """Display historical stock entries on the ingredient detail page."""
     model = StockEntry
     extra = 0
     readonly_fields = ("quantity_added", "cost_per_unit", "source", "note", "date_received")
@@ -130,6 +138,7 @@ class StockEntryInline(admin.TabularInline):
 
 
 class RoastProfileInline(admin.StackedInline):
+    """Inline editor for roast profile attributes on roast ingredients."""
     model = RoastProfile
     extra = 0
     can_delete = False
@@ -139,6 +148,7 @@ class RoastProfileInline(admin.StackedInline):
 # --- SizeLabel Admin ---
 @admin.register(SizeLabel)
 class SizeLabelAdmin(admin.ModelAdmin):
+    """Manage the display names for packaging size labels."""
     list_display = ("label",)
     search_fields = ("label",)
     ordering = ("label",)
@@ -146,6 +156,7 @@ class SizeLabelAdmin(admin.ModelAdmin):
 
 # --- Packaging Inline (for Ingredient) ---
 class PackagingInline(admin.StackedInline):
+    """Allow packaging metadata to be edited alongside an Ingredient."""
     model = Packaging
     extra = 0
     can_delete = False
@@ -170,6 +181,7 @@ class PackagingInline(admin.StackedInline):
 # --- Admin for ContainerType ---
 @admin.register(ContainerType)
 class ContainerTypeAdmin(admin.ModelAdmin):
+    """CRUD interface for reusable container definitions."""
     list_display = ("name", "capacity", "unit_type", "description")
     search_fields = ("name", "description")
     list_filter = ("unit_type",)
@@ -177,6 +189,7 @@ class ContainerTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
+    """Main ingredient admin including stock history and inline helpers."""
     list_display = (
         "name", "type", "unit_type", "current_stock", "average_cost_per_unit",
         "reorder_point", "lead_time", "last_updated"
@@ -215,6 +228,7 @@ class IngredientAdmin(admin.ModelAdmin):
 
 
 class OrderItemInline(admin.TabularInline):
+    """Show associated order items under an Order."""
     model = OrderItem
     extra = 0
     readonly_fields = ('product', 'quantity', 'unit_price')
@@ -222,6 +236,7 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
+    """Expose imported orders with related line items."""
     list_display = ('order_id', 'platform', 'order_date', 'total_amount', 'synced_at')
     list_filter = ('platform', 'order_date')
     search_fields = ('order_id',)
@@ -231,6 +246,7 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
+    """Allow inspection of imported order items independently."""
     list_display = ('order', 'product', 'quantity', 'unit_price')
     list_filter = ('product',)
     search_fields = ('order__order_id', 'product__name', 'product__sku')
@@ -240,6 +256,7 @@ class OrderItemAdmin(admin.ModelAdmin):
 
 @admin.register(ImportLog)
 class ImportLogAdmin(admin.ModelAdmin):
+    """Show high-level stats for each import run."""
     list_display = (
         "source",
         "run_type",
@@ -282,6 +299,7 @@ class ImportLogAdmin(admin.ModelAdmin):
 
 @admin.register(IngredientUsageLog)
 class IngredientUsageLogAdmin(admin.ModelAdmin):
+    """Expose aggregated usage rows for auditing deductions."""
     list_display = ("ingredient", "date", "quantity_used", "source", "calculated_from_orders")
     list_filter = ("source", "calculated_from_orders")
     search_fields = ("ingredient__name", "note")
@@ -290,6 +308,7 @@ class IngredientUsageLogAdmin(admin.ModelAdmin):
 
 @admin.register(SquareUnmappedItem)
 class SquareUnmappedItemAdmin(admin.ModelAdmin):
+    """Front-end to resolve unmapped Square items."""
     list_display = (
         "display_label",
         "source",
@@ -367,6 +386,7 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
 
 
 class RecipeModifierAliasInline(admin.TabularInline):
+    """Inline editing for alias rows beneath a modifier."""
     model = RecipeModifierAlias
     extra = 1
     fields = ("raw_label", "normalized_label")
@@ -374,6 +394,7 @@ class RecipeModifierAliasInline(admin.TabularInline):
 
 @admin.register(RecipeModifier)
 class RecipeModifierAdmin(admin.ModelAdmin):
+    """Admin panel for curated modifier catalog."""
     """
     Admin interface for RecipeModifier, supporting new DB-driven behavior logic.
     Includes JSON editing for target_selector and replaces fields.

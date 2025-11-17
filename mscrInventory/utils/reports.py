@@ -1,4 +1,4 @@
-# yourapp/utils/reports.py
+"""Reporting helpers for COGS, usage, and profitability dashboards."""
 from __future__ import annotations
 import datetime
 from collections import defaultdict
@@ -45,6 +45,7 @@ IGNORED_MODIFIER_TOKENS: set[str] = {"regular"}
 
 
 def _normalize_descriptor_token(token: str | None) -> str:
+    """Lowercase and strip descriptor tokens for deduping."""
     return (token or "").strip().lower()
 
 

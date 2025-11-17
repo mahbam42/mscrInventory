@@ -1,3 +1,5 @@
+"""Import historical ingredient rows from a simplified CSV."""
+
 import csv
 from decimal import Decimal
 from pathlib import Path
@@ -5,6 +7,7 @@ from django.core.management.base import BaseCommand
 from mscrInventory.models import Ingredient, UnitType, IngredientType
 
 class Command(BaseCommand):
+    """Map legacy CSV columns into Ingredient rows."""
     help = "Import ingredients from legacy CSV (text-based unit/type names)."
 
     def add_arguments(self, parser):

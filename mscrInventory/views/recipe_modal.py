@@ -1,3 +1,5 @@
+"""Recipes dashboard, modal helpers, and CSV import/export endpoints."""
+
 import csv
 import io
 import json
@@ -33,6 +35,7 @@ def log_import(action: str, message: str):
         handle.write(f"[{timestamp}] {action}: {message}\n")
 
 def _product_modal_response(message: str):
+    """Return an empty HTMX response that refreshes tables and closes modals."""
     response = HttpResponse(status=204)
     response["HX-Trigger"] = json.dumps({
         "recipes:refresh": True,
@@ -43,6 +46,7 @@ def _product_modal_response(message: str):
 
 
 def _render_product_form_modal(request, form: ProductForm, *, title: str, submit_label: str):
+    """Render the shared create/edit product modal fragment."""
     category_field = form.fields.get("categories")
     category_choices = category_field.queryset if category_field else []
     selected_category_ids = []
@@ -66,6 +70,7 @@ def _render_product_form_modal(request, form: ProductForm, *, title: str, submit
 
 @permission_required("mscrInventory.view_product", raise_exception=True)
 def recipes_dashboard_view(request):
+    """Render the recipes dashboard or respond with the HTMX table fragment."""
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
 
@@ -106,13 +111,8 @@ def recipes_dashboard_view(request):
         "categories": categories,
         "selected_category": selected_category,
         "base_items": base_items,
-        "unresolved_count": unresolved_count
+        "unresolved_count": unresolved_count,
     }
-
-    """Renders the unified imports dashboard."""
-
-    
-    #return render(request, "imports/dashboard.html", {"unresolved_count": unresolved_count})
 
 
     # 🧩 HTMX support: only return the table partial when requested
@@ -123,6 +123,7 @@ def recipes_dashboard_view(request):
 
 @require_http_methods(["POST"])
 def extend_recipe(request, pk):
+    """Copy recipe items from another product into the target product."""
     product = get_object_or_404(Product, pk=pk)
     source_id = request.POST.get("source_recipe_id")
 
@@ -152,9 +153,7 @@ def extend_recipe(request, pk):
 
 @require_http_methods(["GET"])
 def edit_recipe_modal(request, pk):
-    """
-    Return the full modal for a given product (as a fragment injected by HTMX).
-    """
+    """Return the recipe edit modal (HTML fragment for HTMX)."""
     product = get_object_or_404(Product, pk=pk)
     context = {
         "product": product,
@@ -168,6 +167,7 @@ def edit_recipe_modal(request, pk):
 
 @require_http_methods(["GET"])
 def edit_recipe_view(request, pk):
+    """Full-page variant of the recipe editor."""
     product = get_object_or_404(Product, pk=pk)
 
     # existing ingredients on this recipe
@@ -212,6 +212,7 @@ def edit_recipe_view(request, pk):
 @permission_required("mscrInventory.change_product", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def edit_product_modal(request, pk):
+    """Modal workflow for updating a Product record from the recipes dashboard."""
     product = get_object_or_404(Product, pk=pk)
 
     if request.method == "POST":
@@ -233,6 +234,7 @@ def edit_product_modal(request, pk):
 @permission_required("mscrInventory.change_product", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def create_product_modal(request):
+    """Modal workflow for creating a new Product."""
     if request.method == "POST":
         form = ProductForm(request.POST)
         if form.is_valid():
@@ -250,6 +252,7 @@ def create_product_modal(request):
 
 @permission_required("mscrInventory.view_product", raise_exception=True)
 def recipes_table_fragment(request):
+    """HTMX endpoint returning the filtered recipe table."""
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
 
@@ -311,6 +314,7 @@ def add_recipe_ingredient(request, pk):
 @require_http_methods(["DELETE"])
 @transaction.atomic
 def delete_recipe_ingredient(request, product_id, item_id):
+    """Remove an ingredient row from a recipe and rerender the table body."""
     product = get_object_or_404(Product, pk=product_id)
     item = get_object_or_404(RecipeItem, pk=item_id, product=product)
     item.delete()
@@ -343,6 +347,7 @@ def update_recipe_item(request, pk):
 @require_http_methods(["POST"])
 @transaction.atomic
 def save_recipe_modifiers(request, pk):
+    """Persist selected modifiers for a recipe."""
     product = get_object_or_404(Product, pk=pk)
     try:
         selected_ids = request.POST.getlist("modifiers")
@@ -356,6 +361,7 @@ def save_recipe_modifiers(request, pk):
 
 @permission_required("mscrInventory.view_recipeitem", raise_exception=True)
 def export_recipes_csv(request):
+    """Legacy CSV export containing minimal recipe columns."""
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="recipes_snapshot.csv"'
     writer = csv.writer(response)
@@ -375,6 +381,7 @@ def export_recipes_csv(request):
 @permission_required("mscrInventory.change_recipeitem", raise_exception=True)
 @require_POST
 def import_recipes_csv(request):
+    """Legacy importer that updates RecipeItems directly from CSV."""
     csv_file = request.FILES.get("file")
     if not csv_file:
         messages.error(request, "⚠️ No file uploaded.")

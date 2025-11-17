@@ -1,3 +1,5 @@
+"""Metrics helpers backing the dashboard tiles and shortcuts."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -39,6 +41,7 @@ class ImportStatus:
 
 
 def get_stat_counts() -> Dict[str, int]:
+    """Return cached counts backing the dashboard summary cards."""
     cached = cache.get(STAT_COUNT_CACHE_KEY)
     if cached:
         return cached
@@ -56,6 +59,7 @@ def get_stat_counts() -> Dict[str, int]:
 
 
 def get_low_stock_summary(limit: int = LOW_STOCK_LIMIT) -> Dict[str, Any]:
+    """Return total low-stock count plus the top items for display."""
     cache_key = f"{LOW_STOCK_CACHE_KEY}:{limit}"
     cached = cache.get(cache_key)
     if cached:
@@ -83,6 +87,7 @@ def get_low_stock_summary(limit: int = LOW_STOCK_LIMIT) -> Dict[str, Any]:
 def build_stat_cards(
     stat_counts: Dict[str, int], low_stock_summary: Dict[str, Any]
 ) -> List[Dict[str, Any]]:
+    """Convert counts and low-stock details into card metadata consumed by templates."""
     return [
         {
             "title": "Active Products",
@@ -121,6 +126,7 @@ def build_stat_cards(
 
 
 def get_recent_imports(limit: int = RECENT_IMPORT_LIMIT) -> List[Dict[str, Any]]:
+    """Return the most recent ImportLog entries with normalized metadata."""
     logs = ImportLog.objects.order_by("-created_at").select_related("uploaded_by")[:limit]
     results: List[Dict[str, Any]] = []
     for log in logs:
@@ -142,6 +148,7 @@ def get_recent_imports(limit: int = RECENT_IMPORT_LIMIT) -> List[Dict[str, Any]]
 
 
 def determine_import_status(log: ImportLog) -> ImportStatus:
+    """Compute a badge class summarizing the import outcome."""
     if not log.finished_at:
         return ImportStatus("Running", "bg-info text-dark")
     if log.error_count:
@@ -152,6 +159,7 @@ def determine_import_status(log: ImportLog) -> ImportStatus:
 
 
 def get_activity_feed(limit: int = ACTIVITY_LIMIT) -> List[Dict[str, Any]]:
+    """Return high-level change log entries for the dashboard feed."""
     events: List[Dict[str, Any]] = []
 
     for ingredient in Ingredient.objects.order_by("-last_updated")[:limit]:
@@ -190,6 +198,7 @@ def get_activity_feed(limit: int = ACTIVITY_LIMIT) -> List[Dict[str, Any]]:
 
 
 def get_quick_actions() -> List[Dict[str, Any]]:
+    """Shortcut buttons linking to common admin workflows."""
     return [
         {
             "label": "Add Ingredient",
@@ -215,6 +224,7 @@ def get_quick_actions() -> List[Dict[str, Any]]:
 
 
 def _extract_named_drink_label(token: str) -> str | None:
+    """Normalize a 'Name Your Drink' entry down to its core label."""
     normalized = (token or "").strip().lower()
     if not normalized:
         return None
@@ -231,6 +241,7 @@ def _extract_named_drink_label(token: str) -> str | None:
 
 
 def _build_named_drink_orders_url(label: str, lookback_days: int) -> str:
+    """Create an orders dashboard link pre-filtered for the given label."""
     today = timezone.localdate()
     start_date = today - timedelta(days=lookback_days)
     params = {
@@ -248,6 +259,7 @@ def _build_named_drink_orders_url(label: str, lookback_days: int) -> str:
 def get_top_named_drinks(
     limit: int = 10, lookback_days: int = NAMED_DRINK_LOOKBACK_DAYS
 ) -> List[Dict[str, Any]]:
+    """Return the most popular custom drink names observed across recent orders."""
     cache_key = f"{NAMED_DRINK_CACHE_KEY}:{limit}:{lookback_days}"
     cached = cache.get(cache_key)
     if cached is not None:
@@ -312,6 +324,7 @@ def get_top_named_drinks(
 
 
 def get_shortcuts() -> List[Dict[str, Any]]:
+    """Return the static configuration for dashboard shortcut buttons."""
     return [
         {"label": "Products", "url": reverse("orders_dashboard"), "icon": "bi-basket"},
         {"label": "Ingredients", "url": reverse("ingredients_dashboard"), "icon": "bi-droplet"},
@@ -327,6 +340,7 @@ def get_warning_items(
     stat_counts: Dict[str, int],
     recent_imports: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
+    """Compile warning callouts for low stock, unmapped items, or import issues."""
     warnings: List[Dict[str, Any]] = []
 
     if low_stock_summary["total"]:
@@ -360,4 +374,3 @@ def get_warning_items(
             )
 
     return warnings[:WARNING_LIMIT]
-

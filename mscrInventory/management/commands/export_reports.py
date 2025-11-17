@@ -1,4 +1,4 @@
-# yourapp/management/commands/export_reports.py
+"""Export COGS and usage CSV reports for a date range."""
 from __future__ import annotations
 import csv
 import datetime
@@ -23,6 +23,7 @@ from ...utils.reports import (
 
 
 class Command(BaseCommand):
+    """Write summarized and detailed reporting CSVs to disk."""
     help = "Export CSV reports for a date range: daily COGS summary and ingredient usage detail."
 
     def add_arguments(self, parser):

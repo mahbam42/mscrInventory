@@ -1,4 +1,4 @@
-# mscrInventory/management/commands/seed_demo_data.py
+"""Seed minimal demo data for manual testing."""
 from __future__ import annotations
 from decimal import Decimal
 from django.core.management.base import BaseCommand
@@ -9,6 +9,7 @@ from mscrInventory.models import (
 )
 
 class Command(BaseCommand):
+    """Populate sample ingredients, stock, and recipes."""
     help = "Seed demo ingredients, stock, products, and recipes."
 
     def handle(self, *args, **opts):

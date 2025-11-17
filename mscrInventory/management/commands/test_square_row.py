@@ -15,6 +15,7 @@ from importers.square_importer import SquareImporter
 
 
 class Command(BaseCommand):
+    """Exercise SquareImporter logic against a single CSV row."""
     help = "Test parsing of a single row from a Square CSV file using the SquareImporter."
 
     def add_arguments(self, parser):

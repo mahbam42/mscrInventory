@@ -1,4 +1,4 @@
-# inventory/models.py
+"""Database models that power inventory, ordering, and import workflows."""
 
 import re
 from decimal import Decimal
@@ -30,6 +30,7 @@ USAGE_SOURCE_CHOICES = (
 
 
 class Product(models.Model):
+    """Sellable menu item that links recipes, modifiers, and POS identifiers."""
     name = models.CharField(max_length=255)
     sku = models.CharField(max_length=128, unique=True)
     shopify_id = models.CharField(max_length=128, null=True, blank=True)
@@ -78,10 +79,7 @@ class Product(models.Model):
         return f"{self.name} ({self.sku})"
 
 class ProductVariantCache(models.Model):
-    """
-    Cache of product variants derived from order imports (Square, Shopify, etc.).
-    Used to track descriptive modifiers like size, temperature, or packaging.
-    """
+    """Normalized variant metadata learned from POS imports."""
     product = models.ForeignKey("Product", on_delete=models.CASCADE, related_name="variant_cache")
     platform = models.CharField(max_length=32, default="square")
     variant_name = models.CharField(max_length=255, help_text="Normalized variant descriptor (e.g., 'iced small')")
@@ -96,6 +94,7 @@ class ProductVariantCache(models.Model):
         return f"{self.product.name} — {self.variant_name}"
     
 class Category(models.Model):
+    """Simple taxonomy bucket for grouping Products."""
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
@@ -107,12 +106,14 @@ class Category(models.Model):
         verbose_name_plural = "Categories"
 
 class IngredientType(models.Model):
+    """Labels ingredients into logical families (roasts, packaging, etc.)."""
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
     
 class UnitType(models.Model):
+    """Measurement definition with a conversion ratio to a base unit."""
     name = models.CharField(max_length=50, unique=True)
     abbreviation = models.CharField(max_length=10, blank=True)
     conversion_to_base = models.DecimalField(max_digits=10, decimal_places=4, default=Decimal("1.0000"))
@@ -124,6 +125,7 @@ class UnitType(models.Model):
         return self.abbreviation or self.name
 
 class Ingredient(models.Model):
+    """Inventory tracked item with measurement, costing, and notes."""
     name = models.CharField(max_length=255, unique=True)
     type = models.ForeignKey(IngredientType, on_delete=models.SET_NULL, null=True, blank=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True, blank=True)
@@ -201,7 +203,7 @@ class RoastProfile(Ingredient):
         verbose_name_plural = "Roast Profiles"
 
 class ContainerType(models.Model):
-    """ Class for Packaging Containers"""
+    """Reusable container description for packaging selections."""
     name = models.CharField(max_length=50, unique=True)
     description = models.CharField(max_length=10, blank=True)
     capacity = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("0.0"))
@@ -215,6 +217,7 @@ class ContainerType(models.Model):
         return f"{self.name} ({self.capacity} {self.unit_type})"
 
 class SizeLabel(models.Model):
+    """Named portion sizes used when presenting packaging choices."""
     # Labels of currently offered drink sizes
     sizes = [                           # Capacity is Picked up from ContainerType() Class
         ("taster", "Taster"),               # Not Currently Used
@@ -235,7 +238,7 @@ class SizeLabel(models.Model):
         return self.get_label_display() or self.label
 
 class Packaging(Ingredient):
-    """Subclass for Packaging mostly to handle cups"""
+    """Ingredient subtype for cups, lids, and other packaging combos."""
 
     Temps = [
         ("hot", "Hot"),
@@ -296,6 +299,7 @@ class Packaging(Ingredient):
 
 
 class StockEntry(models.Model):
+    """Represents a restock event that updates weighted average cost."""
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, related_name="stock_entries")
     quantity_added = models.DecimalField(max_digits=12, decimal_places=3)
     cost_per_unit = models.DecimalField(max_digits=12, decimal_places=6)
@@ -382,6 +386,7 @@ class RecipeItem(models.Model):
 
 
 class ModifierBehavior(models.TextChoices):
+    """Normalized operations for manipulating recipe ingredients."""
     ADD = "add", "Add"
     REPLACE = "replace", "Replace"
     SCALE = "scale", "Scale"
@@ -481,6 +486,7 @@ class RecipeModifier(models.Model):
 
 
 class RecipeModifierAlias(models.Model):
+    """Maps raw order modifiers to the normalized RecipeModifier."""
     modifier = models.ForeignKey(
         RecipeModifier,
         on_delete=models.CASCADE,
@@ -508,6 +514,7 @@ class RecipeModifierAlias(models.Model):
 
 
 class Order(models.Model):
+    """High-level order pulled from connected commerce platforms."""
     order_id = models.CharField(max_length=255, help_text="Platform-specific order id")
     platform = models.CharField(max_length=32, choices=PLATFORM_CHOICES)
     order_date = models.DateTimeField()
@@ -524,6 +531,7 @@ class Order(models.Model):
 
 
 class OrderItem(models.Model):
+    """Line item belonging to an Order, optionally linked to a Product."""
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
@@ -575,6 +583,7 @@ class IngredientUsageLog(models.Model):
 
 
 class ImportLog(models.Model):
+    """Tracks file-based or API imports, counts, and outcomes."""
     SOURCE_CHOICES = [
         ("square", "Square"),
         ("shopify", "Shopify"),

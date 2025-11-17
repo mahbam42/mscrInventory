@@ -132,7 +132,7 @@ class ShopifyImporter(BaseImporter):
     # BaseImporter hook
     # ------------------------------------------------------------------
     def process_row(self, raw_order: dict[str, Any]) -> None:  # type: ignore[override]
-        """Normalise and persist a single Shopify order."""
+        """Normalize and persist a single Shopify order."""
 
         normalized = self._normalize_order(raw_order)
         order_id = normalized["order_id"]
@@ -257,6 +257,7 @@ class ShopifyImporter(BaseImporter):
         *,
         raw_line: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Transform a Shopify line payload into the internal order item shape."""
         sku = (line_item.get("sku") or "").strip()
         shopify_product_id = line_item.get("product_id")
         title = (line_item.get("title") or line_item.get("name") or sku).strip()
@@ -400,7 +401,7 @@ class ShopifyImporter(BaseImporter):
         descriptors: list[str] | None = None,
         variant_title: str | None = None,
     ) -> Product | None:
-        """Locate the Product that should back the Shopify line item."""
+        """Locate the Product instance that should back the Shopify line item."""
 
         if not hasattr(self, "_sku_cache"):
             self._sku_cache: dict[str, Product | None] = {}
@@ -458,6 +459,7 @@ class ShopifyImporter(BaseImporter):
         return product
 
     def _get_retail_bag_product(self) -> Product | None:
+        """Fetch and cache the canonical retail bag Product."""
         if self._retail_bag_product is None:
             self._retail_bag_product = (
                 Product.objects.filter(name__iexact="retail bag").first()
@@ -471,6 +473,7 @@ class ShopifyImporter(BaseImporter):
     # Ingredient usage tracking
     # ------------------------------------------------------------------
     def _is_retail_bag_line(self, product: Product | None, variant_info: dict[str, Any]) -> bool:
+        """Return True when the line should be counted as a retail bag."""
         bag_meta = variant_info.get("retail_bag") or {}
         if bag_meta.get("is_retail_bag"):
             return True
@@ -509,6 +512,7 @@ class ShopifyImporter(BaseImporter):
         return False
 
     def _track_usage_from_item(self, item: dict[str, Any]) -> None:
+        """Update ingredient usage aggregates for the given line item."""
         product: Product | None = item.get("product")
         if not product:
             return
@@ -587,6 +591,7 @@ class ShopifyImporter(BaseImporter):
             self.usage_breakdown[ingredient.id][source_label] += qty
 
     def log_usage_breakdown(self) -> None:
+        """Log a human-readable breakdown of ingredient usage per source."""
         if not self.usage_totals:
             return
         lines = ["Ingredient usage breakdown:"]
@@ -611,6 +616,7 @@ class ShopifyImporter(BaseImporter):
         return result
 
     def _resolve_bag_weight_ounces(self, bag_label: str | None) -> Decimal:
+        """Convert bag size labels into ounces, caching common values."""
         if not bag_label:
             return Decimal("1")
         normalized = bag_label.strip().lower()
@@ -637,6 +643,7 @@ class ShopifyImporter(BaseImporter):
     def _fetch_orders(
         self, start_utc: dt.datetime, end_utc: dt.datetime
     ) -> list[dict[str, Any]]:
+        """Retrieve Shopify orders for the provided UTC window."""
         api_key = getattr(settings, "SHOPIFY_API_KEY", None) or None
         password = getattr(settings, "SHOPIFY_PASSWORD", None) or None
         access_token = getattr(settings, "SHOPIFY_ACCESS_TOKEN", None) or None
@@ -696,6 +703,7 @@ class ShopifyImporter(BaseImporter):
             )
         return orders
 def _format_decimal(value: Decimal) -> str:
+    """Render decimals without trailing zeros for Shopify payloads."""
     normalized = value.normalize()
     text = format(normalized, "f")
     if "." in text:

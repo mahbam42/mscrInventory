@@ -24,6 +24,7 @@ SNAPSHOT_SUFFIX = ".json"
 
 
 class Command(BaseCommand):
+    """Snapshot and delete import-related tables for fresh test runs."""
     help = (
         "Create a JSON snapshot of import data and purge tables so the same "
         "test data can be recycled between runs."

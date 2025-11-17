@@ -328,6 +328,7 @@ class SquareImporter:
     # 🧩 Single-row processing
     # ------------------------------------------------------------------
     def _resolve_ingredient(self, name: str | None) -> Ingredient | None:
+        """Return an Ingredient by name with caching."""
         normalized = (name or "").strip().lower()
         if not normalized:
             return None
@@ -338,6 +339,7 @@ class SquareImporter:
         return ingredient
 
     def _get_normalized_modifier_names(self) -> set[str]:
+        """Cache a set of normalized modifier names for quick comparisons."""
         if self._normalized_modifier_names is None:
             modifier_names = RecipeModifier.objects.values_list("name", flat=True)
             self._normalized_modifier_names = {
@@ -346,6 +348,7 @@ class SquareImporter:
         return self._normalized_modifier_names
 
     def _get_normalized_ingredient_names(self) -> set[str]:
+        """Cache a set of normalized ingredient names."""
         if self._normalized_ingredient_names is None:
             ingredient_names = Ingredient.objects.values_list("name", flat=True)
             self._normalized_ingredient_names = {
@@ -393,6 +396,7 @@ class SquareImporter:
         usage_summary: dict,
         quantity: Decimal,
     ) -> None:
+        """Increment aggregate usage totals using the recipe usage summary."""
         if not usage_summary or quantity <= 0:
             return
 
@@ -909,6 +913,7 @@ class SquareImporter:
         return self.buffer
 
     def _extract_transaction_id(self, row: dict, file_path: Path | None) -> str:
+        """Try multiple field names to capture the transaction identifier."""
         candidates = [
             "Transaction ID",
             "Transaction Id",
@@ -933,6 +938,7 @@ class SquareImporter:
         file_path: Path | None,
         order_dt: datetime | None = None,
     ) -> Order:
+        """Fetch or initialize the Order associated with a Square transaction."""
         key = transaction_id or (file_path.stem if file_path else "square-order")
         if key in self._orders_by_transaction:
             existing_order = self._orders_by_transaction[key]
@@ -1026,6 +1032,7 @@ class SquareImporter:
     # 📊 Summary
     # ------------------------------------------------------------------
     def summarize(self):
+        """Generate and cache a run summary with timing and counts."""
         if self._summary_added and self._summary_cache is not None:
             return "\n".join(self._summary_cache)
 
@@ -1054,6 +1061,7 @@ class SquareImporter:
         return "\n".join(summary_lines)
 
     def get_run_metadata(self) -> dict:
+        """Expose structured metadata about the previous run."""
         """Return structured metadata about the most recent run."""
         stats = dict(self.stats)
         started_at = self._last_run_started
@@ -1070,6 +1078,7 @@ class SquareImporter:
         }
 
     def get_output(self) -> str:
+        """Return concatenated importer log output."""
         """Return the collected log as a single string."""
         return "\n".join(self.buffer)
 
@@ -1078,6 +1087,7 @@ class SquareImporter:
         return self.summarize()
 
     def get_usage_totals(self) -> dict[int, Decimal]:
+        """Expose aggregated ingredient usage totals keyed by id."""
         return {
             ingredient_id: qty
             for ingredient_id, qty in self.usage_totals.items()
@@ -1085,6 +1095,7 @@ class SquareImporter:
         }
 
     def get_usage_breakdown(self) -> dict[str, dict[str, Decimal]]:
+        """Return ingredient usage grouped by ingredient name and source label."""
         result: dict[str, dict[str, Decimal]] = {}
         for ingredient_id, per_source in self.usage_breakdown.items():
             ingredient = Ingredient.objects.filter(id=ingredient_id).first()
@@ -1098,6 +1109,7 @@ class SquareImporter:
     def _record_unmapped_item(
         self, item_name, price_point, modifiers, reason, *, item_type: str = "product"
     ) -> None:
+        """Create or update a SquareUnmappedItem entry for unmatched rows."""
         normalized_item = _normalize_name(item_name)
         normalized_price = _normalize_name(price_point)
         allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}

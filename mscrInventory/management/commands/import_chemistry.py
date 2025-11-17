@@ -61,6 +61,7 @@ from mscrInventory.models import Ingredient, RecipeModifier, IngredientType, Uni
 
 
 class Command(BaseCommand):
+    """Import curated chemistry CSV rows for ingredients and modifiers."""
     help = "Batch import ingredients and recipe modifiers from a curated CSV file."
 
     def add_arguments(self, parser):

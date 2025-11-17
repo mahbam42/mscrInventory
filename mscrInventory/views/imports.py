@@ -306,6 +306,7 @@ def unmapped_items_view(request):
 
 
 def _render_unmapped_table(request, filter_type: str | None, form_overrides=None, status=200):
+    """Render the unmapped table partial and optionally override forms."""
     paginate_flag = request.POST.get("paginate") == "1"
     page_number = request.POST.get("page") if paginate_flag else None
     include_known = _should_include_known(request.POST.getlist("include_known"))
@@ -329,6 +330,7 @@ def _render_unmapped_table(request, filter_type: str | None, form_overrides=None
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def link_unmapped_item(request, pk: int):
+    """Resolve a SquareUnmappedItem by linking to an existing record."""
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
     filter_type = request.POST.get("filter_type") or None
     item.is_known_recipe = Product.objects.filter(name__iexact=item.item_name).exists()
@@ -350,6 +352,7 @@ def link_unmapped_item(request, pk: int):
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def create_unmapped_item(request, pk: int):
+    """Create a Product/Ingredient/Modifier from an unmapped entry."""
     item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
     filter_type = request.POST.get("filter_type") or None
     item.is_known_recipe = Product.objects.filter(name__iexact=item.item_name).exists()
@@ -379,6 +382,7 @@ def create_unmapped_item(request, pk: int):
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def ignore_unmapped_item(request, pk: int):
+    """Hide an unmapped entry without resolving it."""
     item = get_object_or_404(SquareUnmappedItem, pk=pk)
     filter_type = request.POST.get("filter_type") or None
 
@@ -395,6 +399,7 @@ def ignore_unmapped_item(request, pk: int):
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def bulk_unmapped_action(request):
+    """Apply a batch link/create action to selected unmapped entries."""
     action = request.POST.get("action")
     filter_type = request.POST.get("filter_type") or "all"
     allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
@@ -451,6 +456,7 @@ def bulk_unmapped_action(request):
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def fetch_shopify_view(request):
+    """Trigger Shopify importer via management command and surface output."""
     """Fetch Shopify data for a date or range."""
 
     start_date = request.POST.get("start_date")
@@ -522,6 +528,7 @@ def fetch_shopify_view(request):
 
 
 def import_logs_view(request):
+    """List ImportLog rows with optional AJAX partial rendering."""
     """Display a paginated history of import logs."""
 
     logs = ImportLog.objects.select_related("uploaded_by").order_by("-created_at")

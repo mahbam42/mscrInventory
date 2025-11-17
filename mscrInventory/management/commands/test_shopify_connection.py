@@ -10,6 +10,7 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
+    """Ping the Shopify API with the configured credentials."""
     help = "Test connectivity to the configured Shopify store using current environment settings."
 
     def handle(self, *args, **options):
@@ -85,4 +86,3 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"⚠️ Unexpected response payload: {payload}"))
         else:
             self.stdout.write(self.style.SUCCESS(f"✅ Connection successful! Orders in last 7 days: {order_count}"))
-

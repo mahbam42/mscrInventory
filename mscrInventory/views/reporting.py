@@ -1,3 +1,5 @@
+"""Reporting dashboards for COGS, usage, and profitability."""
+
 import datetime
 from decimal import Decimal
 
@@ -11,6 +13,7 @@ from mscrInventory.utils import reports
 
 
 def _parse_date(value: str | None) -> datetime.date | None:
+    """Return parsed ISO8601 date or None on error."""
     if not value:
         return None
     try:
@@ -22,6 +25,7 @@ def _parse_date(value: str | None) -> datetime.date | None:
 @permission_required("mscrInventory.change_order", raise_exception=True)
 @login_required
 def reporting_dashboard_view(request):
+    """Render the reporting dashboard with aggregates and raw usage logs."""
     today = timezone.localdate()
     default_start = today - datetime.timedelta(days=6)
     start = _parse_date(request.GET.get("start")) or default_start

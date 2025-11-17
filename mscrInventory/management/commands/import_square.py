@@ -1,13 +1,4 @@
-# mscrInventory/management/commands/import_square.py
-"""
-Management Command: import_square
----------------------------------
-Usage:
-    python manage.py import_square --file path/to/file.csv [--dry-run]
-
-This wraps SquareImporter for CLI execution.
-Safe for production and web dashboard integration.
-"""
+"""Wrap the SquareImporter for CLI execution with optional usage logging."""
 
 from pathlib import Path
 import datetime
@@ -17,6 +8,7 @@ from importers.square_importer import SquareImporter  # library module, no Djang
 from .sync_orders import write_usage_logs
 
 class Command(BaseCommand):
+    """Stream Square CSV rows into the SquareImporter."""
     help = "Import Square CSV via SquareImporter CLI. Supports --dry-run."
 
     def add_arguments(self, parser):

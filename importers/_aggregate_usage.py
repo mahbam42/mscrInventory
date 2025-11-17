@@ -425,6 +425,7 @@ def _match_label_from_aliases(text: str, aliases: dict[str, str]) -> str | None:
     return None
 
 def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None):
+    """Infer beverage temperature and size label from product text."""
     """
     Infer temperature (hot/cold) and size label from product name and modifiers.
 
@@ -468,6 +469,7 @@ def infer_temp_and_size(product_name: str, descriptors: list[str] | None = None)
     return temp_type, size_label
 
 def round_qty(value: Decimal, unit_type: str) -> Decimal:
+    """Apply friendly rounding rules based on the unit type."""
     """Round quantities to avoid trailing digits."""
     if unit_type == "unit":  # cookies, espresso shots, etc.
         return value.to_integral_value(rounding=ROUND_HALF_UP)
@@ -488,6 +490,7 @@ def aggregate_ingredient_usage(
     include_cup: bool = True,
     modifier_tokens: list[str] | None = None,
 ):
+    """Aggregate IngredientUsageLog data given usage rows and modifiers."""
     """
     Aggregate all ingredient usage for a given product, scaled to size.
 

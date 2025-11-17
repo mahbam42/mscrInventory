@@ -161,6 +161,7 @@ class ModifierExplorerReport:
     source_files: List[Path]
 
     def to_json(self) -> Dict[str, object]:
+        """Return a JSON-serializable payload describing the report."""
         return {
             "source_files": [str(path) for path in self.source_files],
             "modifiers": {
@@ -173,6 +174,7 @@ class ModifierExplorerReport:
         }
 
     def to_csv_rows(self) -> List[Dict[str, object]]:
+        """Flatten the insights into CSV-ready dicts."""
         return [insight.to_csv_row() for insight in sorted(self.insights.values(), key=lambda x: x.normalized)]
 
 
@@ -192,6 +194,7 @@ class ModifierExplorerAnalyzer:
     # Public API
     # ------------------------------------------------------------------
     def analyze(self, paths: Optional[Sequence[Path]] = None) -> ModifierExplorerReport:
+        """Read one or more Square CSVs and return aggregated modifier insights."""
         csv_files = list(self._resolve_paths(paths))
         insights: Dict[str, ModifierInsight] = {}
         co_occurrence_pairs: Dict[Tuple[str, str], int] = defaultdict(int)
@@ -242,6 +245,7 @@ class ModifierExplorerAnalyzer:
     # Internal helpers
     # ------------------------------------------------------------------
     def _resolve_paths(self, paths: Optional[Sequence[Path]]) -> Iterator[Path]:
+        """Yield CSV files from explicit paths or the default Square directory."""
         if paths:
             for supplied in paths:
                 supplied_path = Path(supplied)
@@ -255,23 +259,28 @@ class ModifierExplorerAnalyzer:
             yield from sorted(DEFAULT_SQUARE_DIR.glob("*.csv"))
 
     def _iter_csv(self, path: Path) -> Iterator[Dict[str, str]]:
+        """Stream rows from a CSV file."""
         with path.open(newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
                 yield row
 
     def _parse_modifiers(self, raw_value: Optional[str]) -> List[str]:
+        """Split a Square modifiers string into clean tokens."""
         if not raw_value:
             return []
         return [token.strip() for token in raw_value.split(",") if token.strip()]
 
     def _fetch_modifiers(self) -> QuerySet[RecipeModifier]:
+        """Return the base RecipeModifier queryset used for classification."""
         return RecipeModifier.objects.all().only("id", "name", "behavior")
 
     def _fetch_aliases(self) -> QuerySet[RecipeModifierAlias]:
+        """Return the alias queryset used during classification."""
         return RecipeModifierAlias.objects.select_related("modifier").all()
 
     def _is_custom_drink_token(self, token: str) -> bool:
+        """Check whether the normalized token represents a custom drink label."""
         normalized = (token or "").strip().lower()
         if not normalized:
             return False
@@ -283,6 +292,7 @@ class ModifierExplorerAnalyzer:
         modifiers: QuerySet[RecipeModifier],
         aliases: QuerySet[RecipeModifierAlias],
     ) -> None:
+        """Attach classification metadata to each insight."""
         normalized_lookup: Dict[str, RecipeModifier] = {}
         names_lower: Dict[str, RecipeModifier] = {}
         alias_lookup: Dict[str, RecipeModifierAlias] = {}
@@ -346,6 +356,7 @@ class ModifierExplorerAnalyzer:
         limit: int = 3,
         cutoff: float = 0.72,
     ) -> List[FuzzyMatch]:
+        """Return the best fuzzy matches for an unknown modifier label."""
         scored: List[FuzzyMatch] = []
         for normalized_name, modifier in candidates:
             score = SequenceMatcher(None, token, normalized_name).ratio()

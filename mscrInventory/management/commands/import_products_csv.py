@@ -1,3 +1,5 @@
+"""Import product catalog data (with categories) from CSV."""
+
 import csv
 from django.core.management.base import BaseCommand, CommandError
 from mscrInventory.models import Product, Category
@@ -17,6 +19,7 @@ def generate_auto_sku(name: str) -> str:
     return f"ag-{base_slug}-{suffix}"
 
 class Command(BaseCommand):
+    """Create or update Product rows from a structured CSV."""
     help = "Import products from a CSV file with categories and flags."
     
     def add_arguments(self, parser):

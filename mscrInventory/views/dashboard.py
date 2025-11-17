@@ -1,3 +1,5 @@
+"""Views that render the executive dashboard."""
+
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -18,6 +20,7 @@ from mscrInventory.utils.dashboard_metrics import (
 
 @login_required
 def dashboard_view(request: HttpRequest) -> HttpResponse:
+    """Render dashboard cards, stats, warnings, and quick actions."""
     role = (
         request.user.groups.first().name
         if request.user.groups.exists()
@@ -40,4 +43,3 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
         "user_role": role,
     }
     return render(request, "dashboard.html", context)
-

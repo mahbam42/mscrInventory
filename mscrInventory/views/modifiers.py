@@ -1,3 +1,5 @@
+"""Modifier catalog views, bulk importer, and explorer endpoints."""
+
 import csv
 import io
 import json
@@ -42,6 +44,7 @@ REQUIRED_MODIFIER_COLUMNS = [
 
 
 def _serialize_modifier(modifier, ingredient_type_lookup):
+    """Return the JSON-friendly representation used by the modal."""
     target_selector = modifier.target_selector or {}
     replaces = modifier.replaces or {}
     raw_by_type = target_selector.get("by_type", []) or []
@@ -80,6 +83,7 @@ def _serialize_modifier(modifier, ingredient_type_lookup):
 
 
 def _modifier_payload(modifiers, ingredient_type_lookup):
+    """Serialize an queryset of modifiers for modal consumption."""
     return [
         _serialize_modifier(modifier, ingredient_type_lookup)
         for modifier in modifiers
@@ -87,6 +91,7 @@ def _modifier_payload(modifiers, ingredient_type_lookup):
 
 
 def _group_modifiers_by_type(modifiers):
+    """Group modifiers by ingredient type for accordion rendering."""
     grouped = defaultdict(list)
     for modifier in modifiers:
         type_obj = modifier.ingredient_type
@@ -112,6 +117,7 @@ def _group_modifiers_by_type(modifiers):
 
 
 def _group_ingredients_by_type(ingredients):
+    """Organize ingredients by type for selection lists."""
     grouped = defaultdict(list)
     for ingredient in ingredients:
         type_obj = ingredient.type
@@ -136,6 +142,7 @@ def _group_ingredients_by_type(ingredients):
 
 
 def _load_modifier_modal_data():
+    """Pre-compute all the context needed for the rules modal."""
     modifiers = (
         RecipeModifier.objects
         .select_related("ingredient_type")
@@ -172,6 +179,7 @@ def _load_modifier_modal_data():
 
 
 def _render_modifier_modal(request, context_overrides=None, trigger=None):
+    """Render the modifier modal template with optional HTMX trigger."""
     context = _load_modifier_modal_data()
     if context_overrides:
         context.update(context_overrides)
@@ -190,6 +198,7 @@ def _render_modifier_modal(request, context_overrides=None, trigger=None):
 
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def modifier_rules_modal(request):
+    """Handle GET/POST traffic for the modal that edits modifier rules."""
     if request.method == "POST":
         modifier_id = request.POST.get("modifier_id")
         modifier = get_object_or_404(RecipeModifier, pk=modifier_id)
@@ -253,6 +262,7 @@ def modifier_rules_modal(request):
 
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def create_modifier(request):
+    """Persist a new RecipeModifier from modal form submissions."""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
 
@@ -375,12 +385,14 @@ def create_modifier(request):
 
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def import_modifiers_modal(request):
+    """Render the modal where CSV uploads can be initiated."""
     return render(request, "modifiers/_import_modifiers.html")
 
 
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 @require_POST
 def import_modifiers_csv(request):
+    """Validate a modifier CSV upload and present preview results."""
     csv_file = request.FILES.get("file")
     if not csv_file:
         return render(
@@ -557,6 +569,7 @@ def import_modifiers_csv(request):
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 @require_POST
 def confirm_modifiers_import(request):
+    """Create RecipeModifier rows from the validated CSV preview."""
     data_json = request.POST.get("valid_rows") or request.body.decode("utf-8")
 
     try:
@@ -601,6 +614,7 @@ def confirm_modifiers_import(request):
 
 @permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def export_modifiers_csv(request):
+    """Stream all modifiers in a format compatible with the importer."""
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="modifiers_export.csv"'
 
@@ -635,6 +649,7 @@ def export_modifiers_csv(request):
 
 @permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def download_modifiers_template(request):
+    """Provide the canonical CSV template required for imports."""
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="modifiers_template.csv"'
     writer = csv.writer(response)
@@ -664,6 +679,7 @@ def download_modifiers_template(request):
 
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 def edit_modifier_extra_view(request, modifier_id):
+    """Display an edit form for modifier extras such as target selectors."""
     modifier = get_object_or_404(RecipeModifier, pk=modifier_id)
     # stub logic for now
     if request.method == "POST":
@@ -686,6 +702,7 @@ def edit_modifier_extra_view(request, modifier_id):
 
 @permission_required("mscrInventory.view_recipemodifier", raise_exception=True)
 def modifier_explorer_view(request):
+    """Render the interactive modifier explorer with filtering tools."""
     analyzer = ModifierExplorerAnalyzer()
     report = analyzer.analyze()
 
@@ -807,6 +824,7 @@ def modifier_explorer_view(request):
 @permission_required("mscrInventory.change_recipemodifier", raise_exception=True)
 @require_POST
 def create_modifier_alias(request):
+    """Handle alias creation requests from the explorer UI."""
     modifier_id = request.POST.get('modifier_id')
     raw_label = (request.POST.get('raw_label') or '').strip()
     classification = request.POST.get('classification') or ''
@@ -852,6 +870,7 @@ def _modifier_explorer_redirect(
     search_term: str,
     include_known_products: Optional[bool] = None,
 ):
+    """Build a redirect to the explorer view preserving filters."""
     params = {}
     classification = (classification or '').strip().lower()
     if classification and classification != 'all':

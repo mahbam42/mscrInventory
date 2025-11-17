@@ -1,3 +1,5 @@
+"""Ingredient CRUD flow views and HTMX helpers."""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +25,7 @@ from .inventory import _build_sort_context, _inventory_queryset
 
 @permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def ingredients_dashboard_view(request):
+    """Render the ingredient dashboard or its HTMX table as needed."""
     ingredient_types = IngredientType.objects.exclude(name__iexact="extra").order_by("name")
     unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
 
@@ -41,6 +44,7 @@ def ingredients_dashboard_view(request):
 
 @permission_required("mscrInventory.view_ingredient", raise_exception=True)
 def ingredients_table_partial(request):
+    """Return the sortable table partial for the ingredient dashboard."""
     search_query = request.GET.get("q", "").strip()
     active_type = request.GET.get("type", "").strip()
     sort_key = request.GET.get("sort", "name")
@@ -97,6 +101,7 @@ def _render_ingredient_modal(
     title: str,
     submit_label: str,
 ):
+    """Shared helper that renders the create/edit ingredient modal."""
     ingredient_types = IngredientType.objects.exclude(name__iexact="extra").order_by("name")
     roast_type_ids = [
         str(t.pk) for t in ingredient_types if IngredientForm.requires_roast_fields(t)
@@ -192,6 +197,7 @@ def _render_ingredient_modal(
 
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def ingredient_create_modal(request):
+    """Handle the create modal submission for a new ingredient."""
     return _render_ingredient_modal(
         request,
         ingredient=None,
@@ -202,6 +208,7 @@ def ingredient_create_modal(request):
 
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 def ingredient_edit_modal(request, pk: int):
+    """Handle modal updates for an existing ingredient."""
     ingredient = get_object_or_404(Ingredient, pk=pk)
     return _render_ingredient_modal(
         request,

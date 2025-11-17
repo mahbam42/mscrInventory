@@ -14,6 +14,7 @@ from importers.shopify_importer import ShopifyImporter
 
 
 class Command(BaseCommand):
+    """Feed mock Shopify orders to the importer using CSV data."""
     help = (
         "Feed the Shopify importer with CSV rows (mock orders) instead of hitting the API. "
         "CSV columns should include at least: order_id, created_at, sku, title, "

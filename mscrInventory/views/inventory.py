@@ -1,4 +1,4 @@
-# mscrInventory/views/inventory.py
+"""Views and helpers for working with inventory dashboards and HTMX modals."""
 from django.db.models import F, Sum, OuterRef, Subquery
 from django.db import transaction
 from django.shortcuts import render, redirect
@@ -418,6 +418,7 @@ from mscrInventory.models import Ingredient
 @permission_required("mscrInventory.change_ingredient", raise_exception=True)
 @require_POST
 def import_inventory_csv(request):
+    """Validate a CSV upload and split rows into valid/invalid lists."""
     csv_file = request.FILES.get("file")
     if not csv_file:
         return render(

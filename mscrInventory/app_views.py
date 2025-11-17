@@ -1,4 +1,4 @@
-# mscrInventory/views.py
+"""Thin wrappers that share HTMX partials across dashboards."""
 from django.shortcuts import render
 
 from mscrInventory.views.imports import _build_unmapped_context

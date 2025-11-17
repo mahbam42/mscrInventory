@@ -1,8 +1,11 @@
+"""Management command to clean up invalid or duplicate RecipeItem rows."""
+
 from django.core.management.base import BaseCommand
 from django.db.models import Q, Count
 from mscrInventory.models import RecipeItem, Ingredient
 
 class Command(BaseCommand):
+    """Remove empty RecipeItems and optionally orphaned Ingredients."""
     help = "Cleans up invalid or duplicate RecipeItems. Use --dry-run to preview actions. \
     Examples: \
     python manage.py clean_empty_recipeitems --dry-run \
