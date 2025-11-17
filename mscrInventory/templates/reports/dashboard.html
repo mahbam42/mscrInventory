@@ -1,19 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Reporting Dashboard · MSCR Inventory{% endblock %}
 
-{% block extra_head %}
-  {{ block.super }}
-  <style>
-    .collapse-toggle .label-collapsed { display: none; }
-    .collapse-toggle.collapsed .label-collapsed { display: inline; }
-    .collapse-toggle.collapsed .label-expanded { display: none; }
-    th.sortable { cursor: pointer; white-space: nowrap; }
-    th.sorted-asc::after { content: " ▲"; font-size: 0.75rem; }
-    th.sorted-desc::after { content: " ▼"; font-size: 0.75rem; }
-  </style>
-{% endblock %}
-
 {% block content %}
+  <div id="reporting">
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h2 class="mb-3">📈 Reporting Dashboard</h2>
   <form method="get" class="row g-2 align-items-end">
@@ -436,6 +425,7 @@
 </div>
 {% endif %}
 
+  </div>
 {% endblock %}
 
 {% block extra_js %}

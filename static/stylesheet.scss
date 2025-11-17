@@ -1,0 +1,58 @@
+
+$primary-color: rgb(255, 119, 77); 
+$secondary-color: rgb(69, 154, 183);
+$shopify:  #95bf47; 
+$doordash: rgb(235, 23, 0);
+
+// Custom nav color branding
+.bg-custom {
+    background-color: $primary-color;
+}
+
+// Create User Rules
+#createUserModal .modal-body,
+#editUserModal .modal-body {
+    max-height: calc(95vh - 10rem);
+    overflow-y: auto;
+}
+
+// Rules Modal Rules
+#globalModal {
+    .tall-select {
+        max-height: 7em; // Keeps multiselect from getting too tall
+    }
+    .placeholder-option,
+    .form-select optgroup {
+        font-size: smaller;
+    }
+}
+
+// Reporting Dashboard Rules
+#reporting {
+    .collapse-toggle .label-collapsed {
+        display: none;
+    }
+
+    .collapse-toggle.collapsed .label-collapsed {
+        display: inline;
+    }
+
+    .collapse-toggle.collapsed .label-expanded {
+        display: none;
+    }
+
+    th.sortable {
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    th.sorted-asc::after {
+        content: " ▲";
+        font-size: 0.75rem;
+    }
+
+    th.sorted-desc::after {
+        content: " ▼";
+        font-size: 0.75rem;
+    }
+}

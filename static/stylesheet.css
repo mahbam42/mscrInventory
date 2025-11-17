@@ -1,0 +1,42 @@
+@charset "UTF-8";
+.bg-custom {
+  background-color: rgb(255, 119, 77);
+}
+
+#createUserModal .modal-body,
+#editUserModal .modal-body {
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+}
+
+#globalModal .tall-select {
+  max-height: 7em;
+}
+#globalModal .placeholder-option,
+#globalModal .form-select optgroup {
+  font-size: smaller;
+}
+
+#reporting .collapse-toggle .label-collapsed {
+  display: none;
+}
+#reporting .collapse-toggle.collapsed .label-collapsed {
+  display: inline;
+}
+#reporting .collapse-toggle.collapsed .label-expanded {
+  display: none;
+}
+#reporting th.sortable {
+  cursor: pointer;
+  white-space: nowrap;
+}
+#reporting th.sorted-asc::after {
+  content: " ▲";
+  font-size: 0.75rem;
+}
+#reporting th.sorted-desc::after {
+  content: " ▼";
+  font-size: 0.75rem;
+}
+
+/*# sourceMappingURL=stylesheet.css.map */
