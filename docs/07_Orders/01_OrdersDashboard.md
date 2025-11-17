@@ -8,11 +8,11 @@ The **Orders Dashboard** consolidates recent Shopify and Square orders into a si
 - Displays both **Square** and **Shopify** orders.
 - Combined view by default; platform filters allow narrowing to one source.
 - Customizable date range with standard presets:
-  - Today
   - Last 7 days
   - Last 14 days
   - Last 30 days
-  - Custom date window
+  - Last 90 days
+  - Custom date window (reveals the from/to inputs so you can set any specific range)
 
 ### Filters and Search
 - Filter by platform (Square / Shopify)
