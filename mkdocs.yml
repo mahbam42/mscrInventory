@@ -1,0 +1,151 @@
+site_name: MSCR Inventory App Documentation
+site_description: User Manual and Reference for the MSCR Inventory App
+site_author: MSCR Development Team
+site_url: ""
+dev_addr: 127.0.0.1:8002
+
+repo_url: https://github.com/mahbam42/mscrInventory
+repo_name: mscrInventory
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
+    - toc.integrate
+    - content.tabs.link
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - footnotes
+  - tables
+  - fenced_code
+  - codehilite:
+      guess_lang: false
+  - def_list
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.extra
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.keys
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:pymdownx.emoji.to_svg
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            show_source: true
+            docstring_style: google
+            merge_init_into_class: true
+  - autorefs
+
+nav:
+  - Home: index.md
+  - Introduction:
+      - Introduction: 01_Introduction/01_introduction.md
+  - Quick Start:
+      - Quick Start Overview: 02_Quickstart/01_Quickstart.md
+  - Navigation:
+      - Dashboard Layout: 03_Navigation/01_DashboardLayout.md
+      - Navigation Menu: 03_Navigation/02_NavigationMenu.md
+      - Modals & Dialogs: 03_Navigation/03_ModalsDialogs.md
+      - Color & Icon Conventions: 03_Navigation/04_ColorIcons.md
+      - Search & Filters: 03_Navigation/05_SearchFilters.md
+
+  - Ingredients:
+      - Overview: 04_Ingredients/01_Overview.md
+      - Adding & Editing Ingredients: 04_Ingredients/02_AddingEditing.md
+      - Ingredient Fields: 04_Ingredients/03_Fields.md
+      - Best Practices: 04_Ingredients/04_BestPractices.md
+      - Bulk Editing & CSV Import: 04_Ingredients/05_CSV.md
+      - Troubleshooting: 04_Ingredients/06_Troubleshooting.md
+
+  - Recipes:
+      - Overview: 05_Recipes/01_Overview.md
+      - Creating & Editing Recipes: 05_Recipes/02_CreateEdit.md
+      - Dynamic Scaling: 05_Recipes/03_Scaling.md
+      - Recipe Fields: 05_Recipes/04_Fields.md
+      - Adding Ingredients: 05_Recipes/05_AddIngredients.md
+      - Modifiers: 05_Recipes/06_Modifiers.md
+      - Modifier Rules: 05_Recipes/07_ModifierRules.md
+      - Best Practices: 05_Recipes/08_BestPractices.md
+      - Troubleshooting: 05_Recipes/09_Troubleshooting.md
+
+  - Imports:
+      - Overview: 06_Imports/01_Overview.md
+      - Upload Square CSV: 06_Imports/02_UploadSquare.md
+      - Unmapped Items Dashboard: 06_Imports/03_Unmapped_Items.md
+      - Modifier Explorer: 06_Imports/04_ModifierExplorer.md
+      - Import History: 06_Imports/05_ImportHistory.md
+
+  - Orders:
+      - Orders Dashboard: 07_Orders/01_OrdersDashboard.md
+
+  - Inventory:
+      - Low Stock Ingredients: 08_Inventory/01_LowStock.md
+      - Bulk Add Stock: 08_Inventory/02_BulkAdd.md
+
+  - Reporting:
+      - Reporting Overview: 09_Reporting/01_Reporting.md
+      - Ingredient Usage: 09_Reporting/02_UsageReports.md
+      - COGS: 09_Reporting/03_COGS.md
+      - Inventory Valuation: 09_Reporting/04_InventoryValuation.md
+      - Exporting Reports: 09_Reporting/05_ExportingReports.md
+
+  - Manage Users:
+      - Manage Users: 10_manage_users/01_ManageUsers.md
+      - Permission Groups: 10_manage_users/02_Permissions.md
+
+  - Admin:
+      - Admin (Restricted Access): 11_Admin/01_Admin.md
+
+  - Appendix A:
+      - Manual Testing: 12_Appendix_A_Testing/01_ManualTests.md
+
+  - Appendix B:
+      - Unmapped Items Usage: 13_Appendix_B_Unmapped_Items_Usage/01_UnmappedUsage.md
+
+  - Appendix C:
+      - Platform Comparison: 14_Appendix_C_Comparison_Review/01_Comparison.md
+
+  - Roadmap:
+      - Roadmap: 15_roadmap/01_Roadmap.md
+      
+  - API Reference:
+      - Overview: 16_API/index.md
+      - Models: 16_API/models.md
+      - Views: 16_API/views.md
+      - Admin: 16_API/admin.md
+      - Forms: 16_API/forms.md
+      - Importers: 16_API/importers.md
+      - Management Commands: 16_API/management_commands.md
+      - Utilities: 16_API/utils.md
