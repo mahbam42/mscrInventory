@@ -773,6 +773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../06_Imports/07_Fetch_Shopify.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch Shopify
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../06_Imports/03_Unmapped_Items/" class="md-nav__link">
         
   
@@ -1549,6 +1577,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../08_Inventory/03_Overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../08_Inventory/01_LowStock/" class="md-nav__link">
         
   
@@ -1673,7 +1729,7 @@
   <span class="md-ellipsis">
     
   
-    Reporting Overview
+    Overview
   
 
     
@@ -2803,6 +2859,58 @@
 <li>Permission enforcement: create a user without <code>change_ingredient</code> and confirm edit/delete buttons disappear while view-only pages still load.</li>
 <li>User creation: add a new user through the app’s user management flow, set a password, and verify login/logout works.</li>
 </ul>
+<h2 id="permissions-testing">Permissions Testing<a class="headerlink" href="#permissions-testing" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Can View</th>
+<th>Can Add/Edit</th>
+<th>Can Import</th>
+<th>Can Export</th>
+<th>Can Access /admin</th>
+<th>Can Delete</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Superuser</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Manager</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Barista</strong></td>
+<td>✅</td>
+<td>✅ (recipes, mods, ingredients, inventory)</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Inventory</strong></td>
+<td>✅ (inventory only)</td>
+<td>✅ (inventory)</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
 
 
 
