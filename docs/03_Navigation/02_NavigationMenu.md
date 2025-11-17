@@ -7,7 +7,6 @@ The navigation menu appears at the top of the screen and contains the primary se
 | **Dashboard** | Summaries and quick links to recent activity. |
 | **Inventory** | Manage ingredients, stock, and archival. |
 | **Recipes** | View and edit recipe structures. |
-| **Products** | Manage products, pricing, and modifier groups. |
 | **Imports** | Run import sessions, resolve unmapped items, and explore modifiers. |
 | **Orders** | Unified Shopify + Square order history. |
 | **Reports** | Ingredient usage, COGS summaries, and exportable reports. |

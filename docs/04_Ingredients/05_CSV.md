@@ -1,9 +1,9 @@
-# Bulk Editing and CSV Import
+# Bulk Editing and CSV Import (In Development)
 
 Large ingredient updates can be made with the **Ingredient CSV Importer**.
 
 ## Workflow
-1. Go to **Imports → Ingredient Importer**.  
+1. On the **Ingredients Dashboard** download the current ingredients with **Export CSV** button.  
 2. Upload your CSV using the standard template.  
 3. Review the mapping preview.  
 4. Confirm to apply updates.

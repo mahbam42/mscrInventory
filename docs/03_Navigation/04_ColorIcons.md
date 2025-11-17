@@ -9,6 +9,5 @@ The app uses consistent visual language to indicate the status of items:
 | **Green** | Successfully saved or verified. |
 | **Blue “+” icon** | Add a new record. |
 | **Edit (✎)** | Edit an existing entry. |
-| **Trash** | Delete after confirmation. |
 
 These conventions appear consistently across tables, forms, and dashboards.
