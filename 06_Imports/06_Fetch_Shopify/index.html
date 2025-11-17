@@ -13,6 +13,10 @@
       
       
       
+        <link rel="prev" href="../02_UploadSquare/">
+      
+      
+        <link rel="next" href="../03_Unmapped_Items/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>Fetch Shopify CSV - MSCR Inventory App Documentation</title>
+        <title>Fetch Shopify - MSCR Inventory App Documentation</title>
       
     
     
@@ -112,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Fetch Shopify CSV
+              Fetch Shopify
             
           </span>
         </div>
@@ -656,8 +660,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -668,13 +674,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
@@ -695,7 +699,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -766,10 +770,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../07_Fetch_Shopify.md" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch Shopify
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -785,6 +816,48 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-run-a-shopify-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Run a Shopify Import
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#follow-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Follow-up
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2723,6 +2796,46 @@
   
 
 
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../01_Overview/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Imports
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
               
               <article class="md-content__inner md-typeset">
                 
@@ -2739,7 +2852,7 @@
 <ol>
 <li>Navigate to <strong>Imports → Fetch Shopify</strong>.  </li>
 <li>Select the Date Range you need; the importer uses the start and end dates to pull every order in that window.</li>
-<li>Click <code>Fetch Shopify</code>. The modal stays open with a progress indicator while the background task fetches the orders.</li>
+<li>Click <code>Fetch Shopify</code>. When the importer is done a summary will show in <code>Messages</code>.</li>
 <li>After completion, check the import log for any unmapped SKUs or modifiers that need resolution. Unmapped items render a warning inside the modal so you can link them with the right ingredients or recipes before the next sync.</li>
 </ol>
 <h2 id="follow-up">Follow-up<a class="headerlink" href="#follow-up" title="Permanent link">&para;</a></h2>
