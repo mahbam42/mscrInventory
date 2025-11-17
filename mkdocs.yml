@@ -84,7 +84,7 @@ nav:
   - Imports:
       - Overview: 06_Imports/01_Overview.md
       - Upload Square CSV: 06_Imports/02_UploadSquare.md
-      - Fetch Shopify: 06_Imports/07_Fetch_Shopify.md 
+      - Fetch Shopify: 06_Imports/06_Fetch_Shopify.md 
       - Unmapped Items Dashboard: 06_Imports/03_Unmapped_Items.md
       - Modifier Explorer: 06_Imports/04_ModifierExplorer.md
       - Import History: 06_Imports/05_ImportHistory.md
