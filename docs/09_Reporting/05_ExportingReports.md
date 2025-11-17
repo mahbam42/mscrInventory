@@ -1,17 +1,16 @@
 # Exporting Reports
 
-All major reports (usage, COGS, inventory, product summaries) can be exported as CSV files.
+The reporting dashboard is currently an interactive, on-screen experience. Views such as usage, COGS, and inventory snapshots re
+nder charts and cards that respond to the selected date window, but they do **not** provide CSV downloads yet.
 
-## Export Workflow
-1. Open a report (Usage, COGS, Inventory, etc.)  
-2. Apply filters as needed  
-3. Click **Export CSV**  
-4. Save the file to your system  
+## Current Workflow
+1. Open the reporting dashboard.
+2. Adjust the date filters or presets to show the period you need.
+3. Review the widgets/cards directly in the browser.
 
-## CSV Uses
-- External analysis (Excel, Google Sheets)  
-- Accounting reconciliation  
-- Historical archiving  
-- Sharing with managers or auditors  
+If you need to perform spreadsheet analysis, copy the on-screen values or take screenshots until CSV export endpoints are implem
+ented.
 
-**NOTE:** Numerical precision is preserved in exported files (e.g., decimals for costs and ingredient units).
+## Roadmap
+- CSV export buttons will appear once dedicated download views are added to `mscrInventory/views/reporting.py`.
+- When available, exports will include the same precision as the on-screen metrics (ingredient units, extended costs, etc.).
