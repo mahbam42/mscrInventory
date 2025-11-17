@@ -13,10 +13,12 @@
 3. Adjust ingredient amounts or add/remove components.  
 4. Save changes.
 
-## Duplicating a Recipe
-1. Open the recipe you want to base a new one on.  
-2. Select **Duplicate Recipe**.  
-3. Rename the new version and adjust quantities or modifiers.  
-4. Save it as a new recipe.
+## Copying Ingredients From Another Recipe
+The UI does not include a one-click “Duplicate Recipe” button. Instead, use the **Extend Recipe** workflow inside the edit modal to copy ingredient lines:
 
-**NOTE:** Editing a recipe immediately updates all linked products.
+1. Open the target recipe (or product) and click **Edit (✎)** to launch the recipe modal.
+2. In the **Extend From Recipe** field, choose the source recipe whose ingredients you want to reuse (for example, a base latte or a seasonal variant).
+3. Confirm the prompt to import the selected recipe’s ingredients into the current form.
+4. Adjust quantities or remove any lines that do not apply, then save.
+
+This copies the ingredient list into the current recipe while keeping the original unchanged. Editing a recipe immediately updates all linked products, so review quantities before saving.
