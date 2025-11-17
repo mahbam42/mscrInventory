@@ -9,5 +9,5 @@ Key functions:
 - Create new recipes  
 - Edit existing ones  
 - Scale ingredient ratios for multiple sizes  
-- Clone or duplicate recipes  
+- Extend Recipes from `'base_items'` 
 - Configure modifier behavior  

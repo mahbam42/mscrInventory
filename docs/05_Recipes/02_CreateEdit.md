@@ -3,7 +3,7 @@
 ## Creating a New Recipe
 1. Go to **Recipes → Manage Recipes**.  
 2. Click **Add Recipe**.  
-3. Enter the recipe **name**, **category**, and **base size** (typically Small / 12oz).  
+3. Enter the recipe **name**, **category**, and **base size** (typically Small / 12oz).   **NOTE:** *All Drink Recipes should be entered assuming a 12oz Capacity for Dynamic Scaling to work* 
 4. Add ingredients by selecting them from the dropdown and entering quantities.  
 5. Save the recipe.
 
@@ -14,7 +14,7 @@
 4. Save changes.
 
 ## Copying Ingredients From Another Recipe
-The UI does not include a one-click “Duplicate Recipe” button. Instead, use the **Extend Recipe** workflow inside the edit modal to copy ingredient lines:
+Use the **Extend Recipe** workflow inside the edit modal to copy ingredient lines:
 
 1. Open the target recipe (or product) and click **Edit (✎)** to launch the recipe modal.
 2. In the **Extend From Recipe** field, choose the source recipe whose ingredients you want to reuse (for example, a base latte or a seasonal variant).

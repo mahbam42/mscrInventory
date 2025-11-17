@@ -6,12 +6,14 @@ It is the central hub for maintaining accurate mappings, reconciling mismatched 
 Imports support:
 
 - Square CSV uploads  
-- Shopify imports  
-- Ingredient CSV uploads  
-- Inventory CSV updates  
+- Shopify imports   
 - Bulk import history review  
 - Modifier classification and analysis  
 - Unmapped item resolution (with modal or full-page dashboard)
+
+Additional CSV Imports are handled on Dashboards:
+- Ingredient CSV uploads  
+- Inventory CSV updates ∂
 
 Accurate imports ensure:
 

@@ -3,7 +3,7 @@
 The **Low Stock** view highlights ingredients that have fallen below their reorder point. These warnings appear both on the Dashboard and in the Inventory module.
 
 ## What Triggers Low Stock
-- An ingredient’s calculated current stock drops below its `reorder_point` value.
+- An ingredient’s calculated current stock drops below its `reorder_point` value. Or `usage` from last import times `lead time` will exceed `reorder_point`.
 - Manual adjustments, bulk updates, or imports that reduce stock.
 - Negative or inconsistent stock counts after CSV import.
 

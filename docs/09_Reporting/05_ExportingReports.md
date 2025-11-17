@@ -1,4 +1,4 @@
-# Exporting Reports
+# Exporting Reports (In Development)
 
 The reporting dashboard is currently an interactive, on-screen experience. Views such as usage, COGS, and inventory snapshots re
 nder charts and cards that respond to the selected date window, but they do **not** provide CSV downloads yet.

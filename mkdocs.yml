@@ -84,6 +84,7 @@ nav:
   - Imports:
       - Overview: 06_Imports/01_Overview.md
       - Upload Square CSV: 06_Imports/02_UploadSquare.md
+      - Fetch Shopify: 06_Imports/07_Fetch_Shopify.md 
       - Unmapped Items Dashboard: 06_Imports/03_Unmapped_Items.md
       - Modifier Explorer: 06_Imports/04_ModifierExplorer.md
       - Import History: 06_Imports/05_ImportHistory.md
@@ -111,11 +112,12 @@ nav:
       - Troubleshooting: 04_Ingredients/06_Troubleshooting.md
 
   - Inventory:
+      - Overview: 08_Inventory/03_Overview.md
       - Low Stock Ingredients: 08_Inventory/01_LowStock.md
       - Bulk Add Stock: 08_Inventory/02_BulkAdd.md
 
   - Reporting:
-      - Reporting Overview: 09_Reporting/01_Reporting.md
+      - Overview: 09_Reporting/01_Reporting.md
       - Ingredient Usage: 09_Reporting/02_UsageReports.md
       - COGS: 09_Reporting/03_COGS.md
       - Inventory Valuation: 09_Reporting/04_InventoryValuation.md
