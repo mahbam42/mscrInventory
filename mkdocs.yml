@@ -81,13 +81,15 @@ nav:
       - Color & Icon Conventions: 03_Navigation/04_ColorIcons.md
       - Search & Filters: 03_Navigation/05_SearchFilters.md
 
-  - Ingredients:
-      - Overview: 04_Ingredients/01_Overview.md
-      - Adding & Editing Ingredients: 04_Ingredients/02_AddingEditing.md
-      - Ingredient Fields: 04_Ingredients/03_Fields.md
-      - Best Practices: 04_Ingredients/04_BestPractices.md
-      - Bulk Editing & CSV Import: 04_Ingredients/05_CSV.md
-      - Troubleshooting: 04_Ingredients/06_Troubleshooting.md
+  - Imports:
+      - Overview: 06_Imports/01_Overview.md
+      - Upload Square CSV: 06_Imports/02_UploadSquare.md
+      - Unmapped Items Dashboard: 06_Imports/03_Unmapped_Items.md
+      - Modifier Explorer: 06_Imports/04_ModifierExplorer.md
+      - Import History: 06_Imports/05_ImportHistory.md
+
+  - Orders:
+      - Orders Dashboard: 07_Orders/01_OrdersDashboard.md
 
   - Recipes:
       - Overview: 05_Recipes/01_Overview.md
@@ -99,16 +101,14 @@ nav:
       - Modifier Rules: 05_Recipes/07_ModifierRules.md
       - Best Practices: 05_Recipes/08_BestPractices.md
       - Troubleshooting: 05_Recipes/09_Troubleshooting.md
-
-  - Imports:
-      - Overview: 06_Imports/01_Overview.md
-      - Upload Square CSV: 06_Imports/02_UploadSquare.md
-      - Unmapped Items Dashboard: 06_Imports/03_Unmapped_Items.md
-      - Modifier Explorer: 06_Imports/04_ModifierExplorer.md
-      - Import History: 06_Imports/05_ImportHistory.md
-
-  - Orders:
-      - Orders Dashboard: 07_Orders/01_OrdersDashboard.md
+          
+  - Ingredients:
+      - Overview: 04_Ingredients/01_Overview.md
+      - Adding & Editing Ingredients: 04_Ingredients/02_AddingEditing.md
+      - Ingredient Fields: 04_Ingredients/03_Fields.md
+      - Best Practices: 04_Ingredients/04_BestPractices.md
+      - Bulk Editing & CSV Import: 04_Ingredients/05_CSV.md
+      - Troubleshooting: 04_Ingredients/06_Troubleshooting.md
 
   - Inventory:
       - Low Stock Ingredients: 08_Inventory/01_LowStock.md

@@ -11,9 +11,12 @@ The navigation menu appears at the top of the screen and contains the primary se
 | **Ingredients** | Manage ingredient definitions and costing inputs. |
 | **Inventory** | Review inventory dashboards, counts, and archive history. |
 
-Additional entries appear based on permissions:
+Additional entries, appear based on permissions, rendered inside the secondary admin menu when a user has the appropriate Django permissions:
 
-- **Reporting** – visible when the user has the `mscrInventory.change_order` permission (granted to users who need access to aggregate sales and usage reporting).
-- **Manage Users** and **Admin** – rendered inside the secondary admin menu when a user has the appropriate Django permissions. Use these links only when you need to adjust roles or access the Django Admin console.
+| **Menu** | **Purpose** |
+|---------|-------------|
+| **Reporting** | visible when the user has the `mscrInventory.change_order` permission (granted to users who need access to aggregate sales and usage reporting). |
+| **Manage Users** | Add Users or assign permission groups |
+| **Admin** | Access the Django Admin console to make changes directly to the database. |
 
 **CAUTION:** The Admin area should only be used by managers or technical staff.
