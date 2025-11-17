@@ -60,3 +60,11 @@ Use this as a high-level smoke/regression checklist. Unless otherwise noted, sta
 - Admin access: log in as superuser, open Django admin, and confirm core models (Ingredient, Product, Recipe, RecipeModifier, ImportLog, Order) are visible.
 - Permission enforcement: create a user without `change_ingredient` and confirm edit/delete buttons disappear while view-only pages still load.
 - User creation: add a new user through the app’s user management flow, set a password, and verify login/logout works.
+
+## Permissions Testing
+| Group         | Can View           | Can Add/Edit                              | Can Import | Can Export | Can Access /admin | Can Delete |
+| ------------- | ------------------ | ----------------------------------------- | ---------- | ---------- | ----------------- | ---------- |
+| **Superuser** | ✅                  | ✅                                         | ✅          | ✅          | ✅                 | ✅          |
+| **Manager**   | ✅                  | ✅                                         | ✅          | ✅          | ✅                 | ❌          |
+| **Barista**   | ✅                  | ✅ (recipes, mods, ingredients, inventory) | ❌          | ❌          | ❌                 | ❌          |
+| **Inventory** | ✅ (inventory only) | ✅ (inventory)                             | ❌          | ❌          | ❌                 | ❌          |

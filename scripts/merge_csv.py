@@ -1,6 +1,6 @@
 """
 Simple script to merge a directory of CSVs into a single document.
-Run with python merge_csvs.py "C:/path/to/your/folder"
+Run with python scripts/merge_csvs.py "C:/path/to/your/folder"
 
 Gracefully handles missing or invalid directories.
 Automatically skips duplicate headers if they appear in the middle of the data.
