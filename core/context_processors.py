@@ -24,6 +24,8 @@ def navigation_links(request):
     if user.has_perm("mscrInventory.change_order"):
         nav_items.append({"name": "Reporting", "url_name": "reporting_dashboard"})
 
+    admin_items.append({"name": "Docs", "url": "https://mahbam42.github.io/mscrInventory/"})
+
     if user.has_perm("auth.change_user") or user.has_perm("auth.add_user"):
         admin_items.append({"name": "Manage Users", "url_name": "manage_users"})
     if user.is_staff:
@@ -32,6 +34,12 @@ def navigation_links(request):
     def build_links(items):
         links = []
         for item in items:
+            if item.get("url"):
+                links.append({
+                    "name": item["name"],
+                    "url": item["url"],
+                })
+                continue
             try:
                 links.append({
                     "name": item["name"],
