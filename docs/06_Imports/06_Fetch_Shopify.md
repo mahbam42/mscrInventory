@@ -5,7 +5,7 @@ The **Shopify Importer** is one of the most frequently used tools in the app. It
 ## How to Run a Shopify Import
 1. Navigate to **Imports → Fetch Shopify**.  
 2. Select the Date Range you need; the importer uses the start and end dates to pull every order in that window.
-3. Click `Fetch Shopify`. The modal stays open with a progress indicator while the background task fetches the orders.
+3. Click `Fetch Shopify`. When the importer is done a summary will show in `Messages`.
 4. After completion, check the import log for any unmapped SKUs or modifiers that need resolution. Unmapped items render a warning inside the modal so you can link them with the right ingredients or recipes before the next sync.
 
 ## Follow-up
