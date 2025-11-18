@@ -8,6 +8,18 @@ $doordash: rgb(235, 23, 0);
 .bg-custom {
     background-color: $primary-color;
 }
+.bg-custom2 {
+    background-color: $secondary-color;
+}
+#brandLogo {
+    height: 40px;
+}
+
+// Improved Nav Links with Branding
+.nav-link {
+    font-weight: 400;
+    color: white;
+}
 
 // Create User Rules
 #createUserModal .modal-body,

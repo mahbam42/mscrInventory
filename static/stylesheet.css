@@ -3,9 +3,22 @@
   background-color: rgb(255, 119, 77);
 }
 
+.bg-custom2 {
+  background-color: rgb(69, 154, 183);
+}
+
+#brandLogo {
+  height: 40px;
+}
+
+.nav-link {
+  font-weight: 400;
+  color: white;
+}
+
 #createUserModal .modal-body,
 #editUserModal .modal-body {
-  max-height: calc(100vh - 10rem);
+  max-height: calc(95vh - 10rem);
   overflow-y: auto;
 }
 
