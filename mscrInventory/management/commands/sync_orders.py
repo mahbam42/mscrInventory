@@ -242,10 +242,10 @@ class Command(BaseCommand):
                 ingredient_lines.append(f"{ingredient_name} × {_format_decimal(total_qty)}")
 
             detail = "; ".join(ingredient_lines) if ingredient_lines else ""
-            message = f"📊 Logged usage for {len(usage)} ingredient(s) from Shopify orders."
+            message = f"📊 Logged usage for {len(usage_totals)} ingredient(s) from Shopify orders."
             if detail:
                 message = f"{message} {detail}"
-                self.stdout.write(self.style.SUCCESS(message))
+            self.stdout.write(self.style.SUCCESS(message))
         else:
             self.stdout.write(self.style.WARNING("No ingredient usage detected for this date."))
 
