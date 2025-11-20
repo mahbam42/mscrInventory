@@ -313,6 +313,7 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
         "display_label",
         "source",
         "item_type",
+        "item_type_hint",
         "seen_count",
         "resolved",
         "ignored",
@@ -336,7 +337,7 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
             None,
             {
                 "fields": (
-                    ("source", "item_type"),
+                    ("source", "item_type", "item_type_hint"),
                     "item_name",
                     "price_point_name",
                     "last_reason",

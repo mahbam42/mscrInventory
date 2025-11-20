@@ -637,6 +637,13 @@ class SquareUnmappedItem(models.Model):
 
     source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default="square")
     item_type = models.CharField(max_length=32, choices=ITEM_TYPE_CHOICES, default="product")
+    item_type_hint = models.CharField(
+        max_length=32,
+        choices=ITEM_TYPE_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Optional inference of whether the unmapped item looked like a modifier or ingredient.",
+    )
     item_name = models.CharField(max_length=255)
     price_point_name = models.CharField(max_length=255, blank=True)
     normalized_item = models.CharField(max_length=255, editable=False)
