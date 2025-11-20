@@ -98,6 +98,33 @@
               <td class="text-center">{{ item.seen_count }}</td>
               <td>
                 <div class="d-flex flex-column gap-2">
+                  <form
+                    method="post"
+                    action="{% url 'imports_unmapped_reclassify' item.id %}"
+                    class="d-inline"
+                    hx-post="{% url 'imports_unmapped_reclassify' item.id %}"
+                    hx-target="#unmapped-body"
+                    hx-swap="outerHTML"
+                  >
+                    {% csrf_token %}
+                    <input type="hidden" name="filter_type" value="{{ filter_type }}">
+                    <input type="hidden" name="include_known" value="{{ include_known|yesno:'true,false' }}">
+                    {% if page_obj %}
+                      <input type="hidden" name="paginate" value="1">
+                      <input type="hidden" name="page" value="{{ page_obj.number }}">
+                    {% endif %}
+                    <label class="form-label small mb-1">Treat as</label>
+                    <div class="input-group input-group-sm">
+                      <select name="item_type" class="form-select form-select-sm">
+                        {% for value, label in item.ITEM_TYPE_CHOICES %}
+                          <option value="{{ value }}" {% if value == item.item_type %}selected{% endif %}>
+                            {{ label }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                      <button class="btn btn-outline-secondary" type="submit">Update</button>
+                    </div>
+                  </form>
                   <button
                     class="btn btn-sm btn-outline-primary"
                     type="button"

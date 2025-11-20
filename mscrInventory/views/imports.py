@@ -95,8 +95,8 @@ def _build_unmapped_context(
         item.is_known_recipe = bool(getattr(item, "is_known_recipe", False))
 
     counts = {
-        entry["item_type"]: entry["total"]
-        for entry in visible_unresolved_qs.values("item_type").annotate(total=Count("id"))
+        item_type: visible_unresolved_qs.filter(item_type=item_type).count()
+        for item_type, _ in SquareUnmappedItem.ITEM_TYPE_CHOICES
     }
 
     entries = []
@@ -392,6 +392,59 @@ def ignore_unmapped_item(request, pk: int):
     response = _render_unmapped_table(request, filter_type)
     response["HX-Trigger"] = json.dumps(
         {"showMessage": {"text": "⚠️ Item ignored for now.", "level": "warning"}}
+    )
+    return response
+
+
+@permission_required("mscrInventory.change_ingredient", raise_exception=True)
+@require_POST
+def reclassify_unmapped_item(request, pk: int):
+    """Allow updating the expected item_type for an unmapped Square entry."""
+
+    item = get_object_or_404(SquareUnmappedItem, pk=pk, ignored=False)
+    filter_type = request.POST.get("filter_type") or None
+    target_type = (request.POST.get("item_type") or "").strip().lower()
+    allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
+
+    if target_type not in allowed_types:
+        response = _render_unmapped_table(request, filter_type, status=400)
+        response["HX-Trigger"] = json.dumps(
+            {"showMessage": {"text": "❌ Invalid type selected.", "level": "danger"}}
+        )
+        return response
+
+    if target_type != item.item_type:
+        item.item_type = target_type
+        item.resolved = False
+        item.ignored = False
+        item.resolved_at = None
+        item.resolved_by = None
+        item.linked_product = None
+        item.linked_ingredient = None
+        item.linked_modifier = None
+        item.last_reason = "manual_reclass"
+        item.save(
+            update_fields=[
+                "item_type",
+                "resolved",
+                "ignored",
+                "resolved_at",
+                "resolved_by",
+                "linked_product",
+                "linked_ingredient",
+                "linked_modifier",
+                "last_reason",
+            ]
+        )
+
+    response = _render_unmapped_table(request, filter_type)
+    response["HX-Trigger"] = json.dumps(
+        {
+            "showMessage": {
+                "text": f"🔁 Updated type to {target_type.title()} for {item.display_label}.",
+                "level": "info",
+            }
+        }
     )
     return response
 

@@ -32,6 +32,7 @@ from mscrInventory.views.imports import (
     ignore_unmapped_item,
     imports_dashboard_view,
     link_unmapped_item,
+    reclassify_unmapped_item,
     upload_square_view,
     fetch_shopify_view,
     unmapped_items_view,
@@ -115,6 +116,11 @@ urlpatterns = [
         "imports/unmapped-items/<int:pk>/ignore/",
         ignore_unmapped_item,
         name="imports_unmapped_ignore",
+    ),
+    path(
+        "imports/unmapped-items/<int:pk>/reclassify/",
+        reclassify_unmapped_item,
+        name="imports_unmapped_reclassify",
     ),
     path(
         "imports/unmapped-items/bulk-action/",

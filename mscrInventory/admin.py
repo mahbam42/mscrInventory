@@ -326,6 +326,7 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
         "first_seen",
         "last_seen",
         "seen_count",
+        "last_raw_row",
     )
     ordering = ("-last_seen",)
     autocomplete_fields = ("linked_product", "linked_ingredient", "linked_modifier")
@@ -360,6 +361,7 @@ class SquareUnmappedItemAdmin(admin.ModelAdmin):
                     "seen_count",
                     ("first_seen", "last_seen"),
                     "last_modifiers",
+                    "last_raw_row",
                     ("normalized_item", "normalized_price_point"),
                 )
             },

@@ -485,6 +485,7 @@ class SquareImporter:
     def _process_row(self, row: dict, file_path: Path | None = None):
         """Parse and process a single CSV row."""
         change_logs = []
+        raw_row_snapshot = dict(row or {})
         try:
             self.stats["rows_processed"] += 1
 
@@ -623,6 +624,7 @@ class SquareImporter:
                     normalized_modifiers,
                     reason,
                     item_type=intended_item_type,
+                    raw_row=raw_row_snapshot,
                 )
                 if reason == "variant_unmapped" and price_point:
                     self.buffer.append(
@@ -908,6 +910,52 @@ class SquareImporter:
         except Exception as e:
             self.stats["errors"] += 1
             self.buffer.append(f"❌ Error on row {self.stats['rows_processed']}: {e}")
+            fallback_item = "(unknown)"
+            fallback_price = ""
+            fallback_modifiers: list[str] = []
+
+            if isinstance(row, dict):
+                fallback_item = row.get("Item") or fallback_item
+                fallback_price = row.get("Price Point Name") or row.get("Price Point") or ""
+                raw_modifiers = row.get("Modifiers Applied") or row.get("Modifiers") or ""
+                if raw_modifiers:
+                    try:
+                        fallback_modifiers = [
+                            normalize_modifier(m.strip())
+                            for m in str(raw_modifiers).split(",")
+                            if str(m).strip()
+                        ]
+                    except Exception:
+                        fallback_modifiers = []
+
+            modifiers_for_record = (
+                normalized_modifiers
+                if "normalized_modifiers" in locals()
+                else fallback_modifiers
+            )
+            item_for_record = (item_name if "item_name" in locals() else fallback_item) or "(unknown)"
+            price_for_record = price_point if "price_point" in locals() else fallback_price
+
+            inferred_type = "product"
+            try:
+                inferred_type = self._infer_item_type(
+                    item_for_record,
+                    price_for_record,
+                    modifiers_for_record,
+                )
+            except Exception:
+                inferred_type = "product"
+
+            self.stats["unmatched"] += 1
+            self._record_unmapped_item(
+                item_for_record,
+                price_for_record,
+                modifiers_for_record,
+                f"parse_error:{type(e).__name__}",
+                item_type=inferred_type,
+                raw_row=raw_row_snapshot,
+            )
+            self.buffer.append("⚠️ Recorded raw row for manual mapping.")
             return self.buffer
 
         return self.buffer
@@ -1106,8 +1154,29 @@ class SquareImporter:
     # ------------------------------------------------------------------
     # ⚠️ Unmapped tracking helpers
     # ------------------------------------------------------------------
+    @staticmethod
+    def _clean_raw_row(raw_row: dict | None) -> dict:
+        """Return a JSON-serializable snapshot of the current row."""
+        cleaned: dict[str, object] = {}
+        for key, value in (raw_row or {}).items():
+            try:
+                if isinstance(value, (str, int, float, bool)) or value is None:
+                    cleaned[str(key)] = value
+                else:
+                    cleaned[str(key)] = str(value)
+            except Exception:
+                continue
+        return cleaned
+
     def _record_unmapped_item(
-        self, item_name, price_point, modifiers, reason, *, item_type: str = "product"
+        self,
+        item_name,
+        price_point,
+        modifiers,
+        reason,
+        *,
+        item_type: str = "product",
+        raw_row: dict | None = None,
     ) -> None:
         """Create or update a SquareUnmappedItem entry for unmatched rows."""
         normalized_item = _normalize_name(item_name)
@@ -1117,6 +1186,7 @@ class SquareImporter:
         key = (normalized_item, normalized_price, resolved_type)
         seen_in_run = key in self._unmapped_seen_keys
         self._unmapped_seen_keys.add(key)
+        cleaned_raw_row = self._clean_raw_row(raw_row)
 
         now = timezone.now()
         defaults = {
@@ -1127,6 +1197,7 @@ class SquareImporter:
             "normalized_item": normalized_item,
             "normalized_price_point": normalized_price,
             "last_modifiers": modifiers,
+            "last_raw_row": cleaned_raw_row,
             "last_reason": reason or "unmapped",
             "seen_count": 1,
             "first_seen": now,
@@ -1156,6 +1227,8 @@ class SquareImporter:
         if not seen_in_run:
             updates["seen_count"] = obj.seen_count + 1
         updates["last_modifiers"] = modifiers
+        if cleaned_raw_row:
+            updates["last_raw_row"] = cleaned_raw_row
         if reason and reason != obj.last_reason:
             updates["last_reason"] = reason
 

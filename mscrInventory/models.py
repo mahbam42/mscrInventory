@@ -642,6 +642,7 @@ class SquareUnmappedItem(models.Model):
     normalized_item = models.CharField(max_length=255, editable=False)
     normalized_price_point = models.CharField(max_length=255, editable=False, blank=True)
     last_modifiers = models.JSONField(default=list, blank=True)
+    last_raw_row = models.JSONField(default=dict, blank=True)
     last_reason = models.CharField(max_length=64, blank=True)
     seen_count = models.PositiveIntegerField(default=1)
     first_seen = models.DateTimeField(auto_now_add=True)
@@ -781,7 +782,72 @@ class SquareUnmappedItem(models.Model):
     def save(self, *args, **kwargs):
         self.normalized_item = self._normalize_value(self.item_name)
         self.normalized_price_point = self._normalize_value(self.price_point_name)
+        merge_duplicates = kwargs.pop("merge_duplicates", True)
+        update_fields = kwargs.get("update_fields")
+
+        if merge_duplicates:
+            conflict = (
+                SquareUnmappedItem.objects.filter(
+                    source=self.source,
+                    item_type=self.item_type,
+                    normalized_item=self.normalized_item,
+                    normalized_price_point=self.normalized_price_point,
+                )
+                .exclude(pk=self.pk)
+                .first()
+            )
+            if conflict:
+                self._merge_into(conflict, update_fields=update_fields)
+                original_pk = self.pk
+                self.pk = conflict.pk
+                self._state.adding = False
+                if original_pk and original_pk != conflict.pk:
+                    SquareUnmappedItem.objects.filter(pk=original_pk).delete()
+                return
+
         super().save(*args, **kwargs)
+
+    def _merge_into(self, target: "SquareUnmappedItem", update_fields=None) -> None:
+        """Coalesce duplicate records sharing the normalized key."""
+
+        fields_to_update = {"seen_count", "first_seen", "last_seen"}
+
+        target.seen_count = (target.seen_count or 0) + (self.seen_count or 0)
+        if target.first_seen and self.first_seen:
+            target.first_seen = min(target.first_seen, self.first_seen)
+        elif self.first_seen:
+            target.first_seen = self.first_seen
+
+        if target.last_seen and self.last_seen:
+            target.last_seen = max(target.last_seen, self.last_seen)
+        elif self.last_seen:
+            target.last_seen = self.last_seen
+
+        def copy_field(field_name: str):
+            if update_fields and field_name not in update_fields:
+                return
+            setattr(target, field_name, getattr(self, field_name))
+            fields_to_update.add(field_name)
+
+        # Mirror current edits onto the canonical record.
+        for field in [
+            "item_name",
+            "price_point_name",
+            "last_reason",
+            "last_modifiers",
+            "last_raw_row",
+            "item_note",
+            "resolved",
+            "ignored",
+            "resolved_at",
+            "resolved_by",
+            "linked_product",
+            "linked_ingredient",
+            "linked_modifier",
+        ]:
+            copy_field(field)
+
+        target.save(merge_duplicates=False, update_fields=list(fields_to_update))
 
 def get_or_create_roast_profile(ingredient: "Ingredient") -> RoastProfile | None:
     """Return the roast profile for an ingredient, creating it if needed."""
