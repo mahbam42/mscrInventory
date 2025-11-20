@@ -64,7 +64,7 @@
                     {% if delta > 0 %}
                       <span class="badge bg-success-subtle text-success">▲ {{ delta }}</span>
                     {% elif delta < 0 %}
-                      <span class="badge bg-danger-subtle text-danger">▼ {{ delta|abs }}</span>
+                  <span class="badge bg-danger-subtle text-danger">▼ {{ delta|floatformat:"0"|cut:"-" }}</span>
                     {% else %}
                       <span class="badge bg-secondary-subtle text-secondary">—</span>
                     {% endif %}

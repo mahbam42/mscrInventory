@@ -231,6 +231,8 @@ def upload_square_view(request):
         if not dry_run:
             usage_totals = importer.get_usage_totals()
             usage_by_date = importer.get_usage_totals_by_date()
+            if usage_totals and not usage_by_date:
+                usage_by_date = {None: usage_totals}
             if usage_totals:
                 business_date_raw = request.POST.get("business_date")
                 default_date = None

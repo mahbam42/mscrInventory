@@ -320,7 +320,7 @@ class SquareImporter:
         self._orders_by_transaction: dict[str, Order | None] = {}
         self._unmapped_seen_keys: set[tuple[str, str, str]] = set()
         self.usage_totals: defaultdict[int, Decimal] = defaultdict(lambda: Decimal("0"))
-        self.usage_totals_by_date: dict[datetime.date, dict[int, Decimal]] = defaultdict(
+        self.usage_totals_by_date: dict[datetime.date | None, dict[int, Decimal]] = defaultdict(
             lambda: defaultdict(lambda: Decimal("0"))
         )
         self.usage_breakdown: defaultdict[int, defaultdict[str, Decimal]] = defaultdict(
@@ -491,13 +491,14 @@ class SquareImporter:
 
         return None
 
-    def _business_date(self, order_dt: datetime.datetime | None) -> datetime.date:
-        """Convert an order datetime to the configured business day."""
+    def _business_date(self, order_dt: datetime.datetime | None) -> datetime.date | None:
+        """Convert an order datetime to the configured business day (or None)."""
+
+        if order_dt is None:
+            return None
 
         tzname = getattr(settings, "SYNC_TIMEZONE", "America/New_York")
         tz = ZoneInfo(tzname)
-        if order_dt is None:
-            return timezone.localdate()
         try:
             localized = order_dt.astimezone(tz)
         except Exception:
@@ -1080,7 +1081,9 @@ class SquareImporter:
             "errors": 0,
         }
         self.usage_totals = defaultdict(lambda: Decimal("0"))
-        self.usage_totals_by_date = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
+        self.usage_totals_by_date: dict[datetime.date | None, dict[int, Decimal]] = defaultdict(
+            lambda: defaultdict(lambda: Decimal("0"))
+        )
         self.usage_breakdown = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
         self._ingredient_cache = {}
         start_time = timezone.now()
@@ -1181,10 +1184,10 @@ class SquareImporter:
             if qty > 0
         }
 
-    def get_usage_totals_by_date(self) -> dict[datetime.date, dict[int, Decimal]]:
-        """Expose aggregated ingredient usage totals grouped by business date."""
+    def get_usage_totals_by_date(self) -> dict[datetime.date | None, dict[int, Decimal]]:
+        """Expose aggregated ingredient usage totals grouped by business date (or None)."""
 
-        results: dict[datetime.date, dict[int, Decimal]] = {}
+        results: dict[datetime.date | None, dict[int, Decimal]] = {}
         for usage_date, totals in self.usage_totals_by_date.items():
             filtered = {ingredient_id: qty for ingredient_id, qty in totals.items() if qty > 0}
             if filtered:
