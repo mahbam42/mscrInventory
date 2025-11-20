@@ -1,0 +1,23 @@
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+  <div>
+    <p class="text-uppercase text-muted small mb-1">Insights</p>
+    <h2 class="h4 mb-0">📈 Reporting Dashboard</h2>
+    <p class="text-muted mb-0">Order-date aligned COGS and usage metrics</p>
+  </div>
+  <form method="get" class="row g-2 align-items-end mt-3 mt-md-0">
+    <div class="col-auto">
+      <label for="id_start" class="form-label">Start Date</label>
+      <input type="date" id="id_start" name="start" class="form-control" value="{{ start|date:'Y-m-d' }}" />
+    </div>
+    <div class="col-auto">
+      <label for="id_end" class="form-label">End Date</label>
+      <input type="date" id="id_end" name="end" class="form-control" value="{{ end|date:'Y-m-d' }}" />
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary">Apply</button>
+    </div>
+  </form>
+</div>
+
+{% include "partials/_tools.html" with show_inventory_tools=False %}
+<hr />

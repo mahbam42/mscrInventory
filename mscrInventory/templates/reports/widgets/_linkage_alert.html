@@ -1,0 +1,6 @@
+{% if linkage.missing_cost_ingredients %}
+<div class="alert alert-warning mt-4 mb-0">
+  <strong>Cost data missing for:</strong>
+  {{ linkage.missing_cost_ingredients|join:", " }}. Update ingredient pricing to improve COGS accuracy.
+</div>
+{% endif %}

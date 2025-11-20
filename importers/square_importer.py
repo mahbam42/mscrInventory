@@ -10,12 +10,14 @@ Handles:
 """
 
 import csv
+import datetime
 from collections import defaultdict
 from contextlib import nullcontext
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Case, IntegerField, When
 from django.db.models.functions import Length
@@ -312,12 +314,15 @@ class SquareImporter:
         }
         self._summary_added = False
         self._summary_cache: list[str] | None = None
-        self._last_run_started: datetime | None = None
-        self._last_run_finished: datetime | None = None
+        self._last_run_started: datetime.datetime | None = None
+        self._last_run_finished: datetime.datetime | None = None
         self._current_order: Order | None = None
         self._orders_by_transaction: dict[str, Order | None] = {}
         self._unmapped_seen_keys: set[tuple[str, str, str]] = set()
         self.usage_totals: defaultdict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+        self.usage_totals_by_date: dict[datetime.date, dict[int, Decimal]] = defaultdict(
+            lambda: defaultdict(lambda: Decimal("0"))
+        )
         self.usage_breakdown: defaultdict[int, defaultdict[str, Decimal]] = defaultdict(
             lambda: defaultdict(lambda: Decimal("0"))
         )
@@ -396,11 +401,13 @@ class SquareImporter:
         price_point: str,
         usage_summary: dict,
         quantity: Decimal,
+        order_date: datetime.datetime | None,
     ) -> None:
         """Increment aggregate usage totals using the recipe usage summary."""
         if not usage_summary or quantity <= 0:
             return
 
+        usage_date = self._business_date(order_date)
         base_label = (product.name if product else fallback_name) or "(unknown)"
         descriptor_bits = [bit for bit in descriptors if bit]
         label_base = base_label
@@ -432,9 +439,10 @@ class SquareImporter:
                 entry_label = f"{label_base} [{' | '.join(metadata_bits)}]"
 
             self.usage_totals[ingredient.id] += ingredient_qty
+            self.usage_totals_by_date[usage_date][ingredient.id] += ingredient_qty
             self.usage_breakdown[ingredient.id][entry_label] += ingredient_qty
 
-    def _parse_order_datetime(self, row: dict) -> datetime | None:
+    def _parse_order_datetime(self, row: dict) -> datetime.datetime | None:
         """Parse a Square CSV row into a timezone-aware datetime."""
 
         date_raw = (row.get("Date") or "").strip()
@@ -469,7 +477,7 @@ class SquareImporter:
         for candidate in candidate_strings:
             for fmt in formats:
                 try:
-                    parsed = datetime.strptime(candidate, fmt)
+                    parsed = datetime.datetime.strptime(candidate, fmt)
                 except ValueError:
                     continue
 
@@ -482,6 +490,19 @@ class SquareImporter:
                 return parsed
 
         return None
+
+    def _business_date(self, order_dt: datetime.datetime | None) -> datetime.date:
+        """Convert an order datetime to the configured business day."""
+
+        tzname = getattr(settings, "SYNC_TIMEZONE", "America/New_York")
+        tz = ZoneInfo(tzname)
+        if order_dt is None:
+            return timezone.localdate()
+        try:
+            localized = order_dt.astimezone(tz)
+        except Exception:
+            localized = order_dt
+        return localized.date()
 
     def _process_row(self, row: dict, file_path: Path | None = None):
         """Parse and process a single CSV row."""
@@ -907,6 +928,7 @@ class SquareImporter:
                     price_point=price_point,
                     usage_summary=usage_summary,
                     quantity=qty,
+                    order_date=order_dt,
                 )
 
             # 🧮 Dry-run log
@@ -1000,7 +1022,7 @@ class SquareImporter:
         self,
         transaction_id: str,
         file_path: Path | None,
-        order_dt: datetime | None = None,
+        order_dt: datetime.datetime | None = None,
     ) -> Order:
         """Fetch or initialize the Order associated with a Square transaction."""
         key = transaction_id or (file_path.stem if file_path else "square-order")
@@ -1058,6 +1080,7 @@ class SquareImporter:
             "errors": 0,
         }
         self.usage_totals = defaultdict(lambda: Decimal("0"))
+        self.usage_totals_by_date = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
         self.usage_breakdown = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
         self._ingredient_cache = {}
         start_time = timezone.now()
@@ -1157,6 +1180,16 @@ class SquareImporter:
             for ingredient_id, qty in self.usage_totals.items()
             if qty > 0
         }
+
+    def get_usage_totals_by_date(self) -> dict[datetime.date, dict[int, Decimal]]:
+        """Expose aggregated ingredient usage totals grouped by business date."""
+
+        results: dict[datetime.date, dict[int, Decimal]] = {}
+        for usage_date, totals in self.usage_totals_by_date.items():
+            filtered = {ingredient_id: qty for ingredient_id, qty in totals.items() if qty > 0}
+            if filtered:
+                results[usage_date] = filtered
+        return results
 
     def get_usage_breakdown(self) -> dict[str, dict[str, Decimal]]:
         """Return ingredient usage grouped by ingredient name and source label."""

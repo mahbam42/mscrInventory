@@ -1,0 +1,38 @@
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="text-muted text-uppercase fw-semibold">Revenue</h6>
+        <p class="display-6">${{ total_revenue|floatformat:2 }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="text-muted text-uppercase fw-semibold">COGS</h6>
+        <p class="display-6">${{ total_cogs|floatformat:2 }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="text-muted text-uppercase fw-semibold">Profit</h6>
+        <p class="display-6">${{ profitability.overall_profit|default:0|floatformat:2 }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="text-muted text-uppercase fw-semibold">Margin</h6>
+        {% if profitability.overall_margin_pct %}
+          <p class="display-6">{{ profitability.overall_margin_pct }}%</p>
+        {% else %}
+          <p class="display-6">—</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

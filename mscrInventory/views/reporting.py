@@ -41,8 +41,8 @@ def reporting_dashboard_view(request):
     trend = reports.cogs_trend_with_variance(start, end, tzname=tzname)
     usage_totals = reports.aggregate_usage_totals(start, end)
     linkage = reports.validate_cogs_linkage(start, end)
-    top_products = reports.top_selling_products(start, end)
-    top_modifiers = reports.top_modifiers(start, end)
+    top_products = reports.top_selling_products_with_changes(start, end)
+    top_modifiers = reports.top_modifiers_with_changes(start, end)
 
     total_cogs = sum((row["cogs"] for row in product_summary), Decimal("0"))
     total_revenue = sum((row["revenue"] for row in product_summary), Decimal("0"))

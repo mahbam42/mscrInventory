@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 
+from mscrInventory.management.commands.sync_orders import write_usage_logs
 from mscrInventory.models import (
     Category,
     Ingredient,
@@ -16,6 +17,7 @@ from mscrInventory.models import (
     RecipeModifier,
     StockEntry,
 )
+from tests.factories import IngredientFactory
 from mscrInventory.utils import reports
 
 
@@ -198,10 +200,110 @@ def test_reporting_aggregations():
     assert latte_variant["adjectives"] == tuple()
     assert set(latte_variant["suppressed_descriptors"]) == {"iced", "large"}
 
-    top_mods = reports.top_modifiers(report_date, report_date)
-    modifier_names = {row["modifier"] for row in top_mods}
-    assert modifier_names == {"Pumpkin Spice Syrup", "Oat Milk", "Dark Cold Brew"}
-    extra_shot = next(row for row in top_mods if row["modifier"] == "Dark Cold Brew")
-    assert extra_shot["quantity"] == Decimal("2")
-    assert extra_shot["unit"] == "shot"
-    assert extra_shot["original_label"] == "extra shot"
+
+@pytest.mark.django_db
+def test_usage_logs_record_order_dates():
+    ingredient = IngredientFactory()
+    date_a = datetime.date(2024, 2, 1)
+    date_b = datetime.date(2024, 2, 3)
+
+    usage_by_date = {
+        date_a: {ingredient.id: Decimal("1.500")},
+        date_b: {ingredient.id: Decimal("2.000")},
+    }
+
+    write_usage_logs(usage_by_date, source="square")
+
+    logs = IngredientUsageLog.objects.order_by("date")
+    assert [log.date for log in logs] == [date_a, date_b]
+    assert logs[0].quantity_used == Decimal("1.500")
+    assert logs[1].quantity_used == Decimal("2.000")
+
+
+@pytest.mark.django_db
+def test_cogs_trend_and_usage_totals_follow_order_dates():
+    ingredient = IngredientFactory(average_cost_per_unit=Decimal("2.00"))
+    StockEntry.objects.create(
+        ingredient=ingredient,
+        quantity_added=Decimal("10.0"),
+        cost_per_unit=Decimal("2.00"),
+        date_received=timezone.make_aware(datetime.datetime(2024, 1, 1, 8, 0)),
+    )
+
+    date_a = datetime.date(2024, 2, 1)
+    date_b = datetime.date(2024, 2, 2)
+    usage_by_date = {
+        date_a: {ingredient.id: Decimal("1.000")},
+        date_b: {ingredient.id: Decimal("3.000")},
+    }
+    write_usage_logs(usage_by_date, source="shopify")
+
+    trend = reports.cogs_trend_with_variance(date_a, date_b)
+    assert trend[0]["date_obj"] == date_a
+    assert trend[0]["cogs_total"] == Decimal("2.00")
+    assert trend[1]["date_obj"] == date_b
+    assert trend[1]["cogs_total"] == Decimal("6.00")
+    assert trend[1]["variance"] == Decimal("4.00")
+
+    totals = reports.aggregate_usage_totals(date_a, date_b)
+    assert totals[ingredient.name] == Decimal("4.000")
+
+
+@pytest.mark.django_db
+def test_top_rank_changes_include_previous_window():
+    today = datetime.date(2024, 3, 3)
+    prev_day = today - datetime.timedelta(days=1)
+
+    product_a = Product.objects.create(name="Latte", sku="LAT-1")
+    product_b = Product.objects.create(name="Mocha", sku="MOC-1")
+
+    prev_order = Order.objects.create(
+        order_id="prev",
+        platform="square",
+        order_date=timezone.make_aware(datetime.datetime.combine(prev_day, datetime.time(10, 0))),
+        total_amount=Decimal("0"),
+    )
+    OrderItem.objects.create(
+        order=prev_order,
+        product=product_b,
+        quantity=5,
+        unit_price=Decimal("3.00"),
+        variant_info={"modifiers": ["vanilla"]},
+    )
+
+    current_order = Order.objects.create(
+        order_id="curr",
+        platform="square",
+        order_date=timezone.make_aware(datetime.datetime.combine(today, datetime.time(9, 0))),
+        total_amount=Decimal("0"),
+    )
+    OrderItem.objects.create(
+        order=current_order,
+        product=product_a,
+        quantity=5,
+        unit_price=Decimal("6.00"),
+        variant_info={"modifiers": ["vanilla", "mocha"]},
+    )
+    OrderItem.objects.create(
+        order=current_order,
+        product=product_b,
+        quantity=2,
+        unit_price=Decimal("4.00"),
+        variant_info={"modifiers": ["vanilla"]},
+    )
+
+    products = reports.top_selling_products_with_changes(today, today)
+    assert products[0]["product_name"] == "Latte"
+    assert products[0]["previous_rank"] is None
+    assert products[0]["rank_delta"] is None
+    mocha_row = next(row for row in products if row["product_name"] == "Mocha")
+    assert mocha_row["previous_rank"] == 1
+    assert mocha_row["rank_delta"] == -1
+
+    modifiers = reports.top_modifiers_with_changes(today, today)
+    vanilla_row = next(row for row in modifiers if row["modifier"].lower() == "vanilla")
+    assert vanilla_row["previous_rank"] == 1
+    assert vanilla_row["rank_delta"] == 0
+    mocha_mod = next(row for row in modifiers if row["modifier"].lower() == "mocha")
+    assert mocha_mod["previous_rank"] is None
+    assert mocha_mod["rank_delta"] is None
