@@ -52,7 +52,7 @@ def test_square_importer_dry_run_skips_writes(tmp_path, monkeypatch):
 
 
 @pytest.mark.django_db
-def test_square_importer_records_modifier_type(tmp_path, monkeypatch):
+def test_square_importer_records_modifier_hint(tmp_path, monkeypatch):
     RecipeModifierFactory(name="Oat Milk")
 
     csv_path = tmp_path / "square_modifier.csv"
@@ -71,11 +71,12 @@ def test_square_importer_records_modifier_type(tmp_path, monkeypatch):
     importer.run_from_file(csv_path)
 
     unmapped = SquareUnmappedItem.objects.get()
-    assert unmapped.item_type == "modifier"
+    assert unmapped.item_type == "product"
+    assert unmapped.item_type_hint == "modifier"
 
 
 @pytest.mark.django_db
-def test_square_importer_records_ingredient_type(tmp_path, monkeypatch):
+def test_square_importer_records_ingredient_hint(tmp_path, monkeypatch):
     Ingredient.objects.create(name="House Syrup")
 
     csv_path = tmp_path / "square_ingredient.csv"
@@ -94,7 +95,39 @@ def test_square_importer_records_ingredient_type(tmp_path, monkeypatch):
     importer.run_from_file(csv_path)
 
     unmapped = SquareUnmappedItem.objects.get()
-    assert unmapped.item_type == "ingredient"
+    assert unmapped.item_type == "product"
+    assert unmapped.item_type_hint == "ingredient"
+
+
+@pytest.mark.django_db
+def test_unmapped_normalization_updates_on_label_change(tmp_path, monkeypatch):
+    csv_path = tmp_path / "square_normalized.csv"
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte++,1,5.00,,,txn-one\n"
+    )
+
+    monkeypatch.setattr(
+        square_importer,
+        "_find_best_product_match",
+        lambda *args, **kwargs: (None, "no match"),
+    )
+
+    importer = SquareImporter(dry_run=True)
+    importer.run_from_file(csv_path)
+
+    # Re-run with a cleaned-up name but the same normalized key.
+    csv_path.write_text(
+        "Item,Qty,Gross Sales,Modifiers Applied,Price Point Name,Transaction ID\n"
+        "Latte,1,5.00,,,txn-two\n"
+    )
+
+    importer.run_from_file(csv_path)
+
+    unmapped = SquareUnmappedItem.objects.get()
+    assert unmapped.item_name == "Latte"
+    assert unmapped.normalized_item == "latte"
+    assert unmapped.seen_count == 2
 
 
 @pytest.mark.django_db

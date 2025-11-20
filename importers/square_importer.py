@@ -17,6 +17,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.db import transaction
+from django.db.models import Case, IntegerField, When
 from django.db.models.functions import Length
 from django.utils import timezone
 
@@ -356,10 +357,10 @@ class SquareImporter:
             }
         return self._normalized_ingredient_names
 
-    def _infer_item_type(
+    def _infer_item_type_hint(
         self, item_name: str, price_point: str, modifiers: list[str]
-    ) -> str:
-        """Infer the intended Square item type from known ingredients/modifiers."""
+    ) -> str | None:
+        """Best-effort hint for dashboards; defaults to product for storage."""
 
         candidates = [item_name, price_point]
         candidates.extend(modifiers or [])
@@ -384,7 +385,7 @@ class SquareImporter:
         if normalized_candidates & ingredient_names:
             return "ingredient"
 
-        return "product"
+        return None
 
     def _record_usage_totals(
         self,
@@ -523,9 +524,10 @@ class SquareImporter:
             core_name, item_descriptors = _extract_descriptors(normalized_item)
             _, price_descriptors = _extract_descriptors(normalized_price)
 
-            intended_item_type = self._infer_item_type(
+            item_type_hint = self._infer_item_type_hint(
                 item_name, price_point, normalized_modifiers
             )
+            intended_item_type = "product"
 
             descriptors = list(item_descriptors)
             for token in price_descriptors:
@@ -587,16 +589,30 @@ class SquareImporter:
                 return
 
             # 🧩 Find best product match (based on core_name only)
+            prioritized_types = ["product"]
+            if item_type_hint and item_type_hint not in prioritized_types:
+                prioritized_types.append(item_type_hint)
+
             resolved_mapping = (
                 SquareUnmappedItem.objects.filter(
                     source="square",
-                    item_type=intended_item_type,
                     normalized_item=normalized_item,
                     normalized_price_point=normalized_price,
                     resolved=True,
                     ignored=False,
                 )
                 .select_related("linked_product")
+                .order_by(
+                    Case(
+                        *[
+                            When(item_type=item_type, then=index)
+                            for index, item_type in enumerate(prioritized_types)
+                        ],
+                        default=len(prioritized_types),
+                        output_field=IntegerField(),
+                    ),
+                    "-last_seen",
+                )
                 .first()
             )
 
@@ -623,7 +639,7 @@ class SquareImporter:
                     price_point,
                     normalized_modifiers,
                     reason,
-                    item_type=intended_item_type,
+                    item_type_hint=item_type_hint,
                     raw_row=raw_row_snapshot,
                 )
                 if reason == "variant_unmapped" and price_point:
@@ -936,15 +952,15 @@ class SquareImporter:
             item_for_record = (item_name if "item_name" in locals() else fallback_item) or "(unknown)"
             price_for_record = price_point if "price_point" in locals() else fallback_price
 
-            inferred_type = "product"
+            inferred_type = None
             try:
-                inferred_type = self._infer_item_type(
+                inferred_type = self._infer_item_type_hint(
                     item_for_record,
                     price_for_record,
                     modifiers_for_record,
                 )
             except Exception:
-                inferred_type = "product"
+                inferred_type = None
 
             self.stats["unmatched"] += 1
             self._record_unmapped_item(
@@ -952,7 +968,7 @@ class SquareImporter:
                 price_for_record,
                 modifiers_for_record,
                 f"parse_error:{type(e).__name__}",
-                item_type=inferred_type,
+                item_type_hint=inferred_type,
                 raw_row=raw_row_snapshot,
             )
             self.buffer.append("⚠️ Recorded raw row for manual mapping.")
@@ -1176,13 +1192,19 @@ class SquareImporter:
         reason,
         *,
         item_type: str = "product",
+        item_type_hint: str | None = None,
         raw_row: dict | None = None,
     ) -> None:
         """Create or update a SquareUnmappedItem entry for unmatched rows."""
         normalized_item = _normalize_name(item_name)
         normalized_price = _normalize_name(price_point)
         allowed_types = {choice[0] for choice in SquareUnmappedItem.ITEM_TYPE_CHOICES}
-        resolved_type = item_type if item_type in allowed_types else "product"
+        resolved_type = "product"
+        type_hint = None
+        for candidate in [item_type_hint, item_type]:
+            if candidate in allowed_types:
+                type_hint = candidate
+                break
         key = (normalized_item, normalized_price, resolved_type)
         seen_in_run = key in self._unmapped_seen_keys
         self._unmapped_seen_keys.add(key)
@@ -1192,6 +1214,7 @@ class SquareImporter:
         defaults = {
             "source": "square",
             "item_type": resolved_type,
+            "item_type_hint": type_hint,
             "item_name": item_name or "(unknown)",
             "price_point_name": price_point or "",
             "normalized_item": normalized_item,
@@ -1224,6 +1247,8 @@ class SquareImporter:
             updates["item_name"] = item_name
         if price_point and price_point != obj.price_point_name:
             updates["price_point_name"] = price_point
+        if type_hint and type_hint != obj.item_type_hint:
+            updates["item_type_hint"] = type_hint
         if not seen_in_run:
             updates["seen_count"] = obj.seen_count + 1
         updates["last_modifiers"] = modifiers
@@ -1251,15 +1276,20 @@ class SquareImporter:
             updates["resolved_at"] = obj.resolved_at
             updates["resolved_by"] = obj.resolved_by
 
+        update_fields = list(updates.keys())
+        if "item_name" in update_fields:
+            updates["normalized_item"] = _normalize_name(obj.item_name)
+        if "price_point_name" in update_fields:
+            updates["normalized_price_point"] = _normalize_name(obj.price_point_name)
+
         for field, value in updates.items():
             setattr(obj, field, value)
 
-        update_fields = list(updates.keys())
         if "item_name" in update_fields and "normalized_item" not in update_fields:
             update_fields.append("normalized_item")
         if "price_point_name" in update_fields and "normalized_price_point" not in update_fields:
             update_fields.append("normalized_price_point")
-
+        
         obj.save(update_fields=update_fields)
 
         first_seen = obj.first_seen.strftime("%Y-%m-%d %H:%M")
