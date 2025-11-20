@@ -1731,6 +1731,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1747,6 +1765,47 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#order-date-alignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order-date alignment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leaderboard-deltas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Leaderboard deltas
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -2796,6 +2855,15 @@
 - Order histories<br />
 - Square and Shopify imports  </p>
 <p>Accurate reporting depends on clean recipes, well‑maintained ingredients, and properly resolved imports.</p>
+<h2 id="order-date-alignment">Order-date alignment<a class="headerlink" href="#order-date-alignment" title="Permanent link">&para;</a></h2>
+<p>COGS trend and ingredient usage totals are calculated by the order date, not the import timestamp. During imports, each order’s business-day date is stored on the related <code>IngredientUsageLog</code> entries so that:</p>
+<ul>
+<li>Multi-day imports still land on the correct service date.</li>
+<li>The COGS trend table reflects true day-to-day consumption.</li>
+<li>Usage totals always match what guests purchased on that day, even if the data was synced later.</li>
+</ul>
+<h2 id="leaderboard-deltas">Leaderboard deltas<a class="headerlink" href="#leaderboard-deltas" title="Permanent link">&para;</a></h2>
+<p>The reporting dashboard highlights rank changes for top-selling products and modifiers. Current ranks are compared to the immediately preceding window of the same length (e.g., the prior day when viewing a single date) so you can spot movers, decliners, and new entries at a glance.</p>
 
 
 
