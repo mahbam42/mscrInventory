@@ -1,0 +1,60 @@
+<div class="card h-100">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Top Modifiers</span>
+    <button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-top-modifiers" aria-expanded="true" aria-controls="collapse-top-modifiers">
+      <span class="label-expanded">Collapse</span>
+      <span class="label-collapsed">Expand</span>
+    </button>
+  </div>
+  <div id="collapse-top-modifiers" class="collapse show">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+      <table class="table table-sm mb-0 sortable-table align-middle">
+        <thead>
+          <tr>
+            <th class="text-nowrap" data-sort-type="number">Rank</th>
+            <th>Modifier</th>
+            <th>Unit</th>
+            <th class="text-end" data-sort-type="number">Quantity</th>
+            <th class="text-end" data-sort-type="number">Gross Sales</th>
+            <th class="text-end" data-sort-type="number">Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_modifiers %}
+          <tr>
+            <td class="text-nowrap"><span class="badge bg-primary-subtle text-primary">#{{ row.rank|default:forloop.counter }}</span></td>
+            <td>
+              {{ row.modifier }}
+              {% if row.original_label and row.original_label|lower != row.modifier|lower %}
+                <div class="text-muted small">Token: {{ row.original_label }}</div>
+              {% endif %}
+            </td>
+            <td>{% if row.unit %}{{ row.unit }}{% else %}—{% endif %}</td>
+            <td class="text-end">{{ row.quantity|floatformat:0 }}</td>
+            <td class="text-end">${{ row.gross_sales|floatformat:2 }}</td>
+            <td class="text-end">
+              {% with delta=row.rank_delta %}
+                {% if delta is not None %}
+                  {% if delta > 0 %}
+                    <span class="badge bg-success-subtle text-success">▲ {{ delta }}</span>
+                  {% elif delta < 0 %}
+                    <span class="badge bg-danger-subtle text-danger">▼ {{ delta|floatformat:"0"|cut:"-" }}</span>
+                  {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary">—</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">n/a</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="table-placeholder"><td colspan="6" class="text-center text-muted">No modifiers detected.</td></tr>
+          {% endfor %}
+        </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

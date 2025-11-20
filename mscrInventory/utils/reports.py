@@ -380,7 +380,7 @@ def _unique_preserving_order(tokens: Iterable[str]) -> list[str]:
     return ordered
 
 
-def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int = 10) -> List[Dict]:
+def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int | None = 10) -> List[Dict]:
     """Return top-selling products aggregated by base product with variant breakdowns."""
 
     items = (
@@ -398,6 +398,7 @@ def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int
         bucket = totals.get(key)
         if bucket is None:
             bucket = {
+                "product_key": key[0] or key[1],
                 "product_name": display_name,
                 "adjectives": {},
                 "modifiers": {},
@@ -503,13 +504,14 @@ def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int
             "gross_sales": payload["gross_sales"],
             "variant_count": len(variant_details),
             "variant_details": tuple(variant_details),
+            "rank_key": payload.get("product_key") or payload["product_name"].lower(),
         })
 
     rows.sort(key=lambda row: (row["quantity"], row["gross_sales"]), reverse=True)
-    return rows[:limit]
+    return rows[:limit] if limit else rows
 
 
-def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int = 10) -> List[Dict]:
+def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int | None = 10) -> List[Dict]:
     """Return the most frequently used modifiers with friendly ingredient labels."""
 
     items = (
@@ -588,7 +590,60 @@ def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int = 10) 
             "unit": unit,
             "quantity": payload["quantity"],
             "gross_sales": payload["gross_sales"],
+            "rank_key": normalized_name,
         })
 
     rows.sort(key=lambda row: (row["quantity"], row["gross_sales"]), reverse=True)
-    return rows[:limit]
+    return rows[:limit] if limit else rows
+
+
+def _previous_window(start: datetime.date, end: datetime.date) -> tuple[datetime.date, datetime.date]:
+    """Return the immediately preceding window matching the inclusive span."""
+
+    span_days = (end - start).days + 1
+    previous_end = start - datetime.timedelta(days=1)
+    previous_start = previous_end - datetime.timedelta(days=span_days - 1)
+    return previous_start, previous_end
+
+
+def _annotate_rank_changes(
+    current_rows: list[dict], previous_rows: list[dict], key_fn
+) -> list[dict]:
+    """Add rank + delta metadata to leaderboard rows."""
+
+    previous_ranks: dict[object, int] = {}
+    for idx, row in enumerate(previous_rows, start=1):
+        key = key_fn(row)
+        if key is None:
+            continue
+        previous_ranks.setdefault(key, idx)
+
+    for idx, row in enumerate(current_rows, start=1):
+        key = key_fn(row)
+        row["rank"] = idx
+        if key is None:
+            row["previous_rank"] = None
+            row["rank_delta"] = None
+            continue
+        prev_rank = previous_ranks.get(key)
+        row["previous_rank"] = prev_rank
+        row["rank_delta"] = None if prev_rank is None else prev_rank - idx
+    return current_rows
+
+
+def top_selling_products_with_changes(start: datetime.date, end: datetime.date, *, limit: int = 10) -> list[dict]:
+    """Return top products annotated with rank deltas versus the previous window."""
+
+    current = top_selling_products(start, end, limit=limit)
+    prev_start, prev_end = _previous_window(start, end)
+    previous = top_selling_products(prev_start, prev_end, limit=None)
+    return _annotate_rank_changes(current, previous, lambda row: row.get("rank_key"))
+
+
+def top_modifiers_with_changes(start: datetime.date, end: datetime.date, *, limit: int = 10) -> list[dict]:
+    """Return top modifiers annotated with rank deltas versus the previous window."""
+
+    current = top_modifiers(start, end, limit=limit)
+    prev_start, prev_end = _previous_window(start, end)
+    previous = top_modifiers(prev_start, prev_end, limit=None)
+    return _annotate_rank_changes(current, previous, lambda row: row.get("rank_key"))

@@ -230,23 +230,26 @@ def upload_square_view(request):
 
         if not dry_run:
             usage_totals = importer.get_usage_totals()
+            usage_by_date = importer.get_usage_totals_by_date()
+            if usage_totals and not usage_by_date:
+                usage_by_date = {None: usage_totals}
             if usage_totals:
                 business_date_raw = request.POST.get("business_date")
-                target_date = timezone.localdate()
+                default_date = None
                 if business_date_raw:
                     try:
-                        target_date = datetime.date.fromisoformat(business_date_raw)
+                        default_date = datetime.date.fromisoformat(business_date_raw)
                     except ValueError:
                         messages.warning(
                             request,
                             format_html(
                                 "⚠️ Invalid business date '{}'. Using {} instead.",
                                 business_date_raw,
-                                target_date.isoformat(),
+                                timezone.localdate().isoformat(),
                             ),
                         )
 
-                write_usage_logs(target_date, usage_totals, source="square")
+                write_usage_logs(usage_by_date, source="square", default_date=default_date)
                 breakdown = importer.get_usage_breakdown() or {}
                 detail_snippets: list[str] = []
                 for ingredient_name, per_source in sorted(breakdown.items()):

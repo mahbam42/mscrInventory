@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.core.mail import send_mail
+from django.utils import timezone
 
 from importers.shopify_importer import ShopifyImporter, _format_decimal
 from ...models import Ingredient, IngredientUsageLog
@@ -23,24 +24,36 @@ def nyc_day_window(target_date: datetime.date) -> tuple[datetime.datetime, datet
     return start_local.astimezone(datetime.timezone.utc), end_local.astimezone(datetime.timezone.utc)
 
 
-def write_usage_logs(target_date: datetime.date, usage: Dict[int, Decimal], *, source: str) -> None:
-    """Upsert IngredientUsageLog rows using the provided totals."""
+def write_usage_logs(
+    usage_by_date: Dict[datetime.date, Dict[int, Decimal]] | None,
+    *,
+    source: str,
+    default_date: datetime.date | None = None,
+) -> None:
+    """Upsert IngredientUsageLog rows keyed by their order (business) date."""
 
-    for ingredient_id, qty in usage.items():
-        quantity = Decimal(qty)
-        if quantity <= 0:
+    if not usage_by_date:
+        return
+
+    for usage_date, usage in usage_by_date.items():
+        target_date = usage_date or default_date or timezone.localdate()
+        if not target_date:
             continue
-        quantity = quantity.quantize(Decimal("0.001"))
-        log, created = IngredientUsageLog.objects.get_or_create(
-            ingredient_id=ingredient_id,
-            date=target_date,
-            source=source,
-            defaults=dict(quantity_used=quantity, calculated_from_orders=True),
-        )
-        if not created:
-            log.quantity_used = quantity
-            log.calculated_from_orders = True
-            log.save(update_fields=["quantity_used", "calculated_from_orders", "note"])
+        for ingredient_id, qty in usage.items():
+            quantity = Decimal(qty)
+            if quantity <= 0:
+                continue
+            quantity = quantity.quantize(Decimal("0.001"))
+            log, created = IngredientUsageLog.objects.get_or_create(
+                ingredient_id=ingredient_id,
+                date=target_date,
+                source=source,
+                defaults=dict(quantity_used=quantity, calculated_from_orders=True),
+            )
+            if not created:
+                log.quantity_used = quantity
+                log.calculated_from_orders = True
+                log.save(update_fields=["quantity_used", "calculated_from_orders", "note"])
 
 
 def send_low_stock_email(target_date: datetime.date) -> None:
@@ -188,8 +201,9 @@ class Command(BaseCommand):
         else:
             orders = None
 
-        usage = importer.import_window(start_utc, end_utc, orders=orders)
+        importer.import_window(start_utc, end_utc, orders=orders)
         usage_breakdown = importer.get_usage_breakdown()
+        usage_by_date = importer.get_usage_totals_by_date()
 
         orders_added = importer.counters.get("added", 0)
         orders_updated = importer.counters.get("updated", 0)
@@ -213,10 +227,11 @@ class Command(BaseCommand):
 
         if dry_run:
             self.stdout.write(self.style.WARNING("Dry run enabled; no database writes performed."))
-            return usage
+            return importer.get_usage_totals()
 
-        if usage:
-            write_usage_logs(target_date, usage, source=ShopifyImporter.platform)
+        usage_totals = importer.get_usage_totals()
+        if usage_totals:
+            write_usage_logs(usage_by_date, source=ShopifyImporter.platform, default_date=target_date)
             send_low_stock_email(target_date)
 
             ingredient_lines: list[str] = []
@@ -227,11 +242,11 @@ class Command(BaseCommand):
                 ingredient_lines.append(f"{ingredient_name} × {_format_decimal(total_qty)}")
 
             detail = "; ".join(ingredient_lines) if ingredient_lines else ""
-            message = f"📊 Logged usage for {len(usage)} ingredient(s) from Shopify orders."
+            message = f"📊 Logged usage for {len(usage_totals)} ingredient(s) from Shopify orders."
             if detail:
                 message = f"{message} {detail}"
             self.stdout.write(self.style.SUCCESS(message))
         else:
             self.stdout.write(self.style.WARNING("No ingredient usage detected for this date."))
 
-        return usage
+        return usage_totals

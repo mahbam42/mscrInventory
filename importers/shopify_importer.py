@@ -19,6 +19,7 @@ import re
 import datetime as dt
 from decimal import Decimal
 from typing import Any, Iterable
+from zoneinfo import ZoneInfo
 
 import requests
 from django.conf import settings
@@ -83,6 +84,9 @@ class ShopifyImporter(BaseImporter):
             report_dir=report_dir,
         )
         self.usage_totals: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+        self.usage_totals_by_date: dict[dt.date, dict[int, Decimal]] = defaultdict(
+            lambda: defaultdict(lambda: Decimal("0"))
+        )
         self.usage_breakdown: dict[int, dict[str, Decimal]] = defaultdict(
             lambda: defaultdict(lambda: Decimal("0"))
         )
@@ -119,6 +123,10 @@ class ShopifyImporter(BaseImporter):
             "🚚",
         )
 
+        self.usage_totals.clear()
+        self.usage_totals_by_date.clear()
+        self.usage_breakdown.clear()
+
         with transaction.atomic():
             for raw_order in orders:
                 self.process_row(raw_order)
@@ -127,6 +135,19 @@ class ShopifyImporter(BaseImporter):
 
         self.summarize()
         return dict(self.usage_totals)
+
+    def _order_business_date(self, order_date: dt.datetime | None) -> dt.date:
+        """Translate an order datetime to the business date for usage logging."""
+
+        tzname = getattr(settings, "SYNC_TIMEZONE", "America/New_York")
+        tz = ZoneInfo(tzname)
+        if order_date is None:
+            return timezone.localdate()
+        try:
+            localized = order_date.astimezone(tz)
+        except Exception:
+            localized = order_date
+        return localized.date()
 
     # ------------------------------------------------------------------
     # BaseImporter hook
@@ -187,7 +208,7 @@ class ShopifyImporter(BaseImporter):
                         variant_info=variant_payload,
                     )
 
-            self._track_usage_from_item(item)
+            self._track_usage_from_item(item, order_date=normalized["order_date"])
 
     # ------------------------------------------------------------------
     # Normalisation helpers
@@ -511,7 +532,7 @@ class ShopifyImporter(BaseImporter):
 
         return False
 
-    def _track_usage_from_item(self, item: dict[str, Any]) -> None:
+    def _track_usage_from_item(self, item: dict[str, Any], *, order_date: dt.datetime | None = None) -> None:
         """Update ingredient usage aggregates for the given line item."""
         product: Product | None = item.get("product")
         if not product:
@@ -525,6 +546,8 @@ class ShopifyImporter(BaseImporter):
         bag_meta = variant_info.get("retail_bag") or {}
         is_retail_bag_line = self._is_retail_bag_line(product, variant_info)
         roast_ingredient_id = bag_meta.get("roast_ingredient_id")
+        usage_date = self._order_business_date(order_date)
+
         if roast_ingredient_id and is_retail_bag_line:
             bag_label = bag_meta.get("bag_size")
             bag_weight = self._resolve_bag_weight_ounces(bag_label)
@@ -539,6 +562,7 @@ class ShopifyImporter(BaseImporter):
 
             self.usage_totals.setdefault(roast_ingredient_id, Decimal("0"))
             self.usage_totals[roast_ingredient_id] += adjusted_qty
+            self.usage_totals_by_date[usage_date][roast_ingredient_id] += adjusted_qty
             self.usage_breakdown[roast_ingredient_id][source_label] += adjusted_qty
             return
 
@@ -582,6 +606,7 @@ class ShopifyImporter(BaseImporter):
                 continue
             qty = Decimal(data.get("qty", 0)) * quantity
             self.usage_totals[ingredient.id] += qty
+            self.usage_totals_by_date[usage_date][ingredient.id] += qty
             base_label = item.get("title") or product.name
             variant_title = (item.get("variant_info") or {}).get("variant_title") or ""
             if variant_title:
@@ -604,6 +629,16 @@ class ShopifyImporter(BaseImporter):
                 lines.append(f"    • {source}: {_format_decimal(qty)}")
         message = "\n".join(lines)
         self.log(message, "📦")
+
+    def get_usage_totals_by_date(self) -> dict[dt.date, dict[int, Decimal]]:
+        """Expose aggregated ingredient usage keyed by business date."""
+
+        results: dict[dt.date, dict[int, Decimal]] = {}
+        for usage_date, totals in self.usage_totals_by_date.items():
+            filtered = {ing_id: qty for ing_id, qty in totals.items() if qty > 0}
+            if filtered:
+                results[usage_date] = filtered
+        return results
 
     def get_usage_breakdown(self) -> dict[str, dict[str, Decimal]]:
         """Return a copy of the usage breakdown keyed by ingredient name."""

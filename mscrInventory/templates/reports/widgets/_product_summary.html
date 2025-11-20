@@ -1,0 +1,47 @@
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Per-Product COGS Summary</span>
+    <button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-product-summary" aria-expanded="true" aria-controls="collapse-product-summary">
+      <span class="label-expanded">Collapse</span>
+      <span class="label-collapsed">Expand</span>
+    </button>
+  </div>
+  <div id="collapse-product-summary" class="collapse show">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped table-sm mb-0 sortable-table">
+          <thead>
+            <tr>
+            <th>Product</th>
+            <th>SKU</th>
+            <th class="text-end" data-sort-type="number">Quantity</th>
+            <th class="text-end" data-sort-type="number">Revenue</th>
+            <th class="text-end" data-sort-type="number">COGS</th>
+            <th class="text-end" data-sort-type="number">Profit</th>
+            <th class="text-end" data-sort-type="number">Margin %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in product_summary %}
+          <tr>
+            <td>{{ row.product_name }}</td>
+            <td>{{ row.sku }}</td>
+            <td class="text-end">{{ row.quantity|floatformat:"-2" }}</td>
+            <td class="text-end">${{ row.revenue|floatformat:2 }}</td>
+            <td class="text-end">${{ row.cogs|floatformat:2 }}</td>
+            <td class="text-end">${{ row.profit|floatformat:2 }}</td>
+            <td class="text-end">
+              {% if row.margin_pct %}
+                {{ row.margin_pct }}%
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="table-placeholder"><td colspan="7" class="text-center text-muted">No orders in range.</td></tr>
+          {% endfor %}
+        </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

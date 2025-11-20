@@ -1,0 +1,35 @@
+<div class="card h-100">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Ingredient Usage Totals</span>
+    <button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-usage-totals" aria-expanded="true" aria-controls="collapse-usage-totals">
+      <span class="label-expanded">Collapse</span>
+      <span class="label-collapsed">Expand</span>
+    </button>
+  </div>
+  <div id="collapse-usage-totals" class="collapse show">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+      <table class="table table-sm mb-0 sortable-table">
+        <thead>
+          <tr>
+            <th>Ingredient</th>
+            <th class="text-end" data-sort-type="number">Quantity Used</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ingredient, qty in usage_totals %}
+          <tr>
+            <td>{{ ingredient }}</td>
+            <td class="text-end">{{ qty|floatformat:3 }}</td>
+          </tr>
+          {% empty %}
+          <tr class="table-placeholder">
+            <td colspan="2" class="text-center text-muted">No usage logged.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

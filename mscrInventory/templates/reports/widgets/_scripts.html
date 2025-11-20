@@ -1,0 +1,189 @@
+<script>
+  document.addEventListener('click', function (event) {
+    const trigger = event.target.closest('.variant-details-trigger');
+    if (!trigger) {
+      return;
+    }
+
+    const scriptId = trigger.getAttribute('data-variant-script-id');
+    const scriptEl = scriptId ? document.getElementById(scriptId) : null;
+    if (!scriptEl) {
+      return;
+    }
+
+    let variants;
+    try {
+      variants = JSON.parse(scriptEl.textContent || '[]');
+    } catch (err) {
+      console.error('Unable to parse variant payload', err);
+      variants = [];
+    }
+
+    const modalEl = document.getElementById('variantDetailsModal');
+    if (!modalEl) {
+      return;
+    }
+
+    const title = modalEl.querySelector('.modal-title');
+    if (title) {
+      const productName = trigger.getAttribute('data-product-name') || 'Variants';
+      title.textContent = `${productName} – Variants`;
+    }
+
+    const body = modalEl.querySelector('.variant-details-body');
+    if (body) {
+      if (!variants.length) {
+        body.innerHTML = '<p class="text-muted mb-0">No variant details recorded.</p>';
+      } else {
+        const rows = variants.map((variant) => {
+          const adjectives = Array.isArray(variant.adjectives) && variant.adjectives.length
+            ? variant.adjectives.join(', ')
+            : '—';
+          const modifiers = Array.isArray(variant.modifiers) && variant.modifiers.length
+            ? variant.modifiers.join(', ')
+            : '—';
+          const suppressed = Array.isArray(variant.suppressed_descriptors) && variant.suppressed_descriptors.length
+            ? `<div class="text-muted small">Also includes: ${variant.suppressed_descriptors.join(', ')}</div>`
+            : '';
+          const quantity = typeof variant.quantity === 'number' ? variant.quantity : parseFloat(variant.quantity || '0');
+          const gross = typeof variant.gross_sales === 'number' ? variant.gross_sales : parseFloat(variant.gross_sales || '0');
+
+          return `
+            <tr>
+              <td>
+                <div><strong>Descriptors:</strong> ${adjectives}</div>
+                <div><strong>Modifiers:</strong> ${modifiers}</div>
+                ${suppressed}
+              </td>
+              <td class="text-end">${Number.isFinite(quantity) ? quantity.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</td>
+              <td class="text-end">${Number.isFinite(gross) ? '$' + gross.toFixed(2) : '—'}</td>
+            </tr>
+          `;
+        }).join('');
+
+        body.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Variant</th>
+                  <th scope="col" class="text-end">Quantity</th>
+                  <th scope="col" class="text-end">Gross Sales</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      }
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+</script>
+<script>
+  (function () {
+    function extractValue(cell, type) {
+      if (!cell) {
+        return { blank: true, value: "" };
+      }
+      const orderAttr = cell.getAttribute("data-order");
+      if (orderAttr !== null) {
+        const numericOrder = Number(orderAttr);
+        if (!Number.isNaN(numericOrder)) {
+          return { blank: false, value: numericOrder };
+        }
+        return { blank: false, value: orderAttr };
+      }
+      const text = (cell.textContent || "").trim();
+      if (!text || text === "—") {
+        return { blank: true, value: text };
+      }
+      if (type === "number") {
+        const cleaned = text.replace(/[^0-9.-]/g, "");
+        const numeric = parseFloat(cleaned);
+        if (Number.isNaN(numeric)) {
+          return { blank: true, value: text };
+        }
+        return { blank: false, value: numeric };
+      }
+      if (type === "date") {
+        const timestamp = Date.parse(text);
+        if (!Number.isNaN(timestamp)) {
+          return { blank: false, value: timestamp };
+        }
+      }
+      return { blank: false, value: text.toLowerCase() };
+    }
+
+    function sortTable(table, columnIndex, header) {
+      const tbody = table.tBodies[0];
+      if (!tbody) {
+        return;
+      }
+
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      const sortableRows = rows.filter(row => !row.classList.contains("table-placeholder"));
+      const placeholderRows = rows.filter(row => row.classList.contains("table-placeholder"));
+
+      const headers = Array.from(table.querySelectorAll("thead th"));
+      headers.forEach(th => {
+        if (th !== header) {
+          th.dataset.sortDirection = "";
+          th.classList.remove("sorted-asc", "sorted-desc");
+        }
+      });
+
+      const currentDirection = header.dataset.sortDirection === "asc" ? "asc" : header.dataset.sortDirection === "desc" ? "desc" : null;
+      const nextDirection = currentDirection === "asc" ? "desc" : "asc";
+      const directionFactor = nextDirection === "asc" ? 1 : -1;
+      const sortType = header.dataset.sortType || "string";
+
+      sortableRows.sort((rowA, rowB) => {
+        const cellA = rowA.cells[columnIndex];
+        const cellB = rowB.cells[columnIndex];
+        const dataA = extractValue(cellA, sortType);
+        const dataB = extractValue(cellB, sortType);
+
+        if (dataA.blank && dataB.blank) {
+          return 0;
+        }
+        if (dataA.blank) {
+          return 1;
+        }
+        if (dataB.blank) {
+          return -1;
+        }
+
+        if (typeof dataA.value === "number" && typeof dataB.value === "number") {
+          return directionFactor * (dataA.value - dataB.value);
+        }
+
+        return directionFactor * String(dataA.value).localeCompare(String(dataB.value));
+      });
+
+      header.dataset.sortDirection = nextDirection;
+      header.classList.toggle("sorted-asc", nextDirection === "asc");
+      header.classList.toggle("sorted-desc", nextDirection === "desc");
+
+      sortableRows.forEach(row => tbody.appendChild(row));
+      placeholderRows.forEach(row => tbody.appendChild(row));
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll(".sortable-table").forEach(function (table) {
+        const headers = table.querySelectorAll("thead th");
+        headers.forEach(function (th, index) {
+          if (th.dataset.sortable === "false") {
+            return;
+          }
+          th.classList.add("sortable");
+          th.addEventListener("click", function () {
+            sortTable(table, index, th);
+          });
+        });
+      });
+    });
+  })();
+</script>

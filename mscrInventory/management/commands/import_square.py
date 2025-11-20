@@ -40,16 +40,16 @@ class Command(BaseCommand):
 
         if not opts["dry_run"]:
             usage_totals = importer.get_usage_totals()
+            usage_by_date = importer.get_usage_totals_by_date()
             if usage_totals:
+                default_date = None
                 date_str = opts.get("date")
                 if date_str:
                     try:
-                        target_date = datetime.date.fromisoformat(date_str)
+                        default_date = datetime.date.fromisoformat(date_str)
                     except ValueError as exc:
                         raise CommandError(f"Invalid --date value: {date_str}") from exc
-                else:
-                    target_date = datetime.date.today()
-                write_usage_logs(target_date, usage_totals, source="square")
+                write_usage_logs(usage_by_date, source="square", default_date=default_date)
                 breakdown = importer.get_usage_breakdown()
                 detail_bits = []
                 for ingredient_name, per_source in sorted(breakdown.items()):

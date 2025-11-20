@@ -1,0 +1,53 @@
+<div class="card h-100">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>COGS Trend</span>
+    <button class="btn btn-sm btn-outline-secondary collapse-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-cogs-trend" aria-expanded="true" aria-controls="collapse-cogs-trend">
+      <span class="label-expanded">Collapse</span>
+      <span class="label-collapsed">Expand</span>
+    </button>
+  </div>
+  <div id="collapse-cogs-trend" class="collapse show">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+      <table class="table table-sm mb-0 sortable-table">
+        <thead>
+          <tr>
+            <th data-sort-type="date">Date</th>
+            <th class="text-end" data-sort-type="number">COGS</th>
+            <th class="text-end" data-sort-type="number">Variance</th>
+            <th class="text-end" data-sort-type="number">Variance %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in trend %}
+          <tr>
+            <td{% if row.date_obj %} data-order="{{ row.date_obj|date:'U' }}"{% endif %}>
+              {% if row.date_obj %}
+                {{ row.date_obj|date:"Y-m-d" }}
+              {% else %}
+                {{ row.date }}
+              {% endif %}
+            </td>
+            <td class="text-end">${{ row.cogs_total|floatformat:2 }}</td>
+            <td class="text-end">
+              {% if row.variance is not None %}
+              ${{ row.variance|floatformat:2 }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+              {% if row.variance_pct is not None %}
+              {{ row.variance_pct }}%
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="table-placeholder">
+            <td colspan="4" class="text-center text-muted">No data for selected range.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
