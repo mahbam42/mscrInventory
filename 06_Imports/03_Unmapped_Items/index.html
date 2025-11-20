@@ -2869,7 +2869,7 @@
 
 
 <h1 id="unmapped-items-dashboard">Unmapped Items Dashboard<a class="headerlink" href="#unmapped-items-dashboard" title="Permanent link">&para;</a></h1>
-<p>Unmapped items appear when the importer cannot match a Square or Shopify row to an existing product, ingredient, or modifier.</p>
+<p>Unmapped items appear when the importer cannot match a Square or Shopify row to an existing product, ingredient, or modifier. Square rows are now always logged as <strong>potential products first</strong>, even if they look like modifiers or ingredients. A hint is stored so the dashboard can suggest likely types, but you decide the final classification.</p>
 <p>Common reasons include:</p>
 <ul>
 <li>Misspellings  </li>
@@ -2883,19 +2883,19 @@
 <li>Go to <strong>Imports → Unmapped Items</strong>.  </li>
 <li>Review the list (modal or full-page).  </li>
 <li>For each unmapped row:</li>
-<li><strong>Link to Existing</strong> product/ingredient/modifier  </li>
-<li><strong>Create New</strong> record  </li>
-<li><strong>Mark as Ignored</strong> if not relevant  </li>
-<li>Confirm your action.  </li>
+<li><strong>Link to Existing</strong> product/ingredient/modifier (reclassify as needed)</li>
+<li><strong>Create New</strong> record</li>
+<li><strong>Mark as Ignored</strong> if not relevant</li>
+<li>Confirm your action.</li>
 <li>Unmapped count updates immediately.</li>
 </ol>
 <h2 id="unmapped-items-modal">Unmapped Items Modal<a class="headerlink" href="#unmapped-items-modal" title="Permanent link">&para;</a></h2>
 <p>The modal presents:
 - Source (Square or Shopify)<br />
-- Item type (Product, Ingredient, Modifier)<br />
-- Raw name from import<br />
-- Suggested matches (if any)<br />
-- Link/Create actions  </p>
+- Item type (defaults to <strong>Product</strong> for Square; hint shows if it resembled a modifier/ingredient)
+- Raw name from import (kept in sync with normalized keys when the label changes)
+- Suggested matches (if any)
+- Link/Create actions</p>
 <h2 id="full-unmapped-items-dashboard">Full Unmapped Items Dashboard<a class="headerlink" href="#full-unmapped-items-dashboard" title="Permanent link">&para;</a></h2>
 <p>Includes:
 - Filters (type/source/date)<br />
