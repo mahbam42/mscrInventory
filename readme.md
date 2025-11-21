@@ -26,10 +26,11 @@ Designed for small production environments, it blends **real-time usability** fo
 - Integrated with Django permissions and HTMX conditionals for adaptive UI visibility.
 
 ### 💻 User Interface
-- **HTMX-Powered Dashboards** – Responsive modals, inline updates, and no reloads.  
-- **Bootstrap 5 Layout** – Mobile-friendly and lightweight.  
-- **Smart Filters** – Live search and category filtering.  
-- **Contextual Navigation** – Permission-aware links and quick actions.  
+- **HTMX-Powered Dashboards** – Responsive modals, inline updates, and no reloads.
+- **Bootstrap 5 Layout** – Mobile-friendly and lightweight.
+- **Smart Filters** – Live search and category filtering.
+- **Contextual Navigation** – Permission-aware links and quick actions.
+- **Top Selling Widget Controls** – Modifier lists collapse after five entries with on-demand expansion for long lists.
 
 ### ⚙️ Management Commands
 All commands support a `--dry-run` flag for safe testing.
@@ -46,11 +47,12 @@ All commands support a `--dry-run` flag for safe testing.
 ---
 
 ## 🧱 Architecture & Design Notes
-- Built with **Django, HTMX, and Bootstrap** — minimal dependencies for maintainability.  
-- CSV import/export doubles as an **internal API** for integrations and automation.  
-- **Shopify integration** complete; **Doordash sync** in progress.  
-- Modular data model: ingredients, modifiers, and packaging are fully relational.  
-- Role-based dashboards ensure users see only relevant functionality.  
+- Built with **Django, HTMX, and Bootstrap** — minimal dependencies for maintainability.
+- CSV import/export doubles as an **internal API** for integrations and automation.
+- **Shopify integration** complete; **Doordash sync** in progress.
+- Modular data model: ingredients, modifiers, and packaging are fully relational.
+- Role-based dashboards ensure users see only relevant functionality.
+- Ingredient usage logs are keyed to each order's business day so COGS trends mirror sales dates instead of import timestamps.
 
 ---
 
