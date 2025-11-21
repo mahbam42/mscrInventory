@@ -65,7 +65,19 @@ class Command(BaseCommand):
         )
 
         importer.import_window(start_utc, end_utc, orders=orders)
-        importer.summarize()
+        output = importer.get_output()
+
+        if importer.log_to_console and output:
+            # Logs were already streamed; emit the summary only.
+            summary = importer.get_summary()
+            if summary:
+                self.stdout.write(summary)
+        elif output:
+            self.stdout.write(output)
+        else:
+            summary = importer.get_summary()
+            if summary:
+                self.stdout.write(summary)
 
     # ------------------------------------------------------------------
     # Helpers

@@ -204,6 +204,9 @@ class Command(BaseCommand):
         importer.import_window(start_utc, end_utc, orders=orders)
         usage_breakdown = importer.get_usage_breakdown()
         usage_by_date = importer.get_usage_totals_by_date()
+        summary_text = importer.get_summary()
+        if summary_text and not importer.log_to_console:
+            self.stdout.write(summary_text)
 
         orders_added = importer.counters.get("added", 0)
         orders_updated = importer.counters.get("updated", 0)

@@ -109,6 +109,16 @@ class BaseImporter:
             self._write_report(elapsed)
         return summary
 
+    def get_output(self) -> str:
+        """Return the buffered importer log for the current run."""
+
+        return self.buffer.getvalue()
+
+    def get_summary(self) -> str:
+        """Return the most recent summary without altering counters."""
+
+        return self.summarize()
+
     # ---------------------------------------------------------------------
     # Reporting helpers
     # ---------------------------------------------------------------------

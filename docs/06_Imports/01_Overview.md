@@ -22,6 +22,12 @@ Accurate imports ensure:
 - Accurate cost-of-goods tracking
 - Smooth cross-platform data sync
 
+## Import log output
+
+- Square CSV and Shopify imports now emit the same emoji-rich summary block after each run.
+- `python manage.py import_shopify_csv …` prints the buffered log and summary at default verbosity so you immediately see counts for added/updated orders, matched items, skips, and errors.
+- Daily Shopify syncs (`sync_orders`) reuse the same summary formatting, keeping console output consistent between Square and Shopify.
+
 ## Product matching guardrails
 
 Square and Shopify imports evaluate exact matches before partial or fuzzy matches. When multiple candidates overlap in a composed line (for example, "Small Iced Latte – Banana Bread – Oat Milk"), partial fallbacks deliberately choose the shortest matching product name so the base drink anchors the line and modifiers remain intact. Exact matches for the full product name still take priority over these partial fallbacks.

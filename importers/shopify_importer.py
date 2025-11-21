@@ -92,6 +92,8 @@ class ShopifyImporter(BaseImporter):
         )
         self._retail_bag_product: Product | None = None
         self._default_usage_date: dt.date | None = None
+        self._summary_added = False
+        self._summary_cache: list[str] | None = None
         self.counters.setdefault("matched", 0)
 
         self._bag_weight_cache: dict[str, Decimal] = {
@@ -104,6 +106,18 @@ class ShopifyImporter(BaseImporter):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def _reset_run_state(self) -> None:
+        """Clear transient state before running an import window."""
+
+        self.buffer.seek(0)
+        self.buffer.truncate(0)
+        self.start_time = timezone.now()
+        for key in self.counters:
+            self.counters[key] = 0
+        self.counters.setdefault("matched", 0)
+        self._summary_added = False
+        self._summary_cache = None
+
     def import_window(
         self,
         start_utc: dt.datetime,
@@ -113,6 +127,7 @@ class ShopifyImporter(BaseImporter):
     ) -> dict[int, Decimal]:
         """Import Shopify orders for the provided UTC window."""
 
+        self._reset_run_state()
         if start_utc.tzinfo is None or end_utc.tzinfo is None:
             raise ValueError("start_utc and end_utc must be timezone-aware")
 
@@ -687,6 +702,53 @@ class ShopifyImporter(BaseImporter):
         if weight is None:
             weight = Decimal("1")
         return weight
+
+    # ------------------------------------------------------------------
+    # Summary / reporting
+    # ------------------------------------------------------------------
+    def summarize(self) -> str:  # type: ignore[override]
+        """Render a Square-style summary for Shopify imports."""
+
+        if self._summary_added and self._summary_cache is not None:
+            return "\n".join(self._summary_cache)
+
+        end_time = timezone.now()
+        elapsed = (end_time - self.start_time).total_seconds()
+        summary_lines = [
+            "",
+            "📊 Shopify Import Summary",
+            f"Started: {self.start_time:%Y-%m-%d %H:%M:%S}",
+            f"Elapsed: {elapsed:.2f}s",
+            "",
+            f"🧾 Orders added: {self.counters.get('added', 0)}",
+            f"🔄 Orders updated: {self.counters.get('updated', 0)}",
+            f"✅ Items matched: {self.counters.get('matched', 0)}",
+            f"⚠️ Unmapped items: {self.counters.get('unmapped', 0)}",
+            f"⏭️ Skipped: {self.counters.get('skipped', 0)}",
+            f"❌ Errors: {self.counters.get('errors', 0)}",
+            "✅ Dry-run complete." if self.dry_run else "✅ Import complete.",
+        ]
+
+        if self.buffer.tell() > 0 and not self.buffer.getvalue().endswith("\n"):
+            self.buffer.write("\n")
+
+        summary_text = "\n".join(summary_lines)
+        self.buffer.write(summary_text + "\n")
+
+        if self.log_to_console:
+            print(summary_text)
+
+        if self.report_enabled:
+            self._write_report(elapsed)
+
+        self._summary_added = True
+        self._summary_cache = summary_lines
+        return summary_text
+
+    def get_summary(self) -> str:
+        """Expose the formatted summary without duplicating output."""
+
+        return self.summarize()
 
     # ------------------------------------------------------------------
     # Shopify API

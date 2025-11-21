@@ -137,3 +137,41 @@ def test_import_shopify_csv_groups_rows_into_orders(tmp_path, monkeypatch):
     assert end.tzinfo is not None
     assert start <= end
     assert timezone.is_aware(start) and timezone.is_aware(end)
+
+
+@pytest.mark.django_db
+def test_shopify_importer_summary_follows_square_style():
+    importer = ShopifyImporter(dry_run=True, log_to_console=False)
+    importer.counters.update(
+        {"added": 2, "updated": 1, "matched": 3, "unmapped": 1, "skipped": 0, "errors": 0}
+    )
+    importer.start_time = timezone.now() - dt.timedelta(seconds=2)
+
+    summary = importer.summarize()
+
+    assert "📊 Shopify Import Summary" in summary
+    assert "🧾 Orders added: 2" in summary
+    assert "✅ Items matched: 3" in summary
+    # Summary should only be appended once even if called multiple times.
+    _ = importer.get_summary()
+    assert importer.get_output().count("Shopify Import Summary") == 1
+
+
+@pytest.mark.django_db
+def test_import_shopify_csv_outputs_summary(tmp_path, capsys):
+    csv_path = tmp_path / "shopify.csv"
+    csv_path.write_text(
+        "order_id,created_at,sku,title,variant_title,quantity,price\n"
+        "1001,2025-09-18T09:30:00-04:00,SINGLE,Single Origin,,2,5.50\n"
+    )
+
+    call_command(
+        "import_shopify_csv",
+        str(csv_path),
+        dry_run=True,
+        verbosity=0,
+    )
+
+    captured = capsys.readouterr()
+    assert "📊 Shopify Import Summary" in captured.out
+    assert "Orders added" in captured.out
