@@ -13,10 +13,10 @@
       
       
       
-        <link rel="prev" href="../../09_Reporting/05_ExportingReports/">
+        <link rel="prev" href="../01_ManualTests/">
       
       
-        <link rel="next" href="../02_Permissions/">
+        <link rel="next" href="../../13_Appendix_B_Unmapped_Items_Usage/01_UnmappedUsage/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Manage Users - MSCR Inventory App Documentation</title>
+        <title>Automated Test Suite - MSCR Inventory App Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#manage-users" class="md-skip">
+        <a href="#appendix-a-automated-test-suite" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Manage Users
+              Automated Test Suite
             
           </span>
         </div>
@@ -1866,8 +1866,6 @@
       
   
   
-    
-  
   
   
     
@@ -1880,11 +1878,13 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
         
           
           <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
@@ -1905,7 +1905,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1920,19 +1920,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../10_manage_users/01_ManageUsers/" class="md-nav__link">
         
   
   
@@ -1948,7 +1939,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1961,7 +1951,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../02_Permissions/" class="md-nav__link">
+      <a href="../../10_manage_users/02_Permissions/" class="md-nav__link">
         
   
   
@@ -2082,8 +2072,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -2094,13 +2086,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
           <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
@@ -2121,7 +2111,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2139,7 +2129,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../12_Appendix_A_Testing/01_ManualTests/" class="md-nav__link">
+      <a href="../01_ManualTests/" class="md-nav__link">
         
   
   
@@ -2164,10 +2154,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../12_Appendix_A_Testing/02_TestSuite/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automated Test Suite
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2183,6 +2200,59 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#coverage-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage snapshot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automation-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automation Log
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2818,10 +2888,10 @@
     
     
       <li class="md-path__item">
-        <a href="./" class="md-path__link">
+        <a href="../01_ManualTests/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Manage Users
+    Appendix A
   </span>
 
         </a>
@@ -2843,14 +2913,24 @@
   
 
 
-<h1 id="manage-users">Manage Users<a class="headerlink" href="#manage-users" title="Permanent link">&para;</a></h1>
-<p>The <strong>Manage Users</strong> section allows managers and administrators to create, update, and organize user accounts within the MSCR Inventory App. User roles determine access to recipes, inventory, reports, and administrative tools.</p>
-<p>This section centralizes:
-- New user creation<br />
-- Updating user information<br />
-- Assigning or changing permission groups<br />
-- Reviewing account status (active, pending, archived)  </p>
-<p>Only users with elevated permissions (Manager or Admin) can access this area.</p>
+<h1 id="appendix-a-automated-test-suite">Appendix A – Automated Test Suite<a class="headerlink" href="#appendix-a-automated-test-suite" title="Permanent link">&para;</a></h1>
+<p>Our <a href="https://github.com/mahbam42/mscrInventory/tree/main/tests"><code>tests/</code></a> directory provides automated regression coverage across the app. The suite uses <code>pytest</code> with factory fixtures (<code>tests/factories.py</code>, <code>tests/conftest.py</code>) to spin up lightweight data for each scenario.</p>
+<h2 id="coverage-snapshot">Coverage snapshot<a class="headerlink" href="#coverage-snapshot" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Views &amp; HTMX flows (auth, dashboard, orders, recipes, inventory, user management)</li>
+<li>Importers (Square, Shopify, CSV), dry-run behavior, and data hygiene tools</li>
+<li>Reporting utilities and dashboard metrics</li>
+<li>Model behaviors, modifiers, and recipe math (including packaging and COGS)</li>
+<li>Templates and permission enforcement regressions</li>
+<li>Migration cleanup and critical utilities</li>
+</ul>
+<h2 id="how-to-run">How to run<a class="headerlink" href="#how-to-run" title="Permanent link">&para;</a></h2>
+<p>From the repo root, run:
+<div class="highlight"><pre><span></span><code>pytest
+</code></pre></div>
+This executes the full regression suite locally; CI runs the same entry point to guard releases.</p>
+<h2 id="automation-log">Automation Log<a class="headerlink" href="#automation-log" title="Permanent link">&para;</a></h2>
+<p>The test suite runs automatically with every push to <code>main</code> on GitHub. Results can be viewed on <a href="https://github.com/mahbam42/mscrInventory/actions/workflows/main.yml">GitHub</a>. </p>
 
 
 
