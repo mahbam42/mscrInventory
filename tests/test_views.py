@@ -59,6 +59,18 @@ def test_reporting_dashboard_view(client):
 
 
 @pytest.mark.django_db
+def test_reporting_dashboard_includes_quick_ranges(client):
+    _login_user(client, "views-report-quick", ["change_order"])
+
+    response = client.get(reverse("reporting_dashboard"))
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "data-range-key=\"today\"" in content
+    assert "data-range-key=\"last_year\"" in content
+
+
+@pytest.mark.django_db
 def test_reporting_dashboard_shows_variant_modal_trigger(client):
     _login_user(client, "views-report-variants", ["change_order"])
     product = ProductFactory(name="Cookie Sampler")

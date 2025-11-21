@@ -16,6 +16,24 @@
     <div class="col-auto">
       <button type="submit" class="btn btn-primary">Apply</button>
     </div>
+    {% if quick_date_ranges %}
+    <div class="col-12">
+      <div class="text-muted small">Quick ranges</div>
+      <div class="row row-cols-2 row-cols-md-4 g-2 mt-1">
+        {% for range in quick_date_ranges %}
+        <div class="col">
+          <button type="button"
+                  class="btn btn-outline-secondary w-100 quick-range"
+                  data-range-key="{{ range.key }}"
+                  data-start="{{ range.start }}"
+                  data-end="{{ range.end }}">
+            {{ range.label }}
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </form>
 </div>
 

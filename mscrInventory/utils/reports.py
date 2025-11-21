@@ -450,8 +450,19 @@ def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int
                     continue
                 storage.setdefault(normalized, token)
 
+        def _capture_modifiers(tokens: Iterable[str], storage: dict[str, dict[str, object]], qty: Decimal):
+            """Track modifier labels while accumulating quantity occurrences."""
+            for token in tokens:
+                normalized = _normalize_descriptor_token(token)
+                if not normalized:
+                    continue
+                entry = storage.setdefault(normalized, {"label": token, "count": Decimal("0")})
+                entry["count"] += qty
+                if not entry.get("label"):
+                    entry["label"] = token
+
         _capture(kept_adjectives, bucket["adjectives"])
-        _capture(kept_modifiers, bucket["modifiers"])
+        _capture_modifiers(kept_modifiers, bucket["modifiers"], qty)
         _capture(suppressed_adjectives, bucket["suppressed_descriptors"])
         _capture(suppressed_modifiers, bucket["suppressed_descriptors"])
         _capture(meta_suppressed, bucket["suppressed_descriptors"])
@@ -495,10 +506,15 @@ def top_selling_products(start: datetime.date, end: datetime.date, *, limit: int
         variant_details = list(payload["variant_details"].values())
         variant_details.sort(key=lambda row: (row["quantity"], row["gross_sales"]), reverse=True)
 
+        sorted_modifiers = sorted(
+            payload["modifiers"].values(),
+            key=lambda entry: (-entry["count"], entry["label"].lower()),
+        )
+
         rows.append({
             "product_name": payload["product_name"],
             "adjectives": tuple(sorted(payload["adjectives"].values(), key=str.lower)),
-            "modifiers": tuple(sorted(payload["modifiers"].values(), key=str.lower)),
+            "modifiers": tuple(entry["label"] for entry in sorted_modifiers),
             "suppressed_descriptors": tuple(sorted(payload["suppressed_descriptors"].values(), key=str.lower)),
             "quantity": payload["quantity"],
             "gross_sales": payload["gross_sales"],

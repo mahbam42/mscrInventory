@@ -202,6 +202,41 @@ def test_reporting_aggregations():
 
 
 @pytest.mark.django_db
+def test_top_products_modifier_order_reflects_usage_counts():
+    report_date = datetime.date(2024, 6, 10)
+    order_dt = timezone.make_aware(datetime.datetime(2024, 6, 10, 11, 0))
+
+    cappuccino = Product.objects.create(name="Cappuccino", sku="CAP-1")
+
+    order = Order.objects.create(
+        order_id="200",
+        platform="square",
+        order_date=order_dt,
+        total_amount=Decimal("0.00"),
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        product=cappuccino,
+        quantity=2,
+        unit_price=Decimal("5.00"),
+        variant_info={"modifiers": ["caramel", "vanilla"]},
+    )
+    OrderItem.objects.create(
+        order=order,
+        product=cappuccino,
+        quantity=1,
+        unit_price=Decimal("5.00"),
+        variant_info={"modifiers": ["vanilla"]},
+    )
+
+    top_products = reports.top_selling_products(report_date, report_date)
+
+    assert top_products[0]["product_name"] == "Cappuccino"
+    assert top_products[0]["modifiers"] == ("vanilla", "caramel")
+
+
+@pytest.mark.django_db
 def test_usage_logs_record_order_dates():
     ingredient = IngredientFactory()
     date_a = datetime.date(2024, 2, 1)

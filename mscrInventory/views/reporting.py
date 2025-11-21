@@ -22,6 +22,36 @@ def _parse_date(value: str | None) -> datetime.date | None:
         return None
 
 
+def _quick_date_ranges(today: datetime.date) -> list[dict[str, str]]:
+    """Return quick date range presets anchored to today's date."""
+
+    start_of_week = today - datetime.timedelta(days=today.weekday())
+    start_of_last_week = start_of_week - datetime.timedelta(days=7)
+    end_of_last_week = start_of_week - datetime.timedelta(days=1)
+
+    start_of_month = today.replace(day=1)
+    end_of_last_month = start_of_month - datetime.timedelta(days=1)
+    start_of_last_month = end_of_last_month.replace(day=1)
+
+    start_of_year = today.replace(month=1, day=1)
+    end_of_last_year = start_of_year - datetime.timedelta(days=1)
+    start_of_last_year = end_of_last_year.replace(month=1, day=1)
+
+    def _range(key: str, label: str, start: datetime.date, end: datetime.date) -> dict[str, str]:
+        return {"key": key, "label": label, "start": start.isoformat(), "end": end.isoformat()}
+
+    return [
+        _range("today", "Today", today, today),
+        _range("yesterday", "Yesterday", today - datetime.timedelta(days=1), today - datetime.timedelta(days=1)),
+        _range("this_week", "This Week", start_of_week, today),
+        _range("last_week", "Last Week", start_of_last_week, end_of_last_week),
+        _range("this_month", "This Month", start_of_month, today),
+        _range("last_month", "Last Month", start_of_last_month, end_of_last_month),
+        _range("this_year", "This Year", start_of_year, today),
+        _range("last_year", "Last Year", start_of_last_year, end_of_last_year),
+    ]
+
+
 @permission_required("mscrInventory.change_order", raise_exception=True)
 @login_required
 def reporting_dashboard_view(request):
@@ -71,6 +101,7 @@ def reporting_dashboard_view(request):
         "total_revenue": total_revenue,
         "tzname": tzname,
         "unresolved_count": unresolved_count,
+        "quick_date_ranges": _quick_date_ranges(today),
     }
 
     return render(request, "reports/dashboard.html", context)
