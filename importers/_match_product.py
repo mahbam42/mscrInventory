@@ -107,6 +107,8 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
     normalized = _normalize_name(raw_name)
     core_name, descriptors = _extract_descriptors(normalized)
     price_point = (price_point or "").strip().lower()
+    allowed_descriptor_tokens = set(SIZE_DESCRIPTOR_WORDS + TEMP_DESCRIPTOR_WORDS)
+    fuzzy_conflict = False
 
     def log(msg):
         if buffer is not None:
@@ -162,26 +164,47 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
             ratio = SequenceMatcher(None, normalized, _normalize_name(c.name)).ratio()
             if ratio > 0.7:
                 scored.append((c, ratio))
+        fuzzy_conflict = False
         if scored:
             scored.sort(key=lambda x: x[1], reverse=True)
-            product, score = scored[0]
-            log(f"Fuzzy matched → '{product.name}' ({descriptors}) [score={score:.2f}]")
+            item_tokens = normalized.split()
 
-            # 🧩 NEW sanity check: prefer base_item fallback if fuzzy match isn't a base product
-            if hasattr(product, "categories"):
-                category_names = [c.name.lower() for c in product.categories.all()]
-                # Check if there exists a base_item with same core_name
-                base_products = Product.objects.filter(
-                    categories__name__iexact="base_item",
-                    name__icontains=core_name
-                )
-                if base_products.exists() and not any("base_item" in c for c in category_names):
-                    base_product = min(base_products, key=lambda p: len(p.name))
-                    log(f"Fuzzy match '{product.name}' overridden → base fallback '{base_product.name}'")
-                    return base_product, "base_fallback"
+            for candidate, score in scored:
+                candidate_tokens = _normalize_name(candidate.name).split()
+                extra_tokens = [
+                    t for t in candidate_tokens
+                    if t not in item_tokens and t not in allowed_descriptor_tokens
+                ]
+                missing_tokens = [
+                    t for t in item_tokens
+                    if t not in candidate_tokens and t not in allowed_descriptor_tokens
+                ]
 
-            # Otherwise, keep fuzzy result
-            return product, "fuzzy_match"
+                if extra_tokens and missing_tokens:
+                    fuzzy_conflict = True
+                    log(
+                        f"Fuzzy candidate '{candidate.name}' skipped (missing={missing_tokens}, extra={extra_tokens})"
+                    )
+                    continue
+
+                product = candidate
+                log(f"Fuzzy matched → '{product.name}' ({descriptors}) [score={score:.2f}]")
+
+                # 🧩 NEW sanity check: prefer base_item fallback if fuzzy match isn't a base product
+                if hasattr(product, "categories"):
+                    category_names = [c.name.lower() for c in product.categories.all()]
+                    # Check if there exists a base_item with same core_name
+                    base_products = Product.objects.filter(
+                        categories__name__iexact="base_item",
+                        name__icontains=core_name
+                    )
+                    if base_products.exists() and not any("base_item" in c for c in category_names):
+                        base_product = min(base_products, key=lambda p: len(p.name))
+                        log(f"Fuzzy match '{product.name}' overridden → base fallback '{base_product.name}'")
+                        return base_product, "base_fallback"
+
+                # Otherwise, keep fuzzy result
+                return product, "fuzzy_match"
 
 
     # 3️⃣ Combined Item + Price Point (for baked goods / variant names)
@@ -226,4 +249,4 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
 
     # 5️⃣ Unmapped
     log(f"No match for '{core_name}' ({descriptors})")
-    return None, "unmapped"
+    return None, "fuzzy_conflict" if fuzzy_conflict else "unmapped"

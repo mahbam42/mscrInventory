@@ -25,3 +25,5 @@ Accurate imports ensure:
 ## Product matching guardrails
 
 Square and Shopify imports evaluate exact matches before partial or fuzzy matches. When multiple candidates overlap in a composed line (for example, "Small Iced Latte – Banana Bread – Oat Milk"), partial fallbacks deliberately choose the shortest matching product name so the base drink anchors the line and modifiers remain intact. Exact matches for the full product name still take priority over these partial fallbacks.
+
+Fuzzy matches are now token-aware: if the closest candidate introduces words that do not appear in the incoming item (for example, matching a "Banana Bread Latte" line to a "Banana Bread Matcha" product), the importer skips the fuzzy result and leaves the row unmapped so you can resolve it explicitly.
