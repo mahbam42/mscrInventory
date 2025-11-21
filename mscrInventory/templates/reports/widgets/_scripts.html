@@ -1,5 +1,25 @@
 <script>
   document.addEventListener('click', function (event) {
+    const quickRangeButton = event.target.closest('.quick-range');
+    if (quickRangeButton) {
+      const form = quickRangeButton.closest('form');
+      const startInput = form ? form.querySelector('#id_start') : null;
+      const endInput = form ? form.querySelector('#id_end') : null;
+      const startValue = quickRangeButton.getAttribute('data-start');
+      const endValue = quickRangeButton.getAttribute('data-end');
+
+      if (form && startInput && endInput && startValue && endValue) {
+        startInput.value = startValue;
+        endInput.value = endValue;
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.submit();
+        }
+      }
+      return;
+    }
+
     const modifierToggle = event.target.closest('.modifier-toggle');
     if (modifierToggle) {
       const container = modifierToggle.closest('.modifier-list');

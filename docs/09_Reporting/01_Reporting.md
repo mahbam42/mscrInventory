@@ -22,3 +22,11 @@ COGS trend and ingredient usage totals are calculated by the order date, not the
 ## Leaderboard deltas
 
 The reporting dashboard highlights rank changes for top-selling products and modifiers. Current ranks are compared to the immediately preceding window of the same length (e.g., the prior day when viewing a single date) so you can spot movers, decliners, and new entries at a glance.
+
+## Quick date presets
+
+Use the eight quick-range buttons under the date pickers to jump to common reporting windows without manually entering dates. Presets include today, yesterday, this/last week, this/last month, and this/last year arranged in a 2×4 grid. Selecting a preset fills both date fields and immediately reloads the dashboard.
+
+## Top-selling product context
+
+Within the **Top Selling Products** widget, modifiers are ordered by how frequently guests purchased them (based on item quantity) so the most common customizations surface first. Descriptor and variant details remain accessible via the existing collapse controls and variant modal.

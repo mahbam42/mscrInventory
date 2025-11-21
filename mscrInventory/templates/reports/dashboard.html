@@ -3,7 +3,7 @@
 
 {% block content %}
 <div id="reporting" class="container py-4">
-  {% include "reports/widgets/_header.html" with start=start end=end %}
+  {% include "reports/widgets/_header.html" with start=start end=end quick_date_ranges=quick_date_ranges %}
   {% include "reports/widgets/_stat_cards.html" with total_revenue=total_revenue total_cogs=total_cogs profitability=profitability %}
 
   <div class="row g-4 mb-4">
