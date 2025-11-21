@@ -132,6 +132,7 @@ nav:
 
   - Appendix A:
       - Manual Testing: 12_Appendix_A_Testing/01_ManualTests.md
+      - Automated Test Suite: 12_Appendix_A_Testing/02_TestSuite.md
 
   - Appendix B:
       - Unmapped Items Usage: 13_Appendix_B_Unmapped_Items_Usage/01_UnmappedUsage.md
