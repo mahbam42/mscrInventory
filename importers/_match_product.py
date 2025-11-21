@@ -74,11 +74,19 @@ def _match_variant_by_name(name: str):
     if not normalized:
         return None, "variant_unmapped"
 
-    product = Product.objects.filter(name__iexact=name).first()
+    product = (
+        Product.objects.filter(name__iexact=name)
+        .order_by(Length("name"))
+        .first()
+    )
     if product:
         return product, "variant_exact"
 
-    product = Product.objects.filter(name__iexact=normalized).first()
+    product = (
+        Product.objects.filter(name__iexact=normalized)
+        .order_by(Length("name"))
+        .first()
+    )
     if product:
         return product, "variant_exact_normalized"
 
@@ -128,12 +136,20 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
 
     # 1️⃣ Exact Item Name
     # Try exact match against the raw name first (preserves casing/punctuation)
-    product = Product.objects.filter(name__iexact=raw_name).first()
+    product = (
+        Product.objects.filter(name__iexact=raw_name)
+        .order_by(Length("name"))
+        .first()
+    )
     if product:
         log(f"Exact match for '{raw_name}'")
         return product, "exact"
 
-    product = Product.objects.filter(name__iexact=_normalize_name(item_name)).first()
+    product = (
+        Product.objects.filter(name__iexact=_normalize_name(item_name))
+        .order_by(Length("name"))
+        .first()
+    )
     if product:
         log(f"Exact match for '{core_name}' ({descriptors})")
         return product, "exact"
@@ -172,13 +188,21 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
     combo = f"{core_name} {price_point}".strip()
     if price_point and combo and combo != core_name and price_point.lower() not in {"none", "nan", ""}:
         combo_normalized = _normalize_name(combo)
-        product = Product.objects.filter(name__iexact=combo_normalized).first()
+        product = (
+            Product.objects.filter(name__iexact=combo_normalized)
+            .order_by(Length("name"))
+            .first()
+        )
         if product:
             log(f"Exact combo match '{combo}' ({descriptors})")
             return product, "exact_combo"
 
         # partial match for items like "Bagel Everything" or "Muffin Blueberry"
-        product = Product.objects.filter(name__icontains=combo_normalized).first()
+        product = (
+            Product.objects.filter(name__icontains=combo_normalized)
+            .order_by(Length("name"))
+            .first()
+        )
         if product:
             log(f"Partial combo match '{combo}' ({descriptors})")
             return product, "partial_combo"
@@ -192,7 +216,7 @@ def _find_best_product_match(item_name, price_point, modifiers, buffer=None):
         log(f"Base fallback → '{product.name}' ({descriptors})")
         return product, "base_fallback"
 
-    # 5️⃣ General partial fallback – pick the shortest name containing the core token
+    # 5️⃣ General partial fallback – pick the most specific name containing the core token
     if core_name:
         general_matches = list(Product.objects.filter(name__icontains=core_name))
         if general_matches:
