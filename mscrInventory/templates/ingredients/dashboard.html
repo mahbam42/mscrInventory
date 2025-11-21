@@ -8,14 +8,32 @@
       <h2 class="mb-3">🥕 Ingredients Dashboard</h2>
       <p class="text-muted mb-0">Search, filter, and edit ingredients without the stock widgets.</p>
     </div>
-    <button class="btn btn-primary"
-            hx-get="{% url 'ingredient_create_modal' %}"
-            hx-target="#globalModal .modal-content"
-            hx-swap="innerHTML"
-            data-bs-toggle="modal"
-            data-bs-target="#globalModal">
-      ➕ Create Ingredient
-    </button>
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+      {% if perms.mscrInventory.view_ingredient %}
+      <a href="{% url 'export_ingredients_csv' %}" class="btn btn-outline-secondary">
+        📤 Export CSV
+      </a>
+      {% endif %}
+
+      {% if perms.mscrInventory.change_ingredient %}
+      <button class="btn btn-outline-primary"
+              hx-get="{% url 'import_ingredients_modal' %}"
+              hx-target="#globalModal .modal-content"
+              hx-swap="innerHTML"
+              data-bs-toggle="modal"
+              data-bs-target="#globalModal">
+        📥 Import CSV
+      </button>
+      <button class="btn btn-primary"
+              hx-get="{% url 'ingredient_create_modal' %}"
+              hx-target="#globalModal .modal-content"
+              hx-swap="innerHTML"
+              data-bs-toggle="modal"
+              data-bs-target="#globalModal">
+        ➕ Create Ingredient
+      </button>
+      {% endif %}
+    </div>
   </div>
 
   <hr />

@@ -72,8 +72,13 @@ from mscrInventory.views.inventory import inventory_dashboard_view, add_case, bu
 from mscrInventory.views.ingredients import (
     ingredient_create_modal,
     ingredient_edit_modal,
+    export_ingredients_csv,
+    confirm_ingredients_import,
+    download_ingredients_template,
     ingredients_dashboard_view,
     ingredients_table_partial,
+    import_ingredients_csv,
+    import_ingredients_modal,
 )
 from mscrInventory.views.user_management import manage_users_groups_view
 
@@ -161,6 +166,11 @@ urlpatterns = [
     path("ingredients/table/", ingredients_table_partial, name="ingredients_table_partial"),
     path("ingredients/create/", ingredient_create_modal, name="ingredient_create_modal"),
     path("ingredients/<int:pk>/edit/", ingredient_edit_modal, name="ingredient_edit_modal"),
+    path("ingredients/export/", export_ingredients_csv, name="export_ingredients_csv"),
+    path("ingredients/import/template/", download_ingredients_template, name="download_ingredients_template"),
+    path("ingredients/import/modal/", import_ingredients_modal, name="import_ingredients_modal"),
+    path("ingredients/import/", import_ingredients_csv, name="import_ingredients_csv"),
+    path("ingredients/import/confirm/", confirm_ingredients_import, name="confirm_ingredients_import"),
 
     #inventory
     path("inventory/", inventory_dashboard_view, name="inventory_dashboard"),
