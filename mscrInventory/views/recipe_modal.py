@@ -10,6 +10,8 @@ from pathlib import Path
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
 from django.db import transaction
+from django.db.models import DecimalField, F, Min, Q, Sum, Value
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -18,6 +20,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from ..forms import ProductForm
 from ..models import Ingredient, Product, RecipeItem, RecipeModifier, SquareUnmappedItem
+from .inventory import _build_sort_context
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +29,83 @@ logger = logging.getLogger(__name__)
 LOG_DIR = Path("archive/logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "import_recipes.log"
+
+
+def _active_products_queryset():
+    """Return the base queryset for active products used on dashboards."""
+
+    return Product.objects.filter(active=True).prefetch_related("categories")
+
+
+def _build_recipes_table_context(request):
+    """Compose the filtered, sorted context used by the recipes table."""
+
+    category = request.GET.get("category", "").strip()
+    query = request.GET.get("q", "").strip()
+    sort_key = request.GET.get("sort", "name")
+    direction = request.GET.get("direction", "asc")
+
+    sort_map = {
+        "id": "id",
+        "name": "name",
+        "category": "primary_category",
+        "cost": "total_cogs",
+    }
+
+    if sort_key not in sort_map:
+        sort_key = "name"
+    if direction not in {"asc", "desc"}:
+        direction = "asc"
+
+    products = _active_products_queryset().annotate(
+        total_cogs=Coalesce(
+            Sum(
+                F("recipe_items__quantity")
+                * F("recipe_items__ingredient__average_cost_per_unit")
+            ),
+            Decimal("0"),
+            output_field=DecimalField(max_digits=18, decimal_places=6),
+        ),
+        primary_category=Coalesce(
+            Min("categories__name"),
+            Value(""),
+        ),
+    )
+
+    if category:
+        if category.lower() in ("none", "null"):
+            products = products.filter(categories__isnull=True)
+        elif category.isdigit():
+            products = products.filter(categories__id=int(category))
+        else:
+            products = products.filter(categories__name__icontains=category)
+        products = products.distinct()
+
+    if query:
+        products = products.filter(
+            Q(name__icontains=query) | Q(categories__name__icontains=query)
+        )
+
+    order_by = sort_map[sort_key]
+    if direction == "desc":
+        order_by = f"-{order_by}"
+    products = products.order_by(order_by, "id")
+
+    toggle_directions, sort_indicators = _build_sort_context(
+        sort_key, direction, sort_map=sort_map
+    )
+
+    return {
+        "products": products,
+        "selected_category": category
+        or ("none" if request.GET.get("category", "").strip().lower() in ("none", "null") else ""),
+        "search_query": query,
+        "toggle_directions": toggle_directions,
+        "sort_indicators": sort_indicators,
+        "current_sort": sort_key,
+        "current_direction": direction,
+    }
+
 
 def log_import(action: str, message: str):
     """Append an entry to the recipe import log."""
@@ -71,45 +151,24 @@ def _render_product_form_modal(request, form: ProductForm, *, title: str, submit
 @permission_required("mscrInventory.view_product", raise_exception=True)
 def recipes_dashboard_view(request):
     """Render the recipes dashboard or respond with the HTMX table fragment."""
-    category = request.GET.get("category", "").strip()
-    query = request.GET.get("q", "").strip()
+    table_context = _build_recipes_table_context(request)
 
-    products = Product.objects.all().order_by("name")
-
-    if category:
-        if category.lower() in ("none", "null"):
-            products = products.filter(categories__isnull=True)
-        elif category.isdigit():
-            products = products.filter(categories__id=int(category))
-        else:
-            products = products.filter(categories__name__iexact=category)
-        products = products.distinct()
-
-    if query:
-        products = products.filter(name__icontains=query)
-
-    # Build available categories
     categories = (
-        Product.objects
+        _active_products_queryset()
         .values("categories__id", "categories__name")
         .distinct()
         .order_by("categories__name")
     )
 
-    base_items = (
-        Product.objects
-        .filter(categories__name__iexact="Base Item")
-        .order_by("name")
-    )
+    base_items = _active_products_queryset().filter(
+        categories__name__iexact="Base Item"
+    ).order_by("name")
 
-    requested_category = request.GET.get("category", "").strip().lower()
-    selected_category = category or ("none" if requested_category in ("none", "null") else "")
     unresolved_count = SquareUnmappedItem.objects.filter(resolved=False, ignored=False).count()
 
     ctx = {
-        "products": products,
+        **table_context,
         "categories": categories,
-        "selected_category": selected_category,
         "base_items": base_items,
         "unresolved_count": unresolved_count,
     }
@@ -117,7 +176,7 @@ def recipes_dashboard_view(request):
 
     # 🧩 HTMX support: only return the table partial when requested
     if request.headers.get("HX-Request"):
-        return TemplateResponse(request, "recipes/_table.html", ctx)
+        return TemplateResponse(request, "recipes/_table.html", table_context)
 
     return render(request, "recipes/dashboard.html", ctx)
 
@@ -147,7 +206,9 @@ def extend_recipe(request, pk):
         "product": product,
         "recipe_items": recipe_items,
         "all_ingredients": Ingredient.objects.all(),
-        "base_items": Product.objects.filter(categories__name__icontains="base"),
+        "base_items": _active_products_queryset().filter(
+            categories__name__icontains="base"
+        ),
     }
     return render(request, "recipes/_edit_modal.html", ctx)
 
@@ -192,7 +253,9 @@ def edit_recipe_view(request, pk):
     # existing modifiers FOR THIS PRODUCT (since there is no base Modifier model)
     #recipe_modifiers = RecipeModifier.objects.all().order_by("type", "name") #commenting out old version
     
-    base_items = Product.objects.filter(categories__name__icontains="base").order_by("name")
+    base_items = _active_products_queryset().filter(
+        categories__name__icontains="base"
+    ).order_by("name")
 
     # Build a dict {recipe_modifier_id: quantity} for prefill convenience (optional)
     #current_modifiers = {rm.id: rm.base_quantity for rm in recipe_modifiers} #commenting out old version
@@ -253,24 +316,7 @@ def create_product_modal(request):
 @permission_required("mscrInventory.view_product", raise_exception=True)
 def recipes_table_fragment(request):
     """HTMX endpoint returning the filtered recipe table."""
-    category = request.GET.get("category", "").strip()
-    query = request.GET.get("q", "").strip()
-
-    products = Product.objects.all().order_by("name")
-
-    if category:
-        if category.lower() in ("none", "null"):
-            products = products.filter(categories__isnull=True)
-        elif category.isdigit():
-            products = products.filter(categories__id=int(category))
-        else:
-            products = products.filter(categories__name__icontains=category)
-        products = products.distinct()
-
-    if query:
-        products = products.filter(name__icontains=query)
-
-    ctx = {"products": products}
+    ctx = _build_recipes_table_context(request)
 
     # ✅ Always return an HttpResponse
     return render(request, "recipes/_table.html", ctx)
