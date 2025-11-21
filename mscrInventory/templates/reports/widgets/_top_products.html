@@ -53,7 +53,21 @@
               </td>
               <td>
                 {% if row.modifiers %}
-                  {{ row.modifiers|join:", " }}
+                  {% with modifiers=row.modifiers %}
+                    {% with modifier_count=modifiers|length %}
+                      {% with truncated=modifiers|slice:":5" %}
+                        <div class="modifier-list" data-modifier-count="{{ modifier_count }}">
+                          <span class="modifier-visible">{{ truncated|join:", " }}</span>
+                          {% if modifier_count > 5 %}
+                            <span class="modifier-full d-none">{{ modifiers|join:", " }}</span>
+                            <button type="button" class="btn btn-link btn-sm p-0 modifier-toggle" aria-expanded="false">
+                              Show all ({{ modifier_count }})
+                            </button>
+                          {% endif %}
+                        </div>
+                      {% endwith %}
+                    {% endwith %}
+                  {% endwith %}
                 {% else %}—{% endif %}
               </td>
               <td class="text-end">{{ row.quantity|floatformat:0 }}</td>

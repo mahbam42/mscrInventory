@@ -1,5 +1,35 @@
 <script>
   document.addEventListener('click', function (event) {
+    const modifierToggle = event.target.closest('.modifier-toggle');
+    if (modifierToggle) {
+      const container = modifierToggle.closest('.modifier-list');
+      if (!container) {
+        return;
+      }
+
+      const visible = container.querySelector('.modifier-visible');
+      const full = container.querySelector('.modifier-full');
+      const isExpanded = modifierToggle.getAttribute('aria-expanded') === 'true';
+
+      if (!visible || !full) {
+        return;
+      }
+
+      if (isExpanded) {
+        full.classList.add('d-none');
+        visible.classList.remove('d-none');
+        modifierToggle.setAttribute('aria-expanded', 'false');
+        const modifierCount = container.getAttribute('data-modifier-count');
+        modifierToggle.textContent = modifierCount ? `Show all (${modifierCount})` : 'Show all';
+      } else {
+        visible.classList.add('d-none');
+        full.classList.remove('d-none');
+        modifierToggle.setAttribute('aria-expanded', 'true');
+        modifierToggle.textContent = 'Show less';
+      }
+      return;
+    }
+
     const trigger = event.target.closest('.variant-details-trigger');
     if (!trigger) {
       return;

@@ -91,6 +91,7 @@ class ShopifyImporter(BaseImporter):
             lambda: defaultdict(lambda: Decimal("0"))
         )
         self._retail_bag_product: Product | None = None
+        self._default_usage_date: dt.date | None = None
         self.counters.setdefault("matched", 0)
 
         self._bag_weight_cache: dict[str, Decimal] = {
@@ -127,6 +128,10 @@ class ShopifyImporter(BaseImporter):
         self.usage_totals_by_date.clear()
         self.usage_breakdown.clear()
 
+        tzname = getattr(settings, "SYNC_TIMEZONE", "America/New_York")
+        tz = ZoneInfo(tzname)
+        self._default_usage_date = start_utc.astimezone(tz).date()
+
         with transaction.atomic():
             for raw_order in orders:
                 self.process_row(raw_order)
@@ -142,7 +147,11 @@ class ShopifyImporter(BaseImporter):
         tzname = getattr(settings, "SYNC_TIMEZONE", "America/New_York")
         tz = ZoneInfo(tzname)
         if order_date is None:
-            return timezone.localdate()
+            if self.report_date:
+                return self.report_date
+            if self._default_usage_date:
+                return self._default_usage_date
+            raise ValueError("Order date is required to record ingredient usage.")
         try:
             localized = order_date.astimezone(tz)
         except Exception:
@@ -639,6 +648,13 @@ class ShopifyImporter(BaseImporter):
             if filtered:
                 results[usage_date] = filtered
         return results
+
+    def get_usage_totals(self) -> dict[int, Decimal]:
+        """Expose aggregated ingredient usage totals keyed by ingredient id."""
+
+        return {
+            ingredient_id: qty for ingredient_id, qty in self.usage_totals.items() if qty > 0
+        }
 
     def get_usage_breakdown(self) -> dict[str, dict[str, Decimal]]:
         """Return a copy of the usage breakdown keyed by ingredient name."""

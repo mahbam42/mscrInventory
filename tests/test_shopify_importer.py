@@ -1,3 +1,4 @@
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -5,7 +6,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from importers.shopify_importer import ShopifyImporter
-from tests.factories import IngredientFactory, ProductFactory
+from tests.factories import IngredientFactory, ProductFactory, RecipeItemFactory
 
 
 @pytest.mark.django_db
@@ -44,6 +45,53 @@ def test_track_usage_from_retail_bag_multiplies_by_weight():
     assert importer.usage_totals[roast.id] == Decimal("160")
     breakdown = importer.usage_breakdown[roast.id]
     assert breakdown["5 lb Bulk Coffee (5 lb / Whole Bean)"] == Decimal("160")
+
+
+@pytest.mark.django_db
+def test_get_usage_totals_filters_non_positive_entries():
+    importer = ShopifyImporter(dry_run=True)
+    importer.usage_totals[1] = Decimal("2.5")
+    importer.usage_totals[2] = Decimal("0")
+    importer.usage_totals[3] = Decimal("-1")
+
+    totals = importer.get_usage_totals()
+
+    assert totals == {1: Decimal("2.5")}
+
+
+@pytest.mark.django_db
+def test_usage_dates_follow_order_and_report_dates():
+    ingredient = IngredientFactory()
+    product = ProductFactory()
+    RecipeItemFactory(product=product, ingredient=ingredient, quantity=Decimal("1"))
+
+    importer = ShopifyImporter(dry_run=True)
+
+    order_dt = dt.datetime(2024, 2, 1, 23, 30, tzinfo=dt.timezone.utc)
+    importer._track_usage_from_item(
+        {
+            "product": product,
+            "title": product.name,
+            "quantity": Decimal("1"),
+            "variant_info": {"descriptors": []},
+        },
+        order_date=order_dt,
+    )
+
+    assert importer.usage_totals_by_date[dt.date(2024, 2, 1)][ingredient.id] == Decimal("1")
+
+    importer.report_date = dt.date(2024, 2, 3)
+    importer._track_usage_from_item(
+        {
+            "product": product,
+            "title": product.name,
+            "quantity": Decimal("2"),
+            "variant_info": {"descriptors": []},
+        },
+        order_date=None,
+    )
+
+    assert importer.usage_totals_by_date[dt.date(2024, 2, 3)][ingredient.id] == Decimal("2")
 
 
 @pytest.mark.django_db
