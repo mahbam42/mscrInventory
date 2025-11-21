@@ -1,0 +1,36 @@
+<div class="modal-header">
+  <h5 class="modal-title">📥 Import Ingredients CSV</h5>
+</div>
+
+<div class="modal-body">
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-warning small">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form hx-post="{% url 'import_ingredients_csv' %}" enctype="multipart/form-data" hx-target="#globalModal .modal-content"
+        hx-swap="innerHTML">
+    {% csrf_token %}
+    <p class="small text-muted mb-3">
+      Upload a CSV with columns: <code>{{ required_headers|join:', ' }}</code>
+    </p>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="small text-muted">Round-trip safe: export, tweak, and import without reformatting.</div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'download_ingredients_template' %}" class="btn btn-sm btn-outline-secondary">
+          📄 Download Template
+        </a>
+        <a href="{% url 'export_ingredients_csv' %}" class="btn btn-sm btn-outline-secondary">
+          📤 Export Current CSV
+        </a>
+      </div>
+    </div>
+
+    <input type="file" name="file" accept=".csv" class="form-control mb-3" required>
+    <div class="text-end">
+      <button type="submit" class="btn btn-primary btn-sm">Preview</button>
+    </div>
+  </form>
+</div>
