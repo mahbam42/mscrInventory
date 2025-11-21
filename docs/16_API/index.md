@@ -13,3 +13,4 @@ All pages auto-generate content from the actual source code using `mkdocstrings`
 - [Importers](importers.md)
 - [Management Commands](management_commands.md)
 - [Utilities](utils.md)
+- [Scripts](scripts.md)

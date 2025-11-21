@@ -151,3 +151,4 @@ nav:
       - Importers: 16_API/importers.md
       - Management Commands: 16_API/management_commands.md
       - Utilities: 16_API/utils.md
+      - Scripts: 16_API/scripts.md
