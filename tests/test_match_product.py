@@ -36,3 +36,13 @@ def test_partial_core_fallback_prefers_shortest_match():
 
     assert product == shorter
     assert reason == "base_fallback"
+
+
+@pytest.mark.django_db
+def test_fuzzy_conflict_rejects_mismatched_tokens():
+    ProductFactory(name="Banana Bread Matcha")
+
+    product, reason = _find_best_product_match("Banana Bread Latte", "", [])
+
+    assert product is None
+    assert reason == "fuzzy_conflict"
