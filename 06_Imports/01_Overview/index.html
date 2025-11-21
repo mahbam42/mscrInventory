@@ -726,6 +726,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -742,6 +760,47 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#import-log-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Import log output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#product-matching-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Product matching guardrails
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -2803,11 +2862,20 @@ It is the central hub for maintaining accurate mappings, reconciling mismatched 
 - Inventory CSV updates ∂</p>
 <p>Accurate imports ensure:</p>
 <ul>
-<li>Correct recipe and product usage reporting  </li>
-<li>Clean naming conventions  </li>
-<li>Accurate cost-of-goods tracking  </li>
-<li>Smooth cross-platform data sync  </li>
+<li>Correct recipe and product usage reporting</li>
+<li>Clean naming conventions</li>
+<li>Accurate cost-of-goods tracking</li>
+<li>Smooth cross-platform data sync</li>
 </ul>
+<h2 id="import-log-output">Import log output<a class="headerlink" href="#import-log-output" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Square CSV and Shopify imports now emit the same emoji-rich summary block after each run.</li>
+<li><code>python manage.py import_shopify_csv …</code> prints the buffered log and summary at default verbosity so you immediately see counts for added/updated orders, matched items, skips, and errors.</li>
+<li>Daily Shopify syncs (<code>sync_orders</code>) reuse the same summary formatting, keeping console output consistent between Square and Shopify.</li>
+</ul>
+<h2 id="product-matching-guardrails">Product matching guardrails<a class="headerlink" href="#product-matching-guardrails" title="Permanent link">&para;</a></h2>
+<p>Square and Shopify imports evaluate exact matches before partial or fuzzy matches. When multiple candidates overlap in a composed line (for example, "Small Iced Latte – Banana Bread – Oat Milk"), partial fallbacks deliberately choose the shortest matching product name so the base drink anchors the line and modifiers remain intact. Exact matches for the full product name still take priority over these partial fallbacks.</p>
+<p>Fuzzy matches are now token-aware: if the closest candidate introduces words that do not appear in the incoming item (for example, matching a "Banana Bread Latte" line to a "Banana Bread Matcha" product), the importer skips the fuzzy result and leaves the row unmapped so you can resolve it explicitly.</p>
 
 
 
