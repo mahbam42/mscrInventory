@@ -41,7 +41,7 @@ Mandatory Standards
 
 Documentation Updates Required
 
-Any functional change (model, view, importer, command, or UI behavior) must update project documentation including README, roadmap, and developer docs.
+Any functional change (model, view, importer, command, or UI behavior) must update project documentation located in /docs/ and indexed in mkdocs.yml.
 
 Permissions on New Commands
 
