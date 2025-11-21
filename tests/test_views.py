@@ -2,10 +2,6 @@ import datetime
 from decimal import Decimal
 
 import pytest
-import datetime
-from decimal import Decimal
-
-import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
@@ -123,6 +119,53 @@ def test_recipes_dashboard_filters_uncategorised(client):
     content = response.content.decode("utf-8")
     assert "Lonely Latte" in content
     assert "Pumpkin Spice" not in content
+
+
+@pytest.mark.django_db
+def test_recipes_dashboard_hides_inactive_products(client):
+    _login_user(client, "views-recipes-active", ["view_product"])
+    active_product = ProductFactory(name="Sunrise Latte", active=True)
+    ProductFactory(name="Retired Roast", active=False)
+
+    response = client.get(reverse("recipes_dashboard"))
+
+    content = response.content.decode("utf-8")
+    assert "Sunrise Latte" in content
+    assert "Retired Roast" not in content
+
+
+@pytest.mark.django_db
+def test_recipes_table_fragment_sorts_by_cost(client):
+    _login_user(client, "views-recipes-sort", ["view_product"])
+    expensive = ProductFactory(name="Mocha Max")
+    frugal = ProductFactory(name="Drip Simple")
+    costly_ing = IngredientFactory(average_cost_per_unit=Decimal("5.00"))
+    cheap_ing = IngredientFactory(average_cost_per_unit=Decimal("0.50"))
+    RecipeItemFactory(product=expensive, ingredient=costly_ing, quantity=Decimal("2"))
+    RecipeItemFactory(product=frugal, ingredient=cheap_ing, quantity=Decimal("1"))
+
+    response = client.get(
+        reverse("recipes_table_fragment"), {"sort": "cost", "direction": "desc"}
+    )
+
+    content = response.content.decode("utf-8")
+    assert "Mocha Max" in content and "Drip Simple" in content
+    assert content.index("Mocha Max") < content.index("Drip Simple")
+
+
+@pytest.mark.django_db
+def test_edit_recipe_modal_excludes_inactive_base_items(client):
+    _login_user(client, "views-recipes-base", ["view_product"])
+    product = ProductFactory(name="Target Drink")
+    base_category = CategoryFactory(name="Base Item")
+    ProductFactory(name="Base Active", active=True, categories=[base_category])
+    ProductFactory(name="Base Inactive", active=False, categories=[base_category])
+
+    response = client.get(reverse("edit_recipe", args=[product.id]))
+
+    content = response.content.decode("utf-8")
+    assert "Base Active" in content
+    assert "Base Inactive" not in content
 
 
 @pytest.mark.django_db

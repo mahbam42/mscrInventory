@@ -1,10 +1,41 @@
+<div class="d-none" data-sort-state
+     data-sort="{{ current_sort }}"
+     data-direction="{{ current_direction }}"
+     data-category="{{ selected_category }}"
+     data-search="{{ search_query }}">
+</div>
+
 <table class="table table-striped align-middle">
     <thead>
         <tr>
-            <th>ID</th>
-            <th>Product</th>
-            <th>Categories</th>
-            <th>Cost of Recipe ($)</th>
+            <th>
+                <button type="button" class="btn btn-link p-0 text-decoration-none"
+                        hx-get="{% url 'recipes_table_fragment' %}?sort=id&direction={{ toggle_directions.id }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}"
+                        hx-target="#recipes-table-wrap" hx-swap="innerHTML">
+                    ID {% if sort_indicators.id %}<span>{{ sort_indicators.id }}</span>{% endif %}
+                </button>
+            </th>
+            <th>
+                <button type="button" class="btn btn-link p-0 text-decoration-none"
+                        hx-get="{% url 'recipes_table_fragment' %}?sort=name&direction={{ toggle_directions.name }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}"
+                        hx-target="#recipes-table-wrap" hx-swap="innerHTML">
+                    Product {% if sort_indicators.name %}<span>{{ sort_indicators.name }}</span>{% endif %}
+                </button>
+            </th>
+            <th>
+                <button type="button" class="btn btn-link p-0 text-decoration-none"
+                        hx-get="{% url 'recipes_table_fragment' %}?sort=category&direction={{ toggle_directions.category }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}"
+                        hx-target="#recipes-table-wrap" hx-swap="innerHTML">
+                    Categories {% if sort_indicators.category %}<span>{{ sort_indicators.category }}</span>{% endif %}
+                </button>
+            </th>
+            <th>
+                <button type="button" class="btn btn-link p-0 text-decoration-none"
+                        hx-get="{% url 'recipes_table_fragment' %}?sort=cost&direction={{ toggle_directions.cost }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}"
+                        hx-target="#recipes-table-wrap" hx-swap="innerHTML">
+                    Cost of Recipe ($) {% if sort_indicators.cost %}<span>{{ sort_indicators.cost }}</span>{% endif %}
+                </button>
+            </th>
             <th class="text-end">Actions</th>
         </tr>
     </thead>

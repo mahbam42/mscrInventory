@@ -83,9 +83,9 @@
 
   <!-- Recipes Table -->
   <div id="recipes-table-wrap"
-    hx-get="{% url 'recipes_table_fragment' %}{% if selected_category %}?category={{ selected_category }}{% endif %}"
-    hx-trigger="load, recipes:refresh from:body" 
-    hx-target="this" 
+    hx-get="{% url 'recipes_table_fragment' %}?sort={{ current_sort }}&direction={{ current_direction }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+    hx-trigger="load, recipes:refresh from:body"
+    hx-target="this"
     hx-swap="innerHTML">
     {% include "recipes/_table.html" with products=products %}
   </div>
@@ -95,12 +95,37 @@
   document.addEventListener("DOMContentLoaded", () => {
     const search = document.getElementById("recipe-search");
     const clear = document.getElementById("recipe-clear");
+    const tableWrap = document.getElementById("recipes-table-wrap");
 
     let timeout;
 
+    function currentSortState() {
+      const stateEl = tableWrap ? tableWrap.querySelector("[data-sort-state]") : null;
+      if (!stateEl) {
+        return { sort: "name", direction: "asc", category: "" };
+      }
+      return {
+        sort: stateEl.dataset.sort || "name",
+        direction: stateEl.dataset.direction || "asc",
+        category: stateEl.dataset.category || "",
+      };
+    }
+
     function triggerSearch() {
       const query = search.value.trim();
-      const url = query ? `/recipes/?q=${encodeURIComponent(query)}` : "/recipes/";
+      const { sort, direction, category } = currentSortState();
+      const params = new URLSearchParams();
+
+      if (query) {
+        params.set("q", query);
+      }
+      if (category) {
+        params.set("category", category);
+      }
+      params.set("sort", sort);
+      params.set("direction", direction);
+
+      const url = params.toString() ? `/recipes/?${params.toString()}` : "/recipes/";
       htmx.ajax("GET", url, { target: "#recipes-table-wrap", swap: "innerHTML" });
     }
 

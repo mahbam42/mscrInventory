@@ -23,6 +23,8 @@ Use this as a high-level smoke/regression checklist. Unless otherwise noted, sta
 - Open any order row and confirm `total_items` annotation equals the sum of item quantities.
 
 ## Recipes Dashboard (`/recipes/`)
+- Grid headers are sortable: toggle ID, Product, Category, or Cost columns and confirm sort direction indicators update.
+- Inactive products are hidden: deactivate a product, reload, and verify it disappears from the dashboard list and Base Item dropdown.
 - Grid renders columns including product temperature. Search for “milk” and confirm matches bubble to the top while categories collapse appropriately.
 - Edit modal opens from “Edit” and lists all ingredients with current quantities and units.
 - Add an ingredient: choose from dropdown, enter quantity, click `+`; ingredient row appears immediately via HTMX without full page reload.
