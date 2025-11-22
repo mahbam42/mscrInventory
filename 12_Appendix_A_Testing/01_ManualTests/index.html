@@ -2913,11 +2913,12 @@
 </ul>
 <h2 id="admin-user-management">Admin &amp; User Management<a class="headerlink" href="#admin-user-management" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Admin access: log in as superuser, open Django admin, and confirm core models (Ingredient, Product, Recipe, RecipeModifier, ImportLog, Order) are visible.</li>
+<li>Admin access: log in as superuser (or Admin/Manager), open Django admin, and confirm core models (Ingredient, Product, Recipe, RecipeModifier, ImportLog, Order) are visible.</li>
 <li>Permission enforcement: create a user without <code>change_ingredient</code> and confirm edit/delete buttons disappear while view-only pages still load.</li>
 <li>User creation: add a new user through the app’s user management flow, set a password, and verify login/logout works.</li>
+<li>Delete <code>Test User</code> from Admin</li>
 </ul>
-<h2 id="permissions-testing">Permissions Testing<a class="headerlink" href="#permissions-testing" title="Permanent link">&para;</a></h2>
+<h3 id="permissions-testing">Permissions Testing<a class="headerlink" href="#permissions-testing" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -2947,7 +2948,7 @@
 <td>✅</td>
 <td>✅</td>
 <td>✅</td>
-<td>❌</td>
+<td>✅</td>
 </tr>
 <tr>
 <td><strong>Barista</strong></td>
