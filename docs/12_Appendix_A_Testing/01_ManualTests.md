@@ -61,14 +61,15 @@ Use this as a high-level smoke/regression checklist. Unless otherwise noted, sta
 - Export inventory/recipe/usage reports to CSV and ensure numerical columns retain precision (e.g., Decimal costs).
 
 ## Admin & User Management
-- Admin access: log in as superuser, open Django admin, and confirm core models (Ingredient, Product, Recipe, RecipeModifier, ImportLog, Order) are visible.
+- Admin access: log in as superuser (or Admin/Manager), open Django admin, and confirm core models (Ingredient, Product, Recipe, RecipeModifier, ImportLog, Order) are visible.
 - Permission enforcement: create a user without `change_ingredient` and confirm edit/delete buttons disappear while view-only pages still load.
 - User creation: add a new user through the app’s user management flow, set a password, and verify login/logout works.
+- Delete `Test User` from Admin
 
-## Permissions Testing
+### Permissions Testing
 | Group         | Can View           | Can Add/Edit                              | Can Import | Can Export | Can Access /admin | Can Delete |
 | ------------- | ------------------ | ----------------------------------------- | ---------- | ---------- | ----------------- | ---------- |
 | **Superuser** | ✅                  | ✅                                         | ✅          | ✅          | ✅                 | ✅          |
-| **Manager**   | ✅                  | ✅                                         | ✅          | ✅          | ✅                 | ❌          |
+| **Manager**   | ✅                  | ✅                                         | ✅          | ✅          | ✅                 | ✅          |
 | **Barista**   | ✅                  | ✅ (recipes, mods, ingredients, inventory) | ❌          | ❌          | ❌                 | ❌          |
 | **Inventory** | ✅ (inventory only) | ✅ (inventory)                             | ❌          | ❌          | ❌                 | ❌          |

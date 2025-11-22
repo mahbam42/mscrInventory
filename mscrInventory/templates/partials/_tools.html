@@ -24,32 +24,32 @@
     {% endif %}
 
     {% if perms.mscrInventory.view_ingredient %}
-    <a href="{% url 'export_inventory_csv' %}" class="btn btn-outline-secondary">
+    <a href="{% url 'export_inventory_csv' %}" class="btn btn-sm btn-outline-secondary">
       📤 Export Inventory CSV
     </a>
     {% endif %}
   {% endif %}
 
   {% if perms.mscrInventory.view_recipemodifier %}
-    <a class="btn btn-outline-primary mt-3 mt-lg-0" href="{% url 'modifier_explorer' %}">Open Modifier Explorer</a>
+    <a class="btn btn-sm btn-outline-primary mt-3 mt-lg-0" href="{% url 'modifier_explorer' %}">Open Modifier Explorer</a>
   {% endif %}
 
   {% if perms.mscrInventory.change_ingredient %}
     {% if unresolved_count %}
-      <button class="btn btn-warning"
+      <button class="btn btn-sm btn-warning"
               hx-get="{% url 'imports_unmapped_items' %}"
               hx-target="#modal-body"
               hx-trigger="click">
         ⚠️ View Unmapped Items ({{ unresolved_count }})
       </button>
-      <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
         View Full Dashboard
       </a>
     {% else %}
-      <button class="btn btn-outline-success" disabled>
+      <button class="btn btn-sm btn-outline-success" disabled>
         ✅ All items mapped
       </button>
-      <a class="btn btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'imports_unmapped_items' %}">
         View Full Dashboard
       </a>
     {% endif %}
