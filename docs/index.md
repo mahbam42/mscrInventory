@@ -56,6 +56,13 @@ The app includes a robust matching engine with support for:
 ➡️ View:  
 [Unmapped Items Dashboard](06_Imports/03_Unmapped_Items.md)
 
+### Packaging Ingredients
+These items support richer metadata to ensure accurate inventory tracking and automatic “expands-to” behavior during usage calculations:
+
+- [Dynamic Scaling](05_Recipes/03_Scaling.md)
+- Rebalance Main Liquid
+  : The `_aggregate_usage.py` pipeline applies a “Rebalance main liquid” step that backfills the primary liquid (brew/tea/milk) after modifiers and packaging adjustments so cup capacity stays accurate for each size. See the [Importers API](16_API/importers.md) for implementation details.
+
 ---
 
 ## 📈 Reporting & Analytics
