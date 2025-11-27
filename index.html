@@ -359,6 +359,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#packaging-ingredients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packaging Ingredients
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2993,6 +3004,17 @@
 </ul>
 <p>➡️ View:<br />
 <a href="06_Imports/03_Unmapped_Items/">Unmapped Items Dashboard</a></p>
+<h3 id="packaging-ingredients">Packaging Ingredients<a class="headerlink" href="#packaging-ingredients" title="Permanent link">&para;</a></h3>
+<p>These items support richer metadata to ensure accurate inventory tracking and automatic “expands-to” behavior during usage calculations:</p>
+<ul>
+<li><a href="05_Recipes/03_Scaling/">Dynamic Scaling</a></li>
+<li>
+<dl>
+<dt>Rebalance Main Liquid</dt>
+<dd>The <code>_aggregate_usage.py</code> pipeline applies a “Rebalance main liquid” step that backfills the primary liquid (brew/tea/milk) after modifiers and packaging adjustments so cup capacity stays accurate for each size. See the <a href="16_API/importers/">Importers API</a> for implementation details.</dd>
+</dl>
+</li>
+</ul>
 <hr />
 <h2 id="reporting-analytics">📈 Reporting &amp; Analytics<a class="headerlink" href="#reporting-analytics" title="Permanent link">&para;</a></h2>
 <p>Gain clarity on:</p>

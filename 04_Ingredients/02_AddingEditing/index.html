@@ -1455,6 +1455,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Edit an Existing Ingredient">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-packaging-for-a-cup-lid-or-other-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Packaging for a Cup, Lid, or Other Container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editing-coffee-roasts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Coffee Roasts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2929,6 +2957,26 @@
 <li>Update cost, type, or metadata.  </li>
 <li>Save changes.</li>
 </ol>
+<h3 id="editing-packaging-for-a-cup-lid-or-other-container">Editing Packaging for a Cup, Lid, or Other Container<a class="headerlink" href="#editing-packaging-for-a-cup-lid-or-other-container" title="Permanent link">&para;</a></h3>
+<p>If an ingredient is a type of packaging, an additional Packaging Options inline section will appear when editing it.</p>
+<p>Within this inline you can configure:</p>
+<ul>
+<li>Container Type – Classifies the packaging (Cup, Lid, Sleeve, etc.).</li>
+<li>Size Labels – Assign one or more labels (e.g., “12oz”, “Large”).</li>
+<li>Multiplier – Used to convert the packaging’s base unit to the size used in inventory calculations.</li>
+<li>Temperature – Whether this packaging is for hot or iced items.</li>
+<li>Expands To – Optional mapping to other packaging components (e.g., a cup expands to include its matching lid).</li>
+</ul>
+<p>After adjustments, click <code>Save</code>.
+The system will automatically update downstream mappings and usage logic.</p>
+<h3 id="editing-coffee-roasts">Editing Coffee Roasts<a class="headerlink" href="#editing-coffee-roasts" title="Permanent link">&para;</a></h3>
+<p>If the ingredient is a Coffee Roast, a dedicated inline will appear with fields for:</p>
+<ul>
+<li>Roast Level</li>
+<li>Grind Type</li>
+<li>Bag Size</li>
+</ul>
+<p>These fields are automatically displayed based on ingredient type and are used for reporting, recipe costs, and importer logic.</p>
 <h2 id="archiving-ingredients">Archiving Ingredients<a class="headerlink" href="#archiving-ingredients" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Use <strong>Archive</strong> instead of Delete.  </li>
