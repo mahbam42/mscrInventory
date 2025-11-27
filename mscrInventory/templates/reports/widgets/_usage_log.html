@@ -24,7 +24,7 @@
           <tr>
             <td data-order="{{ entry.date|date:'U' }}">{{ entry.date }}</td>
             <td>{{ entry.ingredient.name }}</td>
-            <td class="text-end">{{ entry.quantity_used|floatformat:3 }}</td>
+            <td class="text-end"><span class="text-nowrap">{{ entry.quantity_used|floatformat:3 }} {{ entry.ingredient.unit_type|default_if_none:"units" }}</span></td>
             <td>{{ entry.get_source_display }}</td>
             <td>{{ entry.note|default:"—" }}</td>
           </tr>

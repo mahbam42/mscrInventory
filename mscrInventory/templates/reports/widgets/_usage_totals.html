@@ -17,10 +17,10 @@
           </tr>
         </thead>
         <tbody>
-          {% for ingredient, qty in usage_totals %}
+          {% for row in usage_totals %}
           <tr>
-            <td>{{ ingredient }}</td>
-            <td class="text-end">{{ qty|floatformat:3 }}</td>
+            <td>{{ row.ingredient }}</td>
+            <td class="text-end"><span class="text-nowrap">{{ row.quantity|floatformat:3 }} {{ row.unit }}</span></td>
           </tr>
           {% empty %}
           <tr class="table-placeholder">

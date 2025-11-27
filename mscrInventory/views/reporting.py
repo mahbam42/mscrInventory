@@ -79,7 +79,7 @@ def reporting_dashboard_view(request):
 
     usage_logs = (
         IngredientUsageLog.objects
-        .select_related("ingredient")
+        .select_related("ingredient", "ingredient__unit_type")
         .filter(date__gte=start, date__lte=end)
         .order_by("-date", "ingredient__name")
     )
@@ -92,7 +92,7 @@ def reporting_dashboard_view(request):
         "category_summary": category_summary,
         "profitability": profitability,
         "trend": trend,
-        "usage_totals": sorted(usage_totals.items()),
+        "usage_totals": usage_totals,
         "usage_logs": usage_logs,
         "linkage": linkage,
         "top_products": top_products,

@@ -16,6 +16,7 @@ from mscrInventory.models import (
     RecipeItem,
     RecipeModifier,
     StockEntry,
+    UnitType,
 )
 from tests.factories import IngredientFactory
 from mscrInventory.utils import reports
@@ -184,7 +185,9 @@ def test_reporting_aggregations():
     assert trend[0]["date_obj"] == report_date
 
     usage_totals = reports.aggregate_usage_totals(report_date, report_date)
-    assert usage_totals["Milk"] == Decimal("8.0")
+    milk_row = next(row for row in usage_totals if row["ingredient"] == "Milk")
+    assert milk_row["quantity"] == Decimal("8.0")
+    assert milk_row["unit"] == "units"
 
     linkage = reports.validate_cogs_linkage(report_date, report_date)
     assert linkage["missing_cost_ingredients"] == ["Pumpkin Syrup"]
@@ -281,7 +284,9 @@ def test_cogs_trend_and_usage_totals_follow_order_dates():
     assert trend[1]["variance"] == Decimal("4.00")
 
     totals = reports.aggregate_usage_totals(date_a, date_b)
-    assert totals[ingredient.name] == Decimal("4.000")
+    total_row = next(row for row in totals if row["ingredient"] == ingredient.name)
+    assert total_row["quantity"] == Decimal("4.000")
+    assert total_row["unit"] == ingredient.unit_type.abbreviation
 
 
 @pytest.mark.django_db
@@ -342,3 +347,52 @@ def test_top_rank_changes_include_previous_window():
     mocha_mod = next(row for row in modifiers if row["modifier"].lower() == "mocha")
     assert mocha_mod["previous_rank"] is None
     assert mocha_mod["rank_delta"] is None
+
+
+@pytest.mark.django_db
+def test_usage_detail_by_day_includes_units():
+    day = datetime.date(2024, 2, 10)
+    ingredient = IngredientFactory(unit_type__name="Ounce", unit_type__abbreviation="oz")
+    IngredientUsageLog.objects.create(
+        ingredient=ingredient,
+        date=day,
+        quantity_used=Decimal("2.500"),
+        source="manual",
+    )
+
+    rows = reports.usage_detail_by_day(day, day)
+    assert rows[0]["unit"] == "oz"
+    assert rows[0]["qty_used"] == Decimal("2.500")
+
+
+@pytest.mark.django_db
+def test_top_modifiers_include_unit_labels():
+    today = datetime.date(2024, 5, 5)
+    unit_type = UnitType.objects.create(name="Pump", abbreviation="pump")
+    ingredient_type = IngredientType.objects.create(name="Syrup")
+    vanilla = IngredientFactory(name="Vanilla Syrup", unit_type=unit_type, type=ingredient_type)
+    RecipeModifier.objects.create(
+        name="vanilla",
+        ingredient_type=ingredient_type,
+        ingredient=vanilla,
+        base_quantity=Decimal("1.00"),
+        unit="",
+    )
+
+    order = Order.objects.create(
+        order_id="tm-1",
+        platform="square",
+        order_date=timezone.make_aware(datetime.datetime.combine(today, datetime.time(9, 0))),
+        total_amount=Decimal("5.00"),
+    )
+    OrderItem.objects.create(
+        order=order,
+        product=Product.objects.create(name="Latte", sku="LAT-1"),
+        quantity=1,
+        unit_price=Decimal("5.00"),
+        variant_info={"modifiers": ["Vanilla"]},
+    )
+
+    rows = reports.top_modifiers(today, today)
+    assert rows[0]["modifier"] == vanilla.name
+    assert rows[0]["unit"] == "pump"

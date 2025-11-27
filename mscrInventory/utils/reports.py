@@ -6,16 +6,10 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Iterable, List, Tuple
 
 from django.db.models import Sum, F, Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 
-from ..models import (
-    Ingredient,
-    IngredientUsageLog,
-    OrderItem,
-    Product,
-    RecipeModifier,
-    StockEntry,
-)
+from ..models import Ingredient, IngredientUsageLog, OrderItem, Product, RecipeModifier, StockEntry, UnitType
 
 
 SIZE_DESCRIPTOR_TOKENS: set[str] = {
@@ -79,6 +73,14 @@ def _day_window_utc(day: datetime.date, tzname: str = "America/New_York") -> Tup
     start_local = tz.localize(datetime.datetime.combine(day, datetime.time.min))
     end_local = tz.localize(datetime.datetime.combine(day, datetime.time.max))
     return start_local.astimezone(datetime.timezone.utc), end_local.astimezone(datetime.timezone.utc)
+
+
+def _unit_label(unit_type: UnitType | None) -> str:
+    """Return a concise unit label, defaulting to 'units' when unset."""
+
+    if not unit_type:
+        return "units"
+    return unit_type.abbreviation or unit_type.name
 
 
 def average_cost_as_of_date(ingredient_id: int, day: datetime.date) -> Decimal:
@@ -159,26 +161,32 @@ def cogs_by_day(start: datetime.date, end: datetime.date, tzname: str = "America
 def usage_detail_by_day(start: datetime.date, end: datetime.date) -> List[Dict]:
     """
     Returns detailed rows suitable for CSV:
-      date, ingredient, qty_used, unit_cost_as_of_day, cogs
+      date, ingredient, qty_used, unit, unit_cost_as_of_day, cogs
     """
     out: List[Dict] = []
     cur = start
     while cur <= end:
         # Aggregate all usage logs for the day by ingredient
         day_rows = (IngredientUsageLog.objects
-                    .select_related("ingredient")
+                    .select_related("ingredient", "ingredient__unit_type")
                     .filter(date=cur)
-                    .values("ingredient_id", "ingredient__name")
+                    .values("ingredient_id", "ingredient__name", "ingredient__unit_type__name", "ingredient__unit_type__abbreviation")
                     .annotate(qty_used=Sum("quantity_used"))
                     .order_by("ingredient__name"))
         for r in day_rows:
             unit_cost = average_cost_as_of_date(r["ingredient_id"], cur)
             qty = r["qty_used"] or Decimal(0)
             cogs = (qty * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            unit_label = (
+                r["ingredient__unit_type__abbreviation"]
+                or r["ingredient__unit_type__name"]
+                or "units"
+            )
             out.append({
                 "date": cur.isoformat(),
                 "ingredient": r["ingredient__name"],
                 "qty_used": qty.quantize(Decimal("0.001")),
+                "unit": unit_label,
                 "unit_cost": unit_cost,
                 "cogs": cogs,
             })
@@ -335,18 +343,27 @@ def cogs_trend_with_variance(start: datetime.date, end: datetime.date, tzname: s
     return trend
 
 
-def aggregate_usage_totals(start: datetime.date, end: datetime.date) -> Dict[str, Decimal]:
-    """Aggregate ingredient usage quantities for the date range."""
+def aggregate_usage_totals(start: datetime.date, end: datetime.date) -> List[Dict[str, Decimal | str]]:
+    """Aggregate ingredient usage quantities for the date range with unit labels."""
 
-    totals: Dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
+    totals: Dict[int, Dict[str, Decimal | str]] = defaultdict(lambda: {
+        "ingredient": "",
+        "unit": "units",
+        "quantity": Decimal("0"),
+    })
     logs = (
         IngredientUsageLog.objects
-        .select_related("ingredient")
+        .select_related("ingredient", "ingredient__unit_type")
         .filter(date__gte=start, date__lte=end)
     )
     for log in logs:
-        totals[log.ingredient.name] += Decimal(log.quantity_used)
-    return dict(totals)
+        ingredient = log.ingredient
+        bucket = totals[ingredient.id]
+        if not bucket["ingredient"]:
+            bucket["ingredient"] = ingredient.name
+            bucket["unit"] = _unit_label(getattr(ingredient, "unit_type", None))
+        bucket["quantity"] += Decimal(log.quantity_used)
+    return sorted(totals.values(), key=lambda row: row["ingredient"])
 
 
 def validate_cogs_linkage(start: datetime.date, end: datetime.date) -> Dict[str, List[str]]:
@@ -567,10 +584,18 @@ def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int | None
         return []
 
     raw_names = {label for bucket in modifier_totals.values() for label in bucket["raw_labels"]}
+    normalized_names = {_normalize_descriptor_token(label) for label in raw_names}
     modifier_qs = (
         RecipeModifier.objects
         .select_related("ingredient", "ingredient__unit_type")
-        .filter(Q(name__in=raw_names) | Q(ingredient__name__in=raw_names))
+        .annotate(
+            norm_name=Lower("name"),
+            norm_ing_name=Lower("ingredient__name"),
+        )
+        .filter(
+            Q(norm_name__in=normalized_names)
+            | Q(norm_ing_name__in=normalized_names)
+        )
     )
 
     resolved_modifiers: Dict[str, RecipeModifier] = {}
@@ -595,10 +620,13 @@ def top_modifiers(start: datetime.date, end: datetime.date, *, limit: int | None
             if modifier_obj.ingredient:
                 display_name = modifier_obj.ingredient.name
                 unit_type = getattr(modifier_obj.ingredient, "unit_type", None)
-                unit = modifier_obj.unit or getattr(unit_type, "abbreviation", None) or getattr(unit_type, "name", None)
+                unit = modifier_obj.unit or _unit_label(unit_type)
             else:
                 display_name = modifier_obj.name
                 unit = modifier_obj.unit
+
+        if unit is None:
+            unit = "units"
 
         rows.append({
             "modifier": display_name,

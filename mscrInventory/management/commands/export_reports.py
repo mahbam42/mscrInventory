@@ -63,12 +63,13 @@ class Command(BaseCommand):
         usage_path = outdir / f"usage_detail_{start}_{end}.csv"
         with usage_path.open("w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["date", "ingredient", "qty_used", "unit_cost_as_of_day", "cogs"])
+            writer.writerow(["date", "ingredient", "qty_used", "unit", "unit_cost_as_of_day", "cogs"])
             for r in usage_rows:
                 writer.writerow([
                     r["date"],
                     r["ingredient"],
                     f"{r['qty_used']:.3f}",
+                    r["unit"],
                     f"{r['unit_cost']:.4f}",
                     f"{r['cogs']:.2f}",
                 ])
@@ -159,9 +160,9 @@ class Command(BaseCommand):
 
             writer.writerow([])
             writer.writerow(["Ingredient Usage Totals"])
-            writer.writerow(["ingredient", "quantity"])
-            for name, qty in sorted(usage_totals.items()):
-                writer.writerow([name, f"{qty:.3f}"])
+            writer.writerow(["ingredient", "quantity", "unit"])
+            for row in usage_totals:
+                writer.writerow([row["ingredient"], f"{row['quantity']:.3f}", row["unit"]])
 
         self.stdout.write(self.style.SUCCESS(f"Wrote: {cogs_path}"))
         self.stdout.write(self.style.SUCCESS(f"Wrote: {usage_path}"))

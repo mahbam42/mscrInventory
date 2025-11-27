@@ -19,3 +19,6 @@ For each order, the system multiplies:
 - Validate recipe accuracy  
 
 **TIP:** Usage anomalies often indicate a mismatch in recipe scaling or modifier rules.
+
+## Units
+Ingredient usage tables and exports display the unit type next to each quantity (for example, `12.000 oz`). Set a unit type on each ingredient to avoid the generic `units` label.
