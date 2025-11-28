@@ -44,4 +44,4 @@ For a complete explanation of:
 - how occurrence tracking works  
 - how Ignore/Resolve/Create logic behaves  
 
-**See [Appendix B – Unmapped Items Usage](13_Appendix_B_Unmapped_Items_Usage/01_UnmappedUsage.md).**
+**See [Appendix B – Unmapped Items Usage](../13_Appendix_B_Unmapped_Items_Usage/01_UnmappedUsage.md).**
