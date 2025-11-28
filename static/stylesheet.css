@@ -16,6 +16,11 @@
   color: white;
 }
 
+#explorerModifiers span.badge {
+  overflow: scroll;
+  max-width: 16rem;
+}
+
 #createUserModal .modal-body,
 #editUserModal .modal-body {
   max-height: calc(95vh - 10rem);

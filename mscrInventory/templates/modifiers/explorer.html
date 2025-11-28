@@ -61,7 +61,7 @@
 
 {% for key, rows in grouped.items %}
   {% if rows %}
-  <div class="card shadow-sm mb-4">
+  <div id="explorerModifiers" class="card shadow-sm mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h3 class="h5 mb-0">
         {% if key == 'known' %}✅ Known Modifiers{% elif key == 'alias' %}🔁 Aliased Modifiers{% elif key == 'fuzzy' %}⚠️ Fuzzy Matches{% else %}❓ Unknown Modifiers{% endif %}

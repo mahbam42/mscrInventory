@@ -21,6 +21,14 @@ $doordash: rgb(235, 23, 0);
     color: white;
 }
 
+// Modifier Explorer Badge Fix
+#explorerModifiers {
+    span.badge {
+        overflow: scroll;
+        max-width: 16rem;
+    }
+}
+
 // Create User Rules
 #createUserModal .modal-body,
 #editUserModal .modal-body {
