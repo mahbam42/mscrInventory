@@ -48,6 +48,7 @@ class IngredientFactory(factory.django.DjangoModelFactory):
 class ProductFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Product
+        skip_postgeneration_save=True #might solve the warnings issue
 
     name = factory.Sequence(lambda n: f"Product {n}")
     sku = factory.Sequence(lambda n: f"SKU{n:05d}")
